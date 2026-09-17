@@ -1,0 +1,80 @@
+@import "tailwindcss";
+
+@theme {
+  /* Brand Base Colors */
+  --color-primary: #e07a5f;
+  --color-secondary: #81b29a;
+  --color-dark: #3d405b;
+  --color-light: #f4f1de;
+
+  /* Primary Shades (Cam đất ấm: 50-950) */
+  --color-primary-50: #fdf8f6;
+  --color-primary-100: #f8e9e4;
+  --color-primary-200: #f2d3c9;
+  --color-primary-300: #ebbdad;
+  --color-primary-400: #e59b86;
+  --color-primary-500: #e07a5f;
+  --color-primary-600: #ca5e42;
+  --color-primary-700: #a8482e;
+  --color-primary-800: #873b26;
+  --color-primary-900: #6e3222;
+  --color-primary-950: #3d170e;
+
+  /* Secondary Shades (Xanh rêu nhạt: 50-950) */
+  --color-secondary-50: #f4f8f6;
+  --color-secondary-100: #e6f0eb;
+  --color-secondary-200: #cfe2d7;
+  --color-secondary-300: #b2d0bf;
+  --color-secondary-400: #96c0ab;
+  --color-secondary-500: #81b29a;
+  --color-secondary-600: #64977e;
+  --color-secondary-700: #4e7864;
+  --color-secondary-800: #406051;
+  --color-secondary-900: #365044;
+  --color-secondary-950: #1c2e26;
+
+  /* Dark Shades (Nâu than: 50-950) */
+  --color-dark-50: #f5f5f7;
+  --color-dark-100: #e6e7ec;
+  --color-dark-200: #cecfdb;
+  --color-dark-300: #abadc2;
+  --color-dark-400: #7a7e9f;
+  --color-dark-500: #505477;
+  --color-dark-600: #3d405b;
+  --color-dark-700: #31344a;
+  --color-dark-800: #27293a;
+  --color-dark-900: #21222e;
+  --color-dark-950: #13141c;
+
+  /* Light Shades (Kem nhạt: 50-950) */
+  --color-light-50: #fdfdfb;
+  --color-light-100: #faf8f0;
+  --color-light-200: #f4f1de;
+  --color-light-300: #ede7c5;
+  --color-light-400: #e2d7a2;
+  --color-light-500: #d3c37c;
+  --color-light-600: #beac5e;
+  --color-light-700: #978749;
+  --color-light-800: #796c3e;
+  --color-light-900: #645936;
+  --color-light-950: #37311c;
+
+  /* Semantic UI Kit Tokens */
+  --color-background: var(--color-light);
+  --color-foreground: var(--color-dark);
+
+  /* Typography */
+  --font-sans: var(--font-inter), sans-serif;
+  --font-mono: var(--font-geist-mono);
+}
+
+:root {
+  --background: var(--color-light);
+  --foreground: var(--color-dark);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
