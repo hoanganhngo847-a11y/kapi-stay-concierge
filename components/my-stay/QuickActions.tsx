@@ -7,7 +7,7 @@ interface QuickActionsProps {
     onCheckoutSuccess?: () => void;
 }
 
-export default function QuickActions({ _bookingId, onCheckoutSuccess }: QuickActionsProps) {
+export default function QuickActions({ onCheckoutSuccess }: QuickActionsProps) {
     const [isCheckingOut, setIsCheckingOut] = useState(false);
 
     const handleCheckout = async () => {

@@ -7,16 +7,13 @@ import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { KeyRound, Search, ArrowRight, ShieldCheck, Phone } from "lucide-react";
 import { Button, Input } from "@/components/ui";
-
 function MyStayContent() {
   const searchParams = useSearchParams();
   const initialCode = searchParams.get("booking") || "";
-  const isWelcome = searchParams.get("welcome") === "1";
-  const [bookingCode, setBookingCode] = React.useState(initialCode);
   const [prevCode, setPrevCode] = React.useState(initialCode);
   const [errorMessage, setErrorMessage] = React.useState("");
   const [isLoading, setIsLoading] = React.useState(false);
-
+  const [bookingCode, setBookingCode] = React.useState(initialCode);
   // Sync state if search param changes during navigation without synchronous setState in effect
   if (initialCode !== prevCode) {
     setPrevCode(initialCode);
