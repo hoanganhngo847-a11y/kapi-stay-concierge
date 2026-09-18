@@ -1,19 +1,19 @@
 "use client";
-
+import KeyCard from "@/components/my-stay/KeyCard";
+import WifiWidget from "@/components/my-stay/WifiWidget";
+import QuickActions from "@/components/my-stay/QuickActions";
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { KeyRound, Search, ArrowRight, ShieldCheck, Phone } from "lucide-react";
 import { Button, Input } from "@/components/ui";
-
 function MyStayContent() {
   const searchParams = useSearchParams();
-  const initialCode = searchParams.get("code") || "";
-  const [bookingCode, setBookingCode] = React.useState(initialCode);
+  const initialCode = searchParams.get("booking") || "";
   const [prevCode, setPrevCode] = React.useState(initialCode);
   const [errorMessage, setErrorMessage] = React.useState("");
   const [isLoading, setIsLoading] = React.useState(false);
-
+  const [bookingCode, setBookingCode] = React.useState(initialCode);
   // Sync state if search param changes during navigation without synchronous setState in effect
   if (initialCode !== prevCode) {
     setPrevCode(initialCode);
@@ -83,6 +83,20 @@ function MyStayContent() {
           </div>
         </div>
       </div>
+      {/* Component của Chi */}
+      <KeyCard
+        roomName="Phòng 301 - Deluxe Studio"
+        passcode="889966"
+        address="Số 12 Ngõ 45 Chùa Bộc, Đống Đa, Hà Nội"
+        mapUrl="https://maps.google.com"
+      />
+
+      <WifiWidget
+        ssid="Kapi_Stay_P301"
+        password="kapihouse2026"
+      />
+
+      <QuickActions />
     </div>
   );
 }
