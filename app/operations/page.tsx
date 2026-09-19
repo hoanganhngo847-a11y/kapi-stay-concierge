@@ -1,3 +1,4 @@
+// Route tạm thời /operations, chờ Hoàng Anh chốt canonical route
 "use client";
 
 import * as React from "react";
@@ -5,17 +6,13 @@ import Link from "next/link";
 import {
   ArrowLeft,
   Building2,
-  RefreshCw,
   Calendar,
-  Sparkles,
   LifeBuoy,
   DoorOpen,
   LogIn,
   LogOut,
   CheckCircle2,
   Phone,
-  ShieldCheck,
-  Filter,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -34,7 +31,7 @@ import {
   type TicketStatus,
 } from "@/components/operations/TicketOperationsList";
 
-// Initial seed-aligned operational data for Kapi Stay
+// DEMO UI — dữ liệu mẫu tĩnh, chưa kết nối database
 const INITIAL_ROOMS: RoomOperationItem[] = [
   {
     id: "a1111111-1111-1111-1111-111111111111",
@@ -76,6 +73,7 @@ const INITIAL_ROOMS: RoomOperationItem[] = [
   },
 ];
 
+// DEMO UI — dữ liệu mẫu tĩnh, chưa kết nối database
 const INITIAL_TICKETS: OperationTicket[] = [
   {
     id: "ticket-101",
@@ -83,7 +81,7 @@ const INITIAL_TICKETS: OperationTicket[] = [
     guestName: "Nguyễn Văn An",
     category: "amenity",
     description: "Nhờ homestay hỗ trợ thêm 01 bộ khăn tắm và nước khoáng đóng chai.",
-    status: "open",
+    status: "pending",
     createdAt: "Hôm nay 09:45",
     priority: "normal",
   },
@@ -119,6 +117,7 @@ interface ScheduleItem {
   status: "pending" | "completed";
 }
 
+// DEMO UI — dữ liệu mẫu tĩnh, chưa kết nối database
 const INITIAL_SCHEDULE: ScheduleItem[] = [
   {
     id: "sch-1",
@@ -273,20 +272,18 @@ export default function OperationsDashboardPage() {
 
         {/* Right Header Badges & Actions */}
         <div className="flex items-center gap-2.5 self-start md:self-auto">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 font-medium">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Hệ thống trực tiếp</span>
+          {/* DEMO UI — không kết nối live data */}
+          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-xs text-amber-800 font-medium">
+            <span className="w-2 h-2 rounded-full bg-amber-400" />
+            <span>DEMO UI</span>
           </div>
 
-          <Button
-            size="sm"
-            variant="outline"
-            isLoading={isRefreshing}
-            leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
-            onClick={handleRefresh}
-          >
-            Làm mới ({lastRefreshed})
-          </Button>
+          {isRefreshing && (
+            <div className="inline-flex items-center gap-1.5 text-xs text-dark/50">
+              <span className="w-3.5 h-3.5 rounded-full border-2 border-dark/20 border-t-dark/60 animate-spin" />
+              <span>Đang tải...</span>
+            </div>
+          )}
 
           <Link href="/rooms" target="_blank">
             <Button size="sm" variant="ghost">

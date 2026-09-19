@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { cn } from "@/lib/utils";
 
-export type TicketStatus = "open" | "in_progress" | "resolved";
+export type TicketStatus = "pending" | "in_progress" | "resolved";
 
 export interface OperationTicket {
   id: string;
@@ -76,7 +76,7 @@ export function TicketOperationsList({
 
   const getStatusBadge = (status: TicketStatus) => {
     switch (status) {
-      case "open":
+      case "pending":
         return (
           <Badge variant="warning" size="sm" icon={<AlertCircle className="w-3 h-3" />}>
             Chờ tiếp nhận
@@ -117,8 +117,8 @@ export function TicketOperationsList({
           {[
             { id: "all", label: `Tất cả (${tickets.length})` },
             {
-              id: "open",
-              label: `Chờ xử lý (${tickets.filter((t) => t.status === "open").length})`,
+              id: "pending",
+              label: `Chờ xử lý (${tickets.filter((t) => t.status === "pending").length})`,
             },
             {
               id: "in_progress",
@@ -200,7 +200,7 @@ export function TicketOperationsList({
 
               {/* Action Buttons */}
               <div className="flex items-center gap-2 sm:self-center shrink-0">
-                {ticket.status === "open" && (
+                {ticket.status === "pending" && (
                   <Button
                     size="sm"
                     variant="primary"
