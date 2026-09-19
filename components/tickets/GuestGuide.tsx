@@ -43,6 +43,8 @@ export interface DeviceInstruction {
   duration?: string; // Thời lượng video (ví dụ: '0:20')
 }
 
+export type GuideCategory = DeviceInstruction;
+
 export type SpotCategory = "food" | "cafe" | "pharmacy";
 
 export interface LocalSpot {
@@ -71,14 +73,14 @@ export const DEFAULT_DEVICE_INSTRUCTIONS: DeviceInstruction[] = [
     title: "Khóa cửa thông minh (Digital Key & PIN)",
     category: "lock",
     summary:
-      "Cách mở cửa an toàn bằng mã số PIN cá nhân hoặc thẻ từ RFID được cấp trong kỳ nghỉ.",
+      "Cách mở cửa an toàn bằng mã số PIN hoặc phương thức truy cập được cấp cho kỳ nghỉ của bạn.",
     steps: [
       "Chạm tay nhẹ vào mặt kính cảm ứng để kích hoạt bàn phím phát sáng.",
-      "Nhập dãy 6 chữ số mã PIN cá nhân được cấp trong mục 'My Stay'.",
-      "Nhấn phím dấu thăng (#) hoặc chờ đèn LED chuyển sang màu xanh lá cây kèm tiếng bíp.",
-      "Gạt tay nắm cửa xuống để mở. Cửa sẽ tự động khóa lại sau 5 giây khi đóng kín.",
+      "Nhập mã PIN do quản gia hoặc hệ thống cung cấp (hiển thị trong mục My Stay hoặc tin nhắn nhận phòng).",
+      "Nhấn phím xác nhận theo chỉ dẫn tại khóa (# hoặc *) hoặc chờ đèn LED chuyển sang màu xanh kèm tiếng bíp.",
+      "Gạt tay nắm cửa xuống để mở. Cửa sẽ tự động khóa lại sau khi đóng kín.",
     ],
-    tips: "Nếu nhập sai quá 5 lần, khóa sẽ tạm ngừng nhận tín hiệu trong 3 phút. Hãy kiểm tra lại mã trên điện thoại.",
+    tips: "Nếu nhập sai nhiều lần, khóa có thể tạm ngừng nhận tín hiệu trong vài phút. Vui lòng kiểm tra lại mã trên My Stay hoặc liên hệ quản gia để được hỗ trợ.",
     mediaType: "video",
     mediaUrl: "",
     thumbnailUrl: "",
@@ -86,17 +88,17 @@ export const DEFAULT_DEVICE_INSTRUCTIONS: DeviceInstruction[] = [
   },
   {
     id: "dev-water-heater",
-    title: "Bình nóng lạnh & Vòi sen điều nhiệt",
+    title: "Bình nóng lạnh & Vòi nước phòng tắm",
     category: "water_heater",
     summary:
-      "Hướng dẫn bật bình nước nóng đúng cách và sử dụng vòi sen có khóa an toàn nhiệt độ.",
+      "Hướng dẫn bật bình nước nóng an toàn và điều chỉnh nhiệt độ nước khi sử dụng phòng tắm.",
     steps: [
-      "Bật công tắc bình nóng lạnh (có đèn đỏ báo nguồn) ở cạnh cửa phòng tắm trước khi dùng 10 - 15 phút.",
-      "Khi đèn chuyển sang màu xanh lá cây hoặc sau 15 phút, nước đã đạt độ nóng lý tưởng.",
-      "Tại vòi sen, xoay núm điều nhiệt theo chiều mũi tên. Nút đỏ chống bỏng giữ nhiệt độ ở mức an toàn 38°C.",
-      "Để tiết kiệm điện và đảm bảo an toàn tối đa, vui lòng tắt công tắc bình nóng lạnh trước khi bước vào tắm.",
+      "Bật công tắc bình nóng lạnh (thường có đèn báo nguồn cạnh cửa phòng tắm) trước khi dùng 10 - 15 phút.",
+      "Kiểm tra đèn báo trạng thái; khi nước đủ nhiệt độ theo thiết kế của bình, đèn báo sẽ chuyển màu hoặc ngắt tải.",
+      "Tại vòi sen hoặc bồn rửa, gạt cần điều chỉnh từ từ sang bên nóng và kiểm tra nhiệt độ nước trước khi sử dụng.",
+      "Để tiết kiệm điện và đảm bảo an toàn tối đa, khuyến nghị tắt công tắc bình nóng lạnh trước khi bước vào tắm.",
     ],
-    tips: "Hệ thống đã tích hợp aptomat chống giật ELCB tự ngắt ngay lập tức khi phát hiện rò rỉ điện.",
+    tips: "Nếu nước không nóng sau 15 phút hoặc có hiện tượng bất thường về điện nước, vui lòng ngắt công tắc và báo ngay cho lễ tân/quản gia.",
     mediaType: "image",
     mediaUrl: "",
     thumbnailUrl: "",
@@ -110,26 +112,26 @@ export const DEFAULT_DEVICE_INSTRUCTIONS: DeviceInstruction[] = [
     steps: [
       "Nhấn nút POWER (màu đỏ hoặc cam) trên điều khiển cầm tay để khởi động điều hòa.",
       "Cài đặt chế độ làm mát: Nhấn nút MODE và chọn biểu tượng Bông Tuyết (COOL).",
-      "Khuyến nghị cài đặt nhiệt độ từ 25°C đến 27°C để có giấc ngủ sâu và tránh sốc nhiệt.",
+      "Khuyến nghị cài đặt nhiệt độ từ 24°C đến 26°C để có giấc ngủ sâu và tiết kiệm năng lượng.",
       "Vào mùa nồm ẩm, có thể chuyển sang chế độ Giọt Nước (DRY) để hút ẩm không khí nhanh chóng.",
     ],
-    tips: "Hãy đóng kín cửa kính ban công và cửa chính khi bật điều hòa để phòng đạt độ lạnh nhanh nhất.",
+    tips: "Hãy đóng kín cửa sổ và cửa chính khi bật điều hòa để phòng đạt độ mát lý tưởng và tiết kiệm điện.",
     mediaType: "image",
     mediaUrl: "",
     thumbnailUrl: "",
   },
   {
     id: "dev-smart-tv",
-    title: "Smart TV & Chiếu màn hình điện thoại",
+    title: "Smart TV & Ứng dụng giải trí",
     category: "tv_media",
     summary:
-      "Kết nối Smart TV phòng với các ứng dụng giải trí Netflix, YouTube hoặc chia sẻ màn hình điện thoại.",
+      "Hướng dẫn mở Smart TV, truy cập ứng dụng giải trí hoặc chia sẻ màn hình điện thoại.",
     steps: [
-      "Sử dụng điều khiển TV bấm nút Nguồn để bật màn hình.",
-      "Chọn ứng dụng yêu thích trên thanh menu chính (YouTube, Netflix có sẵn tài khoản khách).",
-      "Để chiếu màn hình điện thoại: Kết nối điện thoại vào cùng mạng Wi-Fi của phòng, chọn tính năng AirPlay (iOS) hoặc Cast (Android).",
+      "Sử dụng điều khiển từ xa bấm nút Nguồn (Power) để bật TV.",
+      "Chọn ứng dụng giải trí yêu thích trên thanh menu chính (YouTube, trình duyệt hoặc đăng nhập ứng dụng cá nhân theo hướng dẫn tại phòng).",
+      "Để chiếu màn hình điện thoại: Đảm bảo điện thoại và TV kết nối cùng mạng Wi-Fi phòng, sau đó bật tính năng Phản chiếu màn hình (AirPlay trên iOS hoặc Cast/Smart View trên Android).",
     ],
-    tips: "Vui lòng không đăng xuất tài khoản trả phí có sẵn trên TV để phục vụ cho các khách lưu trú tiếp theo.",
+    tips: "Nếu đăng nhập tài khoản giải trí cá nhân (Netflix, YouTube Premium...), vui lòng ghi nhớ đăng xuất trước khi trả phòng để bảo mật thông tin.",
     mediaType: "video",
     mediaUrl: "",
     thumbnailUrl: "",
@@ -227,6 +229,8 @@ export const DEFAULT_LOCAL_SPOTS: LocalSpot[] = [
 
 export interface GuestGuideProps {
   className?: string;
+  propertyName?: string;
+  guideData?: GuideCategory[];
   deviceInstructions?: DeviceInstruction[];
   localSpots?: LocalSpot[];
   defaultTab?: "devices" | "local";
@@ -235,7 +239,9 @@ export interface GuestGuideProps {
 
 export function GuestGuide({
   className,
-  deviceInstructions = DEFAULT_DEVICE_INSTRUCTIONS,
+  propertyName,
+  guideData,
+  deviceInstructions,
   localSpots = DEFAULT_LOCAL_SPOTS,
   defaultTab = "devices",
   onReportIssueClick,
@@ -244,11 +250,15 @@ export function GuestGuide({
   const [selectedDeviceCategory, setSelectedDeviceCategory] = React.useState<string>("all");
   const [selectedSpotCategory, setSelectedSpotCategory] = React.useState<string>("all");
 
+  const effectiveInstructions = React.useMemo(() => {
+    return guideData || deviceInstructions || DEFAULT_DEVICE_INSTRUCTIONS;
+  }, [guideData, deviceInstructions]);
+
   // Lọc thiết bị theo category
   const filteredDevices = React.useMemo(() => {
-    if (selectedDeviceCategory === "all") return deviceInstructions;
-    return deviceInstructions.filter((d) => d.category === selectedDeviceCategory);
-  }, [deviceInstructions, selectedDeviceCategory]);
+    if (selectedDeviceCategory === "all") return effectiveInstructions;
+    return effectiveInstructions.filter((d) => d.category === selectedDeviceCategory);
+  }, [effectiveInstructions, selectedDeviceCategory]);
 
   // Lọc địa điểm theo category
   const filteredSpots = React.useMemo(() => {
@@ -302,11 +312,13 @@ export function GuestGuide({
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-primary" />
               <h2 className="text-xl sm:text-2xl font-bold text-dark tracking-tight">
-                Cẩm nang phòng & Tiện ích lưu trú
+                {propertyName
+                  ? `Cẩm nang lưu trú — ${propertyName}`
+                  : "Cẩm nang phòng & Tiện ích lưu trú"}
               </h2>
             </div>
             <p className="text-xs sm:text-sm text-dark/60 mt-1">
-              Hướng dẫn sử dụng thiết bị và khám phá các địa điểm tiện ích quanh homestay
+              Hướng dẫn sử dụng thiết bị và khám phá các địa điểm tiện ích quanh {propertyName || "homestay"}
             </p>
           </div>
 
@@ -345,7 +357,7 @@ export function GuestGuide({
                   : "bg-dark/10 text-dark/70"
               )}
             >
-              {deviceInstructions.length}
+              {effectiveInstructions.length}
             </span>
           </button>
 
@@ -512,6 +524,14 @@ export function GuestGuide({
       {/* ================= NỘI DUNG TAB 2: CẨM NANG ĐỊA PHƯƠNG ================= */}
       {activeTab === "local" && (
         <div className="space-y-6 animate-in fade-in duration-200">
+          {/* Thông báo dữ liệu mẫu tham khảo */}
+          <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200/80 flex items-center gap-2.5 text-xs text-amber-900 shadow-sm">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span className="font-medium">
+              Dữ liệu mẫu tham khảo - Danh sách địa điểm đang được cập nhật riêng cho từng cơ sở lưu trú.
+            </span>
+          </div>
+
           {/* Bộ lọc nhanh tiện ích xung quanh */}
           <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
             {[

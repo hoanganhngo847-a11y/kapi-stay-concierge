@@ -5,11 +5,9 @@ import {
   AlertCircle,
   CheckCircle2,
   ChevronDown,
-  ExternalLink,
-  Image as ImageIcon,
   Send,
 } from "lucide-react";
-import { Badge, Button, Input, Modal } from "@/components/ui";
+import { Badge, Button, Modal } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import type { Tables, TablesInsert } from "@/lib/database.types";
@@ -35,9 +33,8 @@ export interface TicketModalProps {
   onClose: () => void;
   bookingId?: string;
   roomId?: string;
-  userId?: string;
   onSuccess?: (ticket: Ticket) => void;
-  onSubmit?: (data: TicketFormData) => Promise<void> | void;
+  onSubmit?: (data: TicketFormData) => Promise<Ticket | void> | Ticket | void;
 }
 
 export const TICKET_CATEGORIES: {
@@ -72,38 +69,28 @@ export const TICKET_CATEGORIES: {
   },
 ];
 
-function isValidHttpUrl(urlString: string): boolean {
-  try {
-    const url = new URL(urlString);
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
 export function TicketModal({
   isOpen,
   onClose,
   bookingId,
   roomId,
-  userId,
   onSuccess,
   onSubmit,
 }: TicketModalProps) {
   const [prevIsOpen, setPrevIsOpen] = React.useState(isOpen);
   const [category, setCategory] = React.useState<TicketCategory | "">("");
   const [description, setDescription] = React.useState("");
-  const [imageUrl, setImageUrl] = React.useState("");
 
   const [errors, setErrors] = React.useState<{
     category?: string;
     description?: string;
-    imageUrl?: string;
   }>({});
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [submitError, setSubmitError] = React.useState<string | null>(null);
   const [isSuccess, setIsSuccess] = React.useState(false);
   const [submittedTicket, setSubmittedTicket] = React.useState<Ticket | null>(null);
+
+  const hasActiveStay = Boolean(bookingId && roomId);
 
   // Khôi phục trạng thái mặc định khi modal mở lại mà không gây cascading render trong effect
   if (isOpen !== prevIsOpen) {
@@ -111,7 +98,6 @@ export function TicketModal({
     if (isOpen) {
       setCategory("");
       setDescription("");
-      setImageUrl("");
       setErrors({});
       setSubmitError(null);
       setIsSuccess(false);
@@ -122,7 +108,6 @@ export function TicketModal({
   const handleResetForm = () => {
     setCategory("");
     setDescription("");
-    setImageUrl("");
     setErrors({});
     setSubmitError(null);
     setIsSuccess(false);
@@ -137,6 +122,17 @@ export function TicketModal({
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
+    // Kiểm tra điều kiện tiên quyết: Yêu cầu hỗ trợ phải gắn với kỳ lưu trú đang hoạt động
+    if (!bookingId || !roomId) {
+      setSubmitError(
+        "Yêu cầu hỗ trợ phải gắn với kỳ lưu trú đang hoạt động. Vui lòng mở lại từ trang My Stay."
+      );
+      return;
+    }
+
+    const activeBookingId = bookingId;
+    const activeRoomId = roomId;
+
     const validationErrors: typeof errors = {};
 
     if (!category) {
@@ -148,12 +144,6 @@ export function TicketModal({
       validationErrors.description = "Vui lòng nhập mô tả chi tiết sự cố";
     } else if (trimmedDescription.length < 5) {
       validationErrors.description = "Mô tả cần ít nhất 5 ký tự để lễ tân nắm bắt sự cố";
-    }
-
-    const trimmedImageUrl = imageUrl.trim();
-    if (trimmedImageUrl && !isValidHttpUrl(trimmedImageUrl)) {
-      validationErrors.imageUrl =
-        "Vui lòng nhập đúng liên kết hình ảnh (bắt đầu bằng http:// hoặc https://)";
     }
 
     if (Object.keys(validationErrors).length > 0) {
@@ -168,28 +158,19 @@ export function TicketModal({
     try {
       // 1. Trường hợp component nhận custom submit handler từ props
       if (onSubmit) {
-        await onSubmit({
+        const result = await onSubmit({
           category: category as TicketCategory,
           description: trimmedDescription,
-          imageUrl: trimmedImageUrl || undefined,
         });
 
-        const mockTicket: Ticket = {
-          id: `tk-${Date.now()}`,
-          booking_id: bookingId || "mock-booking-id",
-          room_id: roomId || "mock-room-id",
-          user_id: userId || "mock-user-id",
-          category: category as TicketCategory,
-          description: trimmedDescription,
-          media_paths: trimmedImageUrl ? [trimmedImageUrl] : [],
-          status: "pending",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-
-        setSubmittedTicket(mockTicket);
-        setIsSuccess(true);
-        onSuccess?.(mockTicket);
+        if (result) {
+          setSubmittedTicket(result);
+          setIsSuccess(true);
+          onSuccess?.(result);
+        } else {
+          setSubmittedTicket(null);
+          setIsSuccess(true);
+        }
         return;
       }
 
@@ -201,63 +182,27 @@ export function TicketModal({
       } = await supabase.auth.getUser();
 
       if (authError || !user) {
-        setSubmitError(
-          "Bạn cần đăng nhập tài khoản để gửi yêu cầu hỗ trợ phòng."
-        );
+        setSubmitError("Bạn cần đăng nhập để gửi yêu cầu hỗ trợ.");
         return;
       }
-
-      const effectiveUserId = userId || user.id;
-      let effectiveBookingId = bookingId;
-      let effectiveRoomId = roomId;
-
-      // Nếu không truyền bookingId và roomId, tự động tra cứu đơn đặt phòng gần nhất của khách
-      if (!effectiveBookingId || !effectiveRoomId) {
-        const { data: bookingData, error: bookingError } = await supabase
-          .from("bookings")
-          .select("id, room_id")
-          .eq("user_id", effectiveUserId)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (bookingError) {
-          setSubmitError(
-            `Không thể xác thực đơn đặt phòng: ${bookingError.message}`
-          );
-          return;
-        }
-
-        if (!bookingData) {
-          setSubmitError(
-            "Không tìm thấy đơn đặt phòng đang hiệu lực của bạn để gửi yêu cầu hỗ trợ. Vui lòng liên hệ lễ tân."
-          );
-          return;
-        }
-
-        effectiveBookingId = bookingData.id;
-        effectiveRoomId = bookingData.room_id;
-      }
-
-      const mediaPaths = trimmedImageUrl ? [trimmedImageUrl] : [];
 
       const { data: createdTicket, error: insertError } = await supabase
         .from("tickets")
         .insert({
-          user_id: effectiveUserId,
-          booking_id: effectiveBookingId,
-          room_id: effectiveRoomId,
+          user_id: user.id,
+          booking_id: activeBookingId,
+          room_id: activeRoomId,
           category: category as string,
           description: trimmedDescription,
-          media_paths: mediaPaths,
+          media_paths: [],
           status: "pending", // Bám sát cấu trúc bảng tickets: trường mặc định status 'pending'
         })
         .select()
         .single();
 
-      if (insertError) {
+      if (insertError || !createdTicket) {
         setSubmitError(
-          insertError.message || "Không thể tạo yêu cầu. Vui lòng thử lại sau."
+          insertError?.message || "Không thể tạo yêu cầu. Vui lòng thử lại sau."
         );
         return;
       }
@@ -271,13 +216,13 @@ export function TicketModal({
           ? err.message
           : "Đã xảy ra sự cố ngoài ý muốn. Vui lòng thử lại.";
       setSubmitError(message);
+      setIsSuccess(false);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const selectedCategoryInfo = TICKET_CATEGORIES.find((c) => c.value === category);
-  const isImageValid = imageUrl.trim().length > 0 && isValidHttpUrl(imageUrl.trim());
 
   return (
     <Modal
@@ -365,7 +310,17 @@ export function TicketModal({
       ) : (
         /* =================== FORM NHẬP YÊU CẦU HỖ TRỢ =================== */
         <form onSubmit={handleSubmit} className="space-y-4 pt-1" noValidate>
-          {submitError && (
+          {!hasActiveStay ? (
+            <div
+              role="alert"
+              className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs sm:text-sm flex items-start gap-2.5 animate-in fade-in"
+            >
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div className="flex-1 leading-snug">
+                Yêu cầu hỗ trợ phải gắn với kỳ lưu trú đang hoạt động. Vui lòng mở lại từ trang My Stay.
+              </div>
+            </div>
+          ) : submitError ? (
             <div
               role="alert"
               className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs sm:text-sm flex items-start gap-2.5 animate-in fade-in"
@@ -373,7 +328,7 @@ export function TicketModal({
               <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
               <div className="flex-1 leading-snug">{submitError}</div>
             </div>
-          )}
+          ) : null}
 
           {/* 1. Dropdown chọn loại sự cố */}
           <div className="w-full flex flex-col gap-1.5">
@@ -487,70 +442,6 @@ export function TicketModal({
             )}
           </div>
 
-          {/* 3. Ô nhập link ảnh minh họa (tùy chọn) */}
-          <div className="space-y-2">
-            <Input
-              id="ticket-image-url-input"
-              type="url"
-              label="Đường dẫn ảnh minh họa (tùy chọn)"
-              placeholder="https://images.unsplash.com/... hoặc link ảnh sự cố"
-              value={imageUrl}
-              disabled={isSubmitting}
-              onChange={(e) => {
-                setImageUrl(e.target.value);
-                if (errors.imageUrl) {
-                  setErrors((prev) => ({ ...prev, imageUrl: undefined }));
-                }
-              }}
-              errorMessage={errors.imageUrl}
-              helperText="Đính kèm ảnh giúp kỹ thuật viên nhận diện nhanh sự cố thực tế"
-              startIcon={<ImageIcon className="w-4 h-4 text-dark/40" />}
-            />
-
-            {/* Preview ảnh minh họa thu nhỏ nếu URL hợp lệ */}
-            {isImageValid && (
-              <div className="p-2.5 rounded-lg border border-dark/10 bg-dark/2 flex items-center justify-between gap-3 animate-in fade-in">
-                <div className="flex items-center gap-2.5 overflow-hidden">
-                  <div className="w-10 h-10 rounded-md bg-dark/10 shrink-0 overflow-hidden relative border border-dark/10">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={imageUrl.trim()}
-                      alt="Ảnh minh họa sự cố"
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLElement).style.display = "none";
-                      }}
-                    />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-medium text-dark truncate">
-                      Xem trước ảnh đính kèm
-                    </p>
-                    <a
-                      href={imageUrl.trim()}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[11px] text-primary hover:underline inline-flex items-center gap-1"
-                    >
-                      <span>Mở liên kết gốc</span>
-                      <ExternalLink className="w-2.5 h-2.5" />
-                    </a>
-                  </div>
-                </div>
-
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setImageUrl("")}
-                  className="text-xs h-7 px-2 text-dark/60 hover:text-rose-600"
-                >
-                  Xóa ảnh
-                </Button>
-              </div>
-            )}
-          </div>
-
           {/* Footer nút bấm */}
           <div className="pt-3 border-t border-dark/10 flex items-center justify-end gap-3">
             <Button
@@ -565,6 +456,7 @@ export function TicketModal({
               type="submit"
               variant="primary"
               isLoading={isSubmitting}
+              disabled={!hasActiveStay || isSubmitting}
               leftIcon={<Send className="w-4 h-4" />}
             >
               Gửi yêu cầu
