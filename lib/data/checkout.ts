@@ -81,10 +81,11 @@ export interface VoucherValidationResult {
 /**
  * Tạo một bản ghi mới trong bảng `checkout_sessions`.
  *
- * - Status mặc định: "PENDING"
+ * - Status mặc định: "ACTIVE" (theo schema: ACTIVE → PAYMENT_PROCESSING → COMPLETED | EXPIRED | FAILED)
  * - Phiên hết hạn sau 30 phút (expires_at)
  * - discount_amount_vnd = 0 (chưa áp voucher)
  * - final_payable_amount_vnd = gross_amount_vnd (chưa giảm)
+ * - payment_reference được sinh bởi server từ session ID và lưu vào DB
  *
  * @returns ID của checkout session vừa tạo, hoặc error string nếu thất bại.
  */
@@ -105,8 +106,11 @@ export async function createCheckoutSession(
       gross_amount_vnd: input.grossAmountVnd,
       discount_amount_vnd: 0,
       final_payable_amount_vnd: input.grossAmountVnd,
-      status: "PENDING",
+      // ACTIVE là trạng thái khởi tạo đúng theo schema.
+      // PENDING không tồn tại trong checkout_sessions.status.
+      status: "ACTIVE",
       expires_at: expiresAt,
+      // payment_reference sẽ được gán sau khi có session ID (bên dưới)
       payment_reference: null,
     };
 
@@ -121,7 +125,29 @@ export async function createCheckoutSession(
       return { sessionId: null, error: error.message };
     }
 
-    return { sessionId: data.id, error: null };
+    const sessionId = data.id;
+
+    // Sinh payment_reference từ session ID (server-side) và ghi vào DB.
+    // Format: KAPI + 8 ký tự hex đầu UUID (không dấu gạch ngang), viết hoa.
+    // Việc này đảm bảo payment_reference không bao giờ được client tự tạo.
+    const paymentReference =
+      "KAPI" + sessionId.replace(/-/g, "").slice(0, 8).toUpperCase();
+
+    const { error: refError } = await supabase
+      .from("checkout_sessions")
+      .update({ payment_reference: paymentReference })
+      .eq("id", sessionId);
+
+    if (refError) {
+      // Không block việc tạo session — log để team xử lý, session vẫn dùng được.
+      // payment_reference sẽ là null, QRModal sẽ hiển thị fallback.
+      console.error(
+        "[checkout] createCheckoutSession — update payment_reference error:",
+        refError.message
+      );
+    }
+
+    return { sessionId, error: null };
   } catch (err) {
     console.error("[checkout] createCheckoutSession unexpected error:", err);
     return { sessionId: null, error: "Lỗi kết nối cơ sở dữ liệu" };
@@ -479,7 +505,7 @@ export async function validateAndApplyVoucher(
 /**
  * Hoàn tất quá trình đặt phòng sau khi thanh toán VietQR được xác nhận:
  *
- * 1. Kiểm tra phiên checkout (status = PENDING, chưa hết hạn, thuộc đúng user).
+ * 1. Kiểm tra phiên checkout (status là ACTIVE hoặc PAYMENT_PROCESSING, chưa hết hạn, thuộc đúng user).
  * 2. Tạo bản ghi `bookings` với booking_status = "CONFIRMED", payment_status = "PAID".
  * 3. Cập nhật `checkout_sessions` status = "COMPLETED".
  * 4. Cập nhật `voucher_redemptions` status = "USED", booking_id, used_at (nếu có voucher).
@@ -530,10 +556,14 @@ export async function confirmBookingAndPayment(
       };
     }
 
-    if (session.status !== "PENDING") {
+    // Chỉ cho phép xác nhận khi session ở trạng thái ACTIVE hoặc PAYMENT_PROCESSING.
+    // PENDING không tồn tại trong schema — không bao giờ match.
+    const confirmableStatuses = ["ACTIVE", "PAYMENT_PROCESSING"];
+    if (!confirmableStatuses.includes(session.status)) {
       const statusMsg: Record<string, string> = {
         COMPLETED: "Đặt phòng đã được xác nhận trước đó.",
         EXPIRED: "Phiên đặt phòng đã hết hạn. Vui lòng bắt đầu lại từ đầu.",
+        FAILED: "Phiên thanh toán đã thất bại. Vui lòng bắt đầu lại từ đầu.",
       };
       return {
         bookingId: null,
@@ -670,7 +700,7 @@ export async function releaseVoucherFromSession(
     const now = new Date().toISOString();
 
     // Trả voucher về AVAILABLE nếu còn hạn, clear checkout_session_id
-    const { error } = await supabase
+    const { error: voucherError } = await supabase
       .from("voucher_redemptions")
       .update({
         status: "AVAILABLE",
@@ -682,20 +712,49 @@ export async function releaseVoucherFromSession(
       .eq("status", "RESERVED")
       .gt("expires_at", now); // Chỉ trả lại nếu voucher chưa hết hạn
 
-    if (error) {
-      console.error("[checkout] releaseVoucherFromSession error:", error.message);
-      return { success: false, error: error.message };
+    if (voucherError) {
+      console.error("[checkout] releaseVoucherFromSession — voucher update error:", voucherError.message);
+      return { success: false, error: voucherError.message };
     }
 
-    // Reset discount trên checkout_session về 0 cho nhất quán
-    await supabase
+    // Đọc gross_amount_vnd từ session để reset final_payable_amount_vnd về đúng giá trị.
+    // NGHIỆP VỤ: khi không còn voucher, final_payable = gross (không phải 0).
+    const { data: sessionData, error: sessionFetchError } = await supabase
+      .from("checkout_sessions")
+      .select("gross_amount_vnd")
+      .eq("id", sessionId)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (sessionFetchError) {
+      console.error(
+        "[checkout] releaseVoucherFromSession — fetch session error:",
+        sessionFetchError.message
+      );
+      return { success: false, error: sessionFetchError.message };
+    }
+
+    if (!sessionData) {
+      return { success: false, error: "Không tìm thấy phiên đặt phòng." };
+    }
+
+    // Reset discount về 0 và final_payable về đúng gross_amount_vnd
+    const { error: sessionUpdateError } = await supabase
       .from("checkout_sessions")
       .update({
         discount_amount_vnd: 0,
-        final_payable_amount_vnd: 0,
+        final_payable_amount_vnd: sessionData.gross_amount_vnd,
       })
       .eq("id", sessionId)
       .eq("user_id", userId);
+
+    if (sessionUpdateError) {
+      console.error(
+        "[checkout] releaseVoucherFromSession — session update error:",
+        sessionUpdateError.message
+      );
+      return { success: false, error: sessionUpdateError.message };
+    }
 
     return { success: true, error: null };
   } catch (err) {

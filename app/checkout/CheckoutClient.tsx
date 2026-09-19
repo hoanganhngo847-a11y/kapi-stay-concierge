@@ -73,15 +73,8 @@ function validateGuestInfo(info: GuestInfo): GuestInfoErrors {
   return errors;
 }
 
-// ---------------------------------------------------------------------------
-// Sinh payment reference từ session ID
-// ---------------------------------------------------------------------------
-
-function buildPaymentReference(sessionId: string): string {
-  // Lấy 8 ký tự đầu UUID (không dấu gạch ngang) làm mã tham chiếu
-  const shortCode = sessionId.replace(/-/g, "").slice(0, 8).toUpperCase();
-  return `KAPI${shortCode}`;
-}
+// payment_reference được đọc từ session (server đã sinh và lưu vào DB khi tạo session).
+// KAPI không để client tự sinh giá trị này.
 
 // ---------------------------------------------------------------------------
 // Main Client Component
@@ -113,9 +106,17 @@ export function CheckoutClient({
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Tính toán số tiền thanh toán thực tế
+  // Đọc payment_reference do server sinh ra và lưu vào checkout_sessions khi tạo session.
+  // Không tự sinh ở browser để tránh sai lệch với DB.
+  const paymentReference = session.payment_reference ?? "";
+  if (!session.payment_reference) {
+    console.warn(
+      "[CheckoutClient] payment_reference is null — session may not have been fully initialized."
+    );
+  }
+
+  // Tính toán số tiền thanh toán thực tế (sau khi áp voucher)
   const finalAmountVnd = Math.max(0, session.gross_amount_vnd - discountAmountVnd);
-  const paymentReference = buildPaymentReference(session.id);
 
   // ── Handler: cập nhật thông tin khách ────────────────────────────────────
   const handleGuestInfoChange = useCallback(

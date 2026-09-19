@@ -26,6 +26,7 @@
 
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ArrowLeft, ShieldCheck, Clock } from "lucide-react";
 import { requireBookingAuth } from "@/lib/auth/booking-gate";
 import {
@@ -94,11 +95,10 @@ function calcNights(checkIn: string, checkOut: string): number {
 export default async function CheckoutPage({
   searchParams,
 }: CheckoutPageProps) {
-  // ── 1. Xác thực: bắt buộc đăng nhập trước khi vào checkout ──────────────
-  //    requireBookingAuth() sẽ tự redirect về /login nếu chưa đăng nhập.
-  const user = await requireBookingAuth("/checkout");
-
-  // ── 2. Đọc searchParams ───────────────────────────────────────────────────
+  // ── 1. Đọc searchParams TRƯỚC để xây dựng returnUrl đầy đủ ──────────────────
+  //    Bảo lưu toàn bộ query params (roomId, checkIn, checkOut, guests)
+  //    vào returnUrl trước khi gọi auth. Nếu user chưa đăng nhập,
+  //    sau login sẽ redirect đúng về phòng và ngày đã chọn.
   const params = await searchParams;
   const {
     roomId,
@@ -107,6 +107,20 @@ export default async function CheckoutPage({
     guests: guestsStr,
     sessionId: existingSessionId,
   } = params;
+
+  // Xây dựng returnUrl chứa đủ query params để sau login quay lại đúng trang
+  const rawQuery = new URLSearchParams();
+  if (roomId) rawQuery.set("roomId", roomId);
+  if (checkIn) rawQuery.set("checkIn", checkIn);
+  if (checkOut) rawQuery.set("checkOut", checkOut);
+  if (guestsStr) rawQuery.set("guests", guestsStr);
+  if (existingSessionId) rawQuery.set("sessionId", existingSessionId);
+  const returnUrl =
+    rawQuery.size > 0 ? `/checkout?${rawQuery.toString()}` : "/checkout";
+
+  // ── 2. Xác thực: bắt buộc đăng nhập trước khi vào checkout ──────────────
+  //    requireBookingAuth() sẽ tự redirect về /login?next=<returnUrl> nếu chưa đăng nhập.
+  const user = await requireBookingAuth(returnUrl);
 
   // ── 3a. Nếu có sessionId → tái tải session đã tạo (tránh tạo trùng) ──────
   if (existingSessionId) {
@@ -135,7 +149,7 @@ export default async function CheckoutPage({
       );
     }
 
-    // Kiểm tra phiên còn thuộc user và còn PENDING
+    // Kiểm tra phiên còn thuộc user hiện tại
     if (existingSession.user_id !== user.id) {
       return (
         <CheckoutPageLayout>
@@ -147,7 +161,10 @@ export default async function CheckoutPage({
       );
     }
 
-    if (existingSession.status !== "PENDING") {
+    // Kiểm tra phiên còn ở trạng thái có thể tiếp tục thanh toán
+    // (ACTIVE hoặc PAYMENT_PROCESSING theo schema)
+    const activeStatuses = ["ACTIVE", "PAYMENT_PROCESSING"];
+    if (!activeStatuses.includes(existingSession.status)) {
       return (
         <CheckoutPageLayout>
           <CheckoutError
@@ -159,7 +176,7 @@ export default async function CheckoutPage({
             message={
               existingSession.status === "COMPLETED"
                 ? "Đơn đặt phòng này đã được xác nhận thành công. Xem thông tin kỳ nghỉ của bạn tại My Stay."
-                : "Phiên thanh toán đã hết hạn. Vui lòng bắt đầu lại từ trang chọn phòng."
+                : "Phiên thanh toán đã hết hạn hoặc không hợp lệ. Vui lòng bắt đầu lại từ trang chọn phòng."
             }
             backHref={
               existingSession.status === "COMPLETED" ? "/my-stay" : "/rooms"
@@ -306,36 +323,9 @@ export default async function CheckoutPage({
     );
   }
 
-  // Tải session vừa tạo kèm join rooms
-  const { data: newSession, error: sessionLoadError } =
-    await getCheckoutSession(newSessionId);
-
-  if (sessionLoadError || !newSession) {
-    return (
-      <CheckoutPageLayout>
-        <CheckoutError
-          title="Lỗi tải phiên thanh toán"
-          message="Phiên đặt phòng đã được tạo nhưng không thể tải thông tin. Vui lòng thử lại."
-          backHref={`/rooms/${roomId}`}
-          backLabel="Quay lại trang phòng"
-        />
-      </CheckoutPageLayout>
-    );
-  }
-
-  // Tải voucher của user
-  const { data: vouchers } = await getUserAvailableVouchers(user.id);
-
-  // ── 4. Render trang thanh toán ────────────────────────────────────────────
-  return (
-    <CheckoutPageLayout sessionId={newSessionId}>
-      <CheckoutClient
-        session={newSession}
-        initialVouchers={vouchers ?? []}
-        userId={user.id}
-      />
-    </CheckoutPageLayout>
-  );
+  // Redirect canonical sang /checkout?sessionId=<id> để tránh tạo lại session khi F5.
+  // Từ đây trở đi, mọi request đến /checkout?sessionId=... sẽ dùng nhánh existingSessionId bên trên.
+  redirect(`/checkout?sessionId=${newSessionId}`);
 }
 
 // ---------------------------------------------------------------------------

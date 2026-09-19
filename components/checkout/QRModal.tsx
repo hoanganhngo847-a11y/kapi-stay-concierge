@@ -353,8 +353,8 @@ export function QRModal({
               className="flex-[2]"
             >
               {isConfirming
-                ? "Đang xác nhận..."
-                : "Tôi đã chuyển khoản thành công"}
+                ? "Đang kiểm tra..."
+                : "Kiểm tra thanh toán"}
             </Button>
           </div>
         </div>
@@ -455,7 +455,7 @@ export function QRModal({
             "Mở ứng dụng ngân hàng và chọn chuyển khoản",
             "Quét mã QR hoặc nhập số tài khoản thủ công",
             "Nhập đúng số tiền và nội dung chuyển khoản",
-            'Sau khi chuyển thành công, bấm "Tôi đã chuyển khoản"',
+            'Sau khi chuyển xong, bấm "Kiểm tra thanh toán" để hệ thống đối soát',
           ].map((step, i) => (
             <div key={i} className="flex items-start gap-2.5">
               <span
