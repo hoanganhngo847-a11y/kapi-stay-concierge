@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import {
   Info,
   ShieldCheck,
@@ -16,6 +17,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { formatVND } from "@/lib/utils/format";
 import type { PublicRoom } from "@/lib/data/rooms";
+import { checkRoomAvailability } from "@/lib/api";
 
 export type AvailabilityState =
   | { status: "IDLE" }
@@ -81,6 +83,7 @@ function calcCalendarNights(inDate: string, outDate: string): number {
 }
 
 export function RoomBookingWidget({ room }: RoomBookingWidgetProps) {
+  const router = useRouter();
   const todayStr = React.useMemo(() => getLocalTodayStr(), []);
   const maxCapacity = Math.max(1, Number(room.capacity) || 1);
 
@@ -90,10 +93,13 @@ export function RoomBookingWidget({ room }: RoomBookingWidgetProps) {
   const [guests, setGuests] = React.useState(1);
   const [validationError, setValidationError] = React.useState<string | null>(null);
 
-  // Availability State Machine (Initialized to IDLE; no fake calls)
+  // Availability State Machine (Initialized to IDLE)
   const [availability, setAvailability] = React.useState<AvailabilityState>({
     status: "IDLE",
   });
+
+  // Request counter ref for stale response / race condition protection
+  const requestIdRef = React.useRef(0);
 
   // Calculate calendar nights and pricing
   const nights = React.useMemo(() => {
@@ -113,10 +119,9 @@ export function RoomBookingWidget({ room }: RoomBookingWidgetProps) {
     setCheckIn(newVal);
     setValidationError(null);
 
-    // Reset availability state when dates change
-    if (availability.status !== "IDLE") {
-      setAvailability({ status: "IDLE" });
-    }
+    // Invalidate in-flight requests and immediately reset availability to IDLE
+    requestIdRef.current += 1;
+    setAvailability({ status: "IDLE" });
 
     // If existing checkOut is before or on the new checkIn, reset checkOut
     if (checkOut && newVal >= checkOut) {
@@ -130,11 +135,76 @@ export function RoomBookingWidget({ room }: RoomBookingWidgetProps) {
     setCheckOut(newVal);
     setValidationError(null);
 
-    // Reset availability state when dates change
-    if (availability.status !== "IDLE") {
-      setAvailability({ status: "IDLE" });
-    }
+    // Invalidate in-flight requests and immediately reset availability to IDLE
+    requestIdRef.current += 1;
+    setAvailability({ status: "IDLE" });
   };
+
+  // Real Availability check triggered when valid date range is selected
+  React.useEffect(() => {
+    // Only proceed when both dates are present and form a strictly valid range
+    const hasBothDates = Boolean(checkIn && checkOut);
+    const isChronologicallyValid = checkIn >= todayStr && checkOut > checkIn;
+
+    if (!hasBothDates || !isChronologicallyValid) {
+      requestIdRef.current += 1;
+      setAvailability((prev) => (prev.status === "IDLE" ? prev : { status: "IDLE" }));
+      return;
+    }
+
+    // Increment request ID to invalidate any prior in-flight request
+    const currentRequestId = ++requestIdRef.current;
+    setAvailability({ status: "CHECKING" });
+
+    let isMounted = true;
+
+    async function verifyAvailability() {
+      try {
+        const isAvailable = await checkRoomAvailability(
+          room.id,
+          checkIn,
+          checkOut
+        );
+
+        // Guard: drop stale response if user changed dates or component unmounted
+        if (!isMounted || currentRequestId !== requestIdRef.current) {
+          return;
+        }
+
+        if (isAvailable === true) {
+          setAvailability({
+            status: "AVAILABLE",
+            checkIn,
+            checkOut,
+          });
+        } else {
+          setAvailability({
+            status: "UNAVAILABLE",
+            checkIn,
+            checkOut,
+            reason: "Phòng đã có khách đặt trong khoảng thời gian này.",
+          });
+        }
+      } catch (err) {
+        // Guard: drop stale response if user changed dates or component unmounted
+        if (!isMounted || currentRequestId !== requestIdRef.current) {
+          return;
+        }
+
+        console.error("[RoomBookingWidget] checkRoomAvailability error:", err);
+        setAvailability({
+          status: "ERROR",
+          message: "Không thể kiểm tra tình trạng phòng lúc này.",
+        });
+      }
+    }
+
+    verifyAvailability();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [room.id, checkIn, checkOut, todayStr]);
 
   // Guest increment/decrement handlers bounded by [1, maxCapacity]
   const handleDecrementGuests = () => {
@@ -145,7 +215,7 @@ export function RoomBookingWidget({ room }: RoomBookingWidgetProps) {
     setGuests((prev) => (prev < maxCapacity ? prev + 1 : maxCapacity));
   };
 
-  // Form submit handler (strictly guards against unconfirmed availability)
+  // Form submit handler (strictly guards against unconfirmed availability and navigates to checkout)
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -169,10 +239,20 @@ export function RoomBookingWidget({ room }: RoomBookingWidgetProps) {
       return;
     }
 
-    // In Step 5A: No fake transition. If availability is not confirmed AVAILABLE, prevent progress.
+    // Strictly guard against unconfirmed availability
     if (availability.status !== "AVAILABLE") {
       return;
     }
+
+    // Checkout handoff: use the confirmed date snapshot from availability state
+    const params = new URLSearchParams({
+      roomId: room.id,
+      checkIn: availability.checkIn,
+      checkOut: availability.checkOut,
+      guests: String(guests),
+    });
+
+    router.push(`/checkout?${params.toString()}`);
   };
 
   return (
