@@ -2,35 +2,40 @@
 
 import { createClient } from "@/lib/supabase/server";
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
- * Checks whether a room is available for a given check-in and check-out date range.
+ * Kiểm tra tính khả dụng của phòng theo khoảng ngày nhận và trả phòng.
  *
- * Availability logic:
- * - Room is unavailable if there exists an active booking with roomId and valid status
- *   ('confirmed' or 'paid') satisfying the half-open interval overlap condition:
- *   (booking.check_in < checkOut) AND (booking.check_out > checkIn)
- * - Returns `true` if room is available (no conflicting bookings).
- * - Returns `false` if room is already booked or upon invalid parameters / database error.
+ * Hàm này đóng vai trò preliminary UX availability check cho phía client (TV3).
+ * Không dùng thay thế cho atomic lock/constraint khi chốt đơn đặt phòng (TV4) để chống race condition.
  *
- * @param roomId - The UUID of the room to check
- * @param checkIn - Arrival date in YYYY-MM-DD format
- * @param checkOut - Departure date in YYYY-MM-DD format (must be strictly after checkIn)
- * @returns Promise<boolean> - true if available, false if booked or error
+ * @param roomId - Mã định danh UUID của phòng
+ * @param checkIn - Ngày nhận phòng định dạng YYYY-MM-DD
+ * @param checkOut - Ngày trả phòng định dạng YYYY-MM-DD (phải sau ngày nhận phòng)
+ * @returns Promise<boolean> - true nếu phòng còn trống, false nếu đã có lịch trùng hoặc dữ liệu không hợp lệ
  */
 export async function checkRoomAvailability(
   roomId: string,
   checkIn: string,
   checkOut: string
 ): Promise<boolean> {
-  // 1. Validate inputs defensively
-  if (!roomId || typeof roomId !== "string" || roomId.trim().length === 0) {
-    console.warn("[checkRoomAvailability] roomId không hợp lệ:", roomId);
+  // 1. Validate roomId theo định dạng UUID regex
+  if (!roomId || typeof roomId !== "string" || !UUID_REGEX.test(roomId.trim())) {
     return false;
   }
 
-  if (!checkIn || typeof checkIn !== "string" || !checkOut || typeof checkOut !== "string") {
-    console.warn("[checkRoomAvailability] checkIn và checkOut là bắt buộc");
+  // 2. Validate checkIn và checkOut theo định dạng YYYY-MM-DD
+  if (
+    !checkIn ||
+    typeof checkIn !== "string" ||
+    !DATE_REGEX.test(checkIn.trim()) ||
+    !checkOut ||
+    typeof checkOut !== "string" ||
+    !DATE_REGEX.test(checkOut.trim())
+  ) {
     return false;
   }
 
@@ -38,46 +43,40 @@ export async function checkRoomAvailability(
   const cleanCheckIn = checkIn.trim();
   const cleanCheckOut = checkOut.trim();
 
-  // Validate that checkOut is strictly later than checkIn
-  if (cleanCheckOut <= cleanCheckIn) {
-    console.warn(
-      `[checkRoomAvailability] Ngày trả phòng (${cleanCheckOut}) phải sau ngày nhận phòng (${cleanCheckIn})`
-    );
+  // 3. Kiểm tra ngày: new Date(checkOut) > new Date(checkIn)
+  const checkInDate = new Date(cleanCheckIn);
+  const checkOutDate = new Date(cleanCheckOut);
+
+  if (
+    isNaN(checkInDate.getTime()) ||
+    isNaN(checkOutDate.getTime()) ||
+    !(checkOutDate > checkInDate)
+  ) {
     return false;
   }
 
   try {
     const supabase = await createClient();
 
-    // Query for any conflicting bookings that overlap with requested stay window.
-    // Overlap condition for half-open stay intervals [check_in, check_out):
-    // booking.check_in < cleanCheckOut AND booking.check_out > cleanCheckIn
-    const statusFilter =
-      "booking_status.in.(confirmed,paid,CONFIRMED,PAID),payment_status.in.(confirmed,paid,CONFIRMED,PAID)";
-
-    const { data, error } = await supabase
-      .from("bookings")
-      .select("id")
-      .eq("room_id", cleanRoomId)
-      .lt("check_in", cleanCheckOut)
-      .gt("check_out", cleanCheckIn)
-      .neq("booking_status", "cancelled")
-      .or(statusFilter)
-      .limit(1);
+    // Gọi RPC function check_room_availability từ Supabase
+    const { data, error } = await supabase.rpc(
+      "check_room_availability" as any,
+      {
+        p_room_id: cleanRoomId,
+        p_check_in: cleanCheckIn,
+        p_check_out: cleanCheckOut,
+      } as any
+    );
 
     if (error) {
       console.error(
-        `[checkRoomAvailability] Lỗi truy vấn cơ sở dữ liệu cho phòng ${cleanRoomId}:`,
+        `[checkRoomAvailability] Lỗi RPC check_room_availability cho phòng ${cleanRoomId}:`,
         error.message
       );
-      // Defensive: do not confirm availability when database check fails
       return false;
     }
 
-    // Overlapping booking found -> room is not available (false)
-    // No overlapping booking found -> room is available (true)
-    const hasOverlap = Boolean(data && data.length > 0);
-    return !hasOverlap;
+    return Boolean(data);
   } catch (err) {
     console.error("[checkRoomAvailability] Ngoại lệ không xác định:", err);
     return false;
