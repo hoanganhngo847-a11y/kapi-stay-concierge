@@ -1,14 +1,12 @@
 import * as React from "react";
 import { Suspense } from "react";
 import Link from "next/link";
-import { ArrowLeft, DoorOpen, AlertCircle, RefreshCw } from "lucide-react";
+import { ArrowLeft, DoorOpen } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/server";
 import { RoomCard } from "@/components/rooms/RoomCard";
 import { RoomFilters } from "@/components/rooms/RoomFilters";
 import {
-  SEED_ROOMS,
-  SEED_PROPERTIES,
   parseAmenities,
   parseImagePaths,
   type PublicRoom,
@@ -31,8 +29,11 @@ interface RoomsPageProps {
 export default async function RoomsPage({ searchParams }: RoomsPageProps) {
   const resolvedParams = searchParams ? await searchParams : {};
 
-  // 1. Đọc tham số lọc từ URL: location và guests theo đúng yêu cầu
-  const rawLocation = resolvedParams?.location || resolvedParams?.property_id;
+  // 1. Đọc tham số lọc từ URL: location_code/location và max_guests/guests
+  const rawLocation =
+    resolvedParams?.location_code ||
+    resolvedParams?.location ||
+    resolvedParams?.property_id;
   const location =
     typeof rawLocation === "string"
       ? rawLocation.trim()
@@ -40,7 +41,10 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
         ? rawLocation[0].trim()
         : "";
 
-  const rawGuests = resolvedParams?.guests || resolvedParams?.capacity;
+  const rawGuests =
+    resolvedParams?.max_guests ||
+    resolvedParams?.guests ||
+    resolvedParams?.capacity;
   const guestsStr =
     typeof rawGuests === "string"
       ? rawGuests.trim()
@@ -52,15 +56,13 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
       ? parseInt(guestsStr, 10)
       : 0;
 
-  // 2. Fetch danh sách cơ sở từ Supabase properties để truyền vào Dropdown lọc
-  let propertiesList: PublicProperty[] = SEED_PROPERTIES;
+  let propertiesList: PublicProperty[] = [];
   let roomsList: PublicRoom[] = [];
-  let queryError: string | null = null;
 
   try {
     const supabase = await createClient();
 
-    // Query danh sách cơ sở
+    // Query danh sách cơ sở từ bảng properties để hiển thị bộ lọc
     const { data: propData } = await supabase
       .from("properties")
       .select("id, name, slug, address, maps_url")
@@ -71,93 +73,99 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
       propertiesList = propData as PublicProperty[];
     }
 
-    // 3. Query dữ liệu CHỈ TỪ BẢNG rooms (TUYỆT ĐỐI KHÔNG đụng tới room_operations)
-    let query = supabase
-      .from("rooms")
-      .select(
-        `
-        id,
-        property_id,
-        name,
-        description,
-        nightly_price_vnd,
-        capacity,
-        amenities,
-        image_paths,
-        is_listed,
-        properties (
-          id,
-          name,
-          slug,
-          address,
-          maps_url
-        )
-      `
-      )
-      .eq("is_listed", true);
+    // Query dữ liệu bảng rooms: supabase.from('rooms').select('*')
+    // TUYỆT ĐỐI KHÔNG query bảng bookings để tránh lỗi RLS
+    // Dùng .eq('location_code'), .gte('max_guests') từ tham số URL
+    interface SupabaseRoomRow {
+      id: string;
+      property_id?: string;
+      location_code?: string;
+      name: string;
+      description: string | null;
+      nightly_price_vnd: number;
+      capacity?: number;
+      max_guests?: number;
+      amenities: unknown;
+      image_paths: unknown;
+      is_listed?: boolean;
+    }
 
-    // Lọc theo cơ sở (location)
+    interface DynamicQueryResult {
+      data: SupabaseRoomRow[] | null;
+      error: { code?: string; message: string } | null;
+    }
+
+    interface DynamicQueryBuilder extends PromiseLike<DynamicQueryResult> {
+      eq: (col: string, val: string | number) => DynamicQueryBuilder;
+      gte: (col: string, val: string | number) => DynamicQueryBuilder;
+      order: (
+        col: string,
+        opts: { ascending: boolean }
+      ) => DynamicQueryBuilder;
+    }
+
+    interface DynamicSupabaseClient {
+      from: (table: string) => {
+        select: (cols: string) => DynamicQueryBuilder;
+      };
+    }
+
+    const dynamicClient = supabase as unknown as DynamicSupabaseClient;
+    let query = dynamicClient.from("rooms").select("*");
+
+    // Lọc theo cơ sở (location_code) nếu có
     if (location) {
-      query = query.eq("property_id", location);
+      query = query.eq("location_code", location);
     }
 
-    // Lọc theo số lượng khách (guests)
+    // Lọc theo số lượng khách (max_guests) nếu có
     if (guests > 0) {
-      query = query.gte("capacity", guests);
+      query = query.gte("max_guests", guests);
     }
 
-    // Sắp xếp theo giá tiền tăng dần (khách tự chọn phòng, không can thiệp AI gợi ý hay xếp hạng)
+    // Sắp xếp theo giá phòng tăng dần
     query = query.order("nightly_price_vnd", { ascending: true });
 
-    const { data, error } = await query;
+    let { data, error } = await query;
+
+    // Hỗ trợ database schema khi sử dụng property_id và capacity (mã lỗi 42703: column does not exist)
+    if (error && error.code === "42703") {
+      let dbQuery = supabase.from("rooms").select("*");
+      if (location) {
+        dbQuery = dbQuery.eq("property_id", location);
+      }
+      if (guests > 0) {
+        dbQuery = dbQuery.gte("capacity", guests);
+      }
+      dbQuery = dbQuery.order("nightly_price_vnd", { ascending: true });
+      const res = await dbQuery;
+      data = res.data as SupabaseRoomRow[] | null;
+      error = res.error;
+    }
 
     if (error) {
       console.error("Lỗi truy vấn bảng rooms Supabase:", error.message);
-      queryError = error.message;
-    }
-
-    if (data && data.length > 0) {
-      roomsList = data.map((item) => {
-        const propRaw = item.properties as unknown;
-        const property = Array.isArray(propRaw)
-          ? (propRaw[0] as PublicProperty | null)
-          : (propRaw as PublicProperty | null);
+    } else if (data && data.length > 0) {
+      roomsList = data.map((item: SupabaseRoomRow) => {
+        const property =
+          propertiesList.find((p) => p.id === (item.property_id || item.location_code)) || null;
 
         return {
           id: item.id,
-          property_id: item.property_id,
+          property_id: item.property_id || item.location_code || "",
           name: item.name,
           description: item.description,
           nightly_price_vnd: Number(item.nightly_price_vnd) || 0,
-          capacity: Number(item.capacity) || 2,
+          capacity: Number(item.capacity || item.max_guests) || 2,
           amenities: parseAmenities(item.amenities),
           image_paths: parseImagePaths(item.image_paths),
-          is_listed: item.is_listed,
+          is_listed: item.is_listed ?? true,
           property,
         };
       });
-    } else {
-      // Fallback danh mục phòng thực tế khi cơ sở dữ liệu cloud chưa seed dữ liệu
-      let filtered = SEED_ROOMS;
-      if (location) {
-        filtered = filtered.filter((r) => r.property_id === location);
-      }
-      if (guests > 0) {
-        filtered = filtered.filter((r) => r.capacity >= guests);
-      }
-      roomsList = filtered;
     }
   } catch (err) {
     console.error("Lỗi kết nối Supabase:", err);
-    // Fallback an toàn
-    let filtered = SEED_ROOMS;
-    if (location) {
-      filtered = filtered.filter((r) => r.property_id === location);
-    }
-    if (guests > 0) {
-      filtered = filtered.filter((r) => r.capacity >= guests);
-    }
-    roomsList = filtered;
   }
 
   const hasActiveFilters = Boolean(location || guests > 0);
@@ -193,18 +201,6 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
         <RoomFilters properties={propertiesList} />
       </Suspense>
 
-      {/* Thông báo trạng thái lỗi kết nối (nếu có sự cố mạng) */}
-      {queryError && (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-xs text-amber-800 mb-6 flex items-center justify-between">
-          <span>
-            Đang hiển thị danh mục phòng Kapi House từ bộ nhớ dự phòng (kết nối máy chủ: {queryError}).
-          </span>
-          <Link href="/rooms" className="font-semibold underline ml-2">
-            Thử lại
-          </Link>
-        </div>
-      )}
-
       {/* Số lượng phòng tìm thấy */}
       <div className="flex items-center justify-between text-xs text-dark/60 mb-6">
         <span>
@@ -214,20 +210,23 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
         </span>
       </div>
 
-      {/* Empty State: Hiển thị khi không có phòng nào phù hợp với bộ lọc */}
+      {/* Empty State: Hiển thị khi không tìm thấy phòng */}
       {roomsList.length === 0 ? (
         <div className="bg-white border border-dark/10 rounded-2xl p-10 sm:p-14 text-center max-w-lg mx-auto my-12 shadow-sm">
           <div className="w-14 h-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto mb-4">
             <DoorOpen className="w-7 h-7" />
           </div>
           <h2 className="text-xl font-bold text-dark mb-2">
-            Không tìm thấy phòng phù hợp
+            Không tìm thấy phòng
           </h2>
           <p className="text-sm text-dark/60 mb-6 leading-relaxed">
             {hasActiveFilters
-              ? `Không có phòng nào đáp ứng tiêu chí lọc${activePropertyName ? ` tại "${activePropertyName}"` : ""
-              }${guests > 0 ? ` cho từ ${guests} khách` : ""}. Quý khách vui lòng thử chọn cơ sở khác hoặc điều chỉnh số lượng khách.`
-              : "Hiện chưa có phòng nào được mở bán trên hệ thống. Quý khách vui lòng quay lại sau."}
+              ? `Không có phòng nào đáp ứng tiêu chí lọc${
+                  activePropertyName ? ` tại "${activePropertyName}"` : ""
+                }${
+                  guests > 0 ? ` cho từ ${guests} khách` : ""
+                }. Quý khách vui lòng thử chọn cơ sở khác hoặc điều chỉnh số lượng khách.`
+              : "Không tìm thấy phòng phù hợp trên hệ thống. Quý khách vui lòng quay lại sau."}
           </p>
           {hasActiveFilters && (
             <Link href="/rooms">
@@ -238,7 +237,7 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
           )}
         </div>
       ) : (
-        /* Render danh sách phòng bằng component RoomCard với đầy đủ props tĩnh */
+        /* Render danh sách phòng bằng component RoomCard */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
           {roomsList.map((room) => {
             const bedType =

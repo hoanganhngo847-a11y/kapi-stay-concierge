@@ -14,6 +14,7 @@ import {
   Clock,
   Sparkles,
 } from "lucide-react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { formatVND } from "@/lib/utils/format";
@@ -30,6 +31,25 @@ export function RoomBookingWidget({
   initialCheckIn = "",
   initialCheckOut = "",
 }: RoomBookingWidgetProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // Đọc ngày trực tiếp từ URL thông qua useSearchParams (không dùng useState / useEffect)
+  const checkIn =
+    searchParams.get("check_in") ||
+    searchParams.get("checkin") ||
+    searchParams.get("checkIn") ||
+    initialCheckIn ||
+    "";
+
+  const checkOut =
+    searchParams.get("check_out") ||
+    searchParams.get("checkout") ||
+    searchParams.get("checkOut") ||
+    initialCheckOut ||
+    "";
+
   // Today's date string YYYY-MM-DD
   const todayStr = React.useMemo(() => {
     const d = new Date();
@@ -39,8 +59,6 @@ export function RoomBookingWidget({
     return `${year}-${month}-${day}`;
   }, []);
 
-  const [checkIn, setCheckIn] = React.useState(initialCheckIn);
-  const [checkOut, setCheckOut] = React.useState(initialCheckOut);
   const [validationError, setValidationError] = React.useState<string | null>(null);
 
   // Modal State
@@ -53,12 +71,6 @@ export function RoomBookingWidget({
     bookingCode: string;
     pinCode: string;
   } | null>(null);
-
-  // Synchronize when initial dates change
-  React.useEffect(() => {
-    if (initialCheckIn) setCheckIn(initialCheckIn);
-    if (initialCheckOut) setCheckOut(initialCheckOut);
-  }, [initialCheckIn, initialCheckOut]);
 
   // Compute number of nights
   const nights = React.useMemo(() => {
@@ -74,17 +86,36 @@ export function RoomBookingWidget({
 
   const handleCheckInChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
-    setCheckIn(val);
     setValidationError(null);
-    if (checkOut && val >= checkOut) {
-      setCheckOut("");
+    const params = new URLSearchParams(searchParams.toString());
+    if (val) {
+      params.set("check_in", val);
+      params.set("checkIn", val);
+    } else {
+      params.delete("check_in");
+      params.delete("checkIn");
     }
+    if (checkOut && val >= checkOut) {
+      params.delete("check_out");
+      params.delete("checkOut");
+    }
+    const query = params.toString();
+    router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
 
   const handleCheckOutChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
-    setCheckOut(val);
     setValidationError(null);
+    const params = new URLSearchParams(searchParams.toString());
+    if (val) {
+      params.set("check_out", val);
+      params.set("checkOut", val);
+    } else {
+      params.delete("check_out");
+      params.delete("checkOut");
+    }
+    const query = params.toString();
+    router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
 
   const handleOpenBookingModal = (e: React.FormEvent) => {

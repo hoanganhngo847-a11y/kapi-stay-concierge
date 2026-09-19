@@ -137,7 +137,7 @@ export default async function RoomDetailPage({
 
           {/* Primary Visual Banner */}
           <div className="w-full h-72 sm:h-96 rounded-2xl border border-dark/10 bg-light/70 overflow-hidden relative flex items-center justify-center">
-            {primaryImage && (primaryImage.startsWith("/") || primaryImage.startsWith("http://") || primaryImage.startsWith("https://")) ? (
+            {isImageValid && primaryImage ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={primaryImage}
@@ -149,7 +149,7 @@ export default async function RoomDetailPage({
             {/* Tasteful Neutral Placeholder */}
             <div
               className={`detail-placeholder w-full h-full flex flex-col items-center justify-center gap-3 p-8 text-center ${
-                primaryImage && (primaryImage.startsWith("/") || primaryImage.startsWith("http://") || primaryImage.startsWith("https://")) ? "hidden" : "flex"
+                isImageValid ? "hidden" : "flex"
               }`}
             >
               <div className="w-16 h-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">

@@ -14,26 +14,6 @@ export interface RoomFiltersProps {
   className?: string;
 }
 
-// Danh sách các cơ sở Kapi House
-const DEFAULT_PROPERTIES: PropertyOption[] = [
-  {
-    id: "11111111-1111-1111-1111-111111111111",
-    name: "Kapi House — 96 Nguyễn Đức Cảnh",
-  },
-  {
-    id: "22222222-2222-2222-2222-222222222222",
-    name: "Kapi House — 193 Văn Cao",
-  },
-  {
-    id: "33333333-3333-3333-3333-333333333333",
-    name: "Kapi House — Lô 7C Lê Hồng Phong",
-  },
-  {
-    id: "44444444-4444-4444-4444-444444444444",
-    name: "Kapi House — Ngõ 14 Cầu Đất",
-  },
-];
-
 export function RoomFilters({
   properties = [],
   className = "",
@@ -42,61 +22,84 @@ export function RoomFilters({
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const availableProperties =
-    properties.length > 0 ? properties : DEFAULT_PROPERTIES;
-
   // Đọc trực tiếp từ URL searchParams - TUYỆT ĐỐI KHÔNG DÙNG useState
   const currentLocation =
-    searchParams.get("location") || searchParams.get("property_id") || "";
+    searchParams.get("location_code") ||
+    searchParams.get("location") ||
+    searchParams.get("property_id") ||
+    "";
   const currentGuests =
-    searchParams.get("guests") || searchParams.get("capacity") || "";
+    searchParams.get("max_guests") ||
+    searchParams.get("guests") ||
+    searchParams.get("capacity") ||
+    "";
+  const currentCheckIn =
+    searchParams.get("checkin") ||
+    searchParams.get("check_in") ||
+    "";
+  const currentCheckOut =
+    searchParams.get("checkout") ||
+    searchParams.get("check_out") ||
+    "";
 
-  // Xử lý thay đổi cơ sở (location) đẩy thẳng lên URL
+  // Xử lý thay đổi cơ sở (location/location_code) đẩy thẳng lên URL
   const handleLocationChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const params = new URLSearchParams(searchParams.toString());
     const val = e.target.value.trim();
 
     if (val) {
+      params.set("location_code", val);
       params.set("location", val);
       params.delete("property_id");
     } else {
+      params.delete("location_code");
       params.delete("location");
       params.delete("property_id");
     }
 
     const query = params.toString();
-    router.push(query ? `${pathname}?${query}` : pathname);
+    router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
 
-  // Xử lý thay đổi số lượng khách (guests) đẩy thẳng lên URL
+  // Xử lý thay đổi số lượng khách (max_guests/guests) đẩy thẳng lên URL
   const handleGuestsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const params = new URLSearchParams(searchParams.toString());
     const val = e.target.value.trim();
 
     if (val && !isNaN(Number(val)) && Number(val) > 0) {
+      params.set("max_guests", val);
       params.set("guests", val);
       params.delete("capacity");
     } else {
+      params.delete("max_guests");
       params.delete("guests");
       params.delete("capacity");
     }
 
     const query = params.toString();
-    router.push(query ? `${pathname}?${query}` : pathname);
+    router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
 
   // Xóa bộ lọc
   const handleReset = () => {
     const params = new URLSearchParams(searchParams.toString());
+    params.delete("location_code");
     params.delete("location");
     params.delete("property_id");
+    params.delete("max_guests");
     params.delete("guests");
     params.delete("capacity");
+    params.delete("checkin");
+    params.delete("check_in");
+    params.delete("checkout");
+    params.delete("check_out");
     const query = params.toString();
-    router.push(query ? `${pathname}?${query}` : pathname);
+    router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
 
-  const hasFilters = Boolean(currentLocation || currentGuests);
+  const hasFilters = Boolean(
+    currentLocation || currentGuests || currentCheckIn || currentCheckOut
+  );
 
   return (
     <div
@@ -125,7 +128,7 @@ export function RoomFilters({
               className="w-full pl-9 pr-8 py-2.5 bg-light/50 border border-dark/15 rounded-xl text-xs sm:text-sm text-dark font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all appearance-none cursor-pointer"
             >
               <option value="">Tất cả cơ sở Kapi House</option>
-              {availableProperties.map((prop) => (
+              {properties.map((prop) => (
                 <option key={prop.id} value={prop.id}>
                   {prop.name}
                 </option>
@@ -182,3 +185,4 @@ export function RoomFilters({
 }
 
 export default RoomFilters;
+
