@@ -29,16 +29,13 @@ BEGIN
     END IF;
 
     -- Kiểm tra xem có booking nào trùng lịch không
-    -- Canonical blocking statuses:
-    -- (LOWER(booking_status) IN ('confirmed', 'completed') OR LOWER(payment_status) = 'paid')
+    -- Canonical blocking statuses: confirmed, completed (loại trừ cancelled, refunded)
     RETURN NOT EXISTS (
         SELECT 1
         FROM public.bookings
         WHERE room_id = p_room_id
-          AND (
-              LOWER(booking_status) IN ('confirmed', 'completed')
-              OR LOWER(payment_status) = 'paid'
-          )
+          AND LOWER(booking_status) IN ('confirmed', 'completed')
+          AND LOWER(booking_status) NOT IN ('cancelled', 'refunded')
           AND (check_in < p_check_out AND check_out > p_check_in)
     );
 END;
