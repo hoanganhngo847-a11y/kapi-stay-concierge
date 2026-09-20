@@ -2,7 +2,7 @@
   "name": "Kapi Stay Concierge - Trợ lý Lưu trú",
   "short_name": "Kapi Stay",
   "description": "Hệ thống tự phục vụ homestay, cấp mã cửa phòng và hỗ trợ lưu trú 24/7",
-  "start_url": "/my-stay",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",

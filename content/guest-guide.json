@@ -1,4 +1,9 @@
 {
+  "_metadata": {
+    "isDemoData": true,
+    "version": "1.0.0-draft",
+    "notice": "Toàn bộ thông tin địa chỉ, hotline, cơ sở y tế và địa điểm ẩm thực trong file này là dữ liệu giả lập (fixture/demo), cần thay thế bằng dữ liệu thực tế khi vận hành chính thức."
+  },
   "branches": [
     {
       "branchId": "dvn",
@@ -203,50 +208,58 @@
     {
       "deviceId": "smart-lock",
       "deviceName": "Khóa cửa điện tử mã số",
-      "videoUrl": "/videos/door-lock.mp4",
+      "status": "draft",
+      "modelVerified": false,
+      "videoUrl": null,
       "steps": [
-        "Bước 1: Chạm nhẹ lòng bàn tay hoặc mu bàn tay vào mặt kính để màn hình cảm ứng sáng đèn số.",
-        "Bước 2: Nhập dãy mật mã PIN phòng mà bạn đã nhận được trong tin nhắn xác nhận nhận phòng.",
-        "Bước 3: Nhấn phím '#' (thăng) để kết thúc lệnh. Khi nghe tiếng 'Tít' kèm đèn xanh báo mở, nhẹ nhàng gạt tay nắm để đẩy cửa vào.",
-        "Bước 4: Khi đi ra ngoài, bạn chỉ cần đóng chặt cửa, chốt an toàn thông minh sẽ tự động khóa sau 3 giây."
+        "Bước 1: Chạm nhẹ vào mặt kính cảm ứng để bàn phím sáng đèn số.",
+        "Bước 2: Nhập dãy mật mã PIN phòng bạn nhận được trong thông tin nhận phòng.",
+        "Bước 3: Nhấn phím '#' (thăng) để xác nhận mở khóa, chờ tín hiệu âm thanh hoặc đèn báo hiệu rồi gạt tay nắm mở cửa.",
+        "Bước 4: Khi ra ngoài, khép chặt cửa và kiểm tra lại để đảm bảo chốt khóa đã đóng an toàn."
       ],
-      "note": "Nếu nhập sai mã quá 5 lần, khóa sẽ tự động vô hiệu hóa bàn phím trong 3 phút để bảo mật. Khi màn hình nhấp nháy đèn đỏ báo pin yếu, vui lòng gọi ngay hotline để nhân viên hỗ trợ."
+      "note": "Tránh nhập sai mã liên tiếp nhiều lần để phòng ngừa kích hoạt cơ chế tự bảo vệ của khóa. Trường hợp khóa báo pin yếu hoặc không nhận mã, vui lòng liên hệ hotline homestay để được hỗ trợ kịp thời."
     },
     {
       "deviceId": "water-heater",
       "deviceName": "Bình nóng lạnh",
-      "videoUrl": "/videos/water-heater.mp4",
+      "status": "draft",
+      "modelVerified": false,
+      "videoUrl": null,
       "steps": [
-        "Bước 1: Tìm công tắc bật bình nóng lạnh gắn ngay ngoài cửa phòng tắm (công tắc có đèn báo màu đỏ).",
-        "Bước 2: Bật công tắc trước khi tắm khoảng 15 phút để nước trong bình được làm nóng đủ nhiệt độ mong muốn.",
+        "Bước 1: Bật công tắc bình nóng lạnh tại vị trí chỉ định bên ngoài phòng tắm (công tắc có đèn báo).",
+        "Bước 2: Chờ nước được đun nóng đến nhiệt độ phù hợp trước khi sử dụng.",
         "Bước 3: BẮT BUỘC TẮT công tắc bình nóng lạnh trước khi bước vào phòng tắm để đảm bảo an toàn điện tuyệt đối.",
-        "Bước 4: Gạt tay vòi sen từ từ từ phía vạch xanh (mát) sang vạch đỏ (nóng) để kiểm tra và căn chỉnh độ ấm vừa ý."
+        "Bước 4: Gạt tay vòi sen từ từ để điều chỉnh và kiểm tra độ ấm của nước vừa ý."
       ],
-      "note": "Luôn ngắt công tắc điện bình nóng lạnh trước khi tắm. Tránh bật bình đun liên tục trên 30 phút hoặc cắm qua đêm để bảo vệ rơ-le nhiệt và tránh lãng phí điện năng."
+      "note": "Luôn ngắt công tắc điện bình nóng lạnh trước khi tắm. Tắt bình khi không có nhu cầu sử dụng để tiết kiệm điện năng và phòng ngừa quá nhiệt."
     },
     {
       "deviceId": "induction-cooker",
       "deviceName": "Bếp từ đôi",
-      "videoUrl": "/videos/induction-stove.mp4",
+      "status": "draft",
+      "modelVerified": false,
+      "videoUrl": null,
       "steps": [
-        "Bước 1: Đặt nồi hoặc chảo có đáy bắt từ (inox/sắt từ tính) vào đúng tâm vùng nấu được đánh dấu trên mặt bếp.",
-        "Bước 2: Chạm và giữ nút Nguồn (Power / On-Off) trong 2 giây cho đến khi bếp phát tiếng 'Bíp' và màn hình hiển thị bật sáng.",
-        "Bước 3: Nếu bếp đang ở trạng thái khóa an toàn trẻ em (biểu tượng hình Khóa / Lock sáng đèn), chạm giữ phím 'Lock' trong 3 giây cho đến khi đèn báo khóa tắt đi.",
-        "Bước 4: Nhấn nút '+' hoặc '-' (hoặc vuốt thanh trượt cảm ứng) để tùy chỉnh công suất và mức nhiệt độ nấu từ mức 1 đến 9."
+        "Bước 1: Đặt nồi hoặc chảo có đáy bắt từ phù hợp vào đúng vị trí vùng nấu.",
+        "Bước 2: Nhấn nút Nguồn (Power / On-Off) để khởi động bếp.",
+        "Bước 3: Kiểm tra nút Khóa an toàn (Lock), nếu đang kích hoạt thì chạm giữ nút để mở khóa theo hướng dẫn trên mặt bếp.",
+        "Bước 4: Chọn mức công suất hoặc nhiệt độ nấu phù hợp theo nhu cầu chế biến."
       ],
-      "note": "Bếp từ chỉ kích hoạt gia nhiệt khi có nồi tương thích đặt bên trên. Sau khi tắt bếp, mặt kính vẫn còn giữ nhiệt dư từ đáy nồi (màn hình hiện chữ H cảnh báo Hot), vui lòng không chạm tay trực tiếp vào mặt bếp."
+      "note": "Bếp từ chỉ hoạt động khi có dụng cụ nấu chuyên dụng đáy từ đặt bên trên. Sau khi tắt bếp, mặt kính vẫn còn nhiệt dư từ đáy nồi tỏa ra, tránh chạm tay trực tiếp vào mặt bếp."
     },
     {
       "deviceId": "air-conditioner",
       "deviceName": "Điều hòa nhiệt độ",
-      "videoUrl": "/videos/air-conditioner.mp4",
+      "status": "draft",
+      "modelVerified": false,
+      "videoUrl": null,
       "steps": [
-        "Bước 1: Hướng remote điều khiển về phía mặt lạnh của máy lạnh và nhấn nút Bật/Tắt (ON/OFF).",
-        "Bước 2: Nhấn nút 'MODE' để chuyển sang chế độ làm mát 'COOL' (biểu tượng hình Bông tuyết trên màn hình remote).",
-        "Bước 3: Sử dụng các phím mũi tên LÊN/XUỐNG để cài đặt nhiệt độ phòng trong khoảng lý tưởng từ 24°C đến 26°C.",
-        "Bước 4: Nhấn nút 'FAN' để đặt tốc độ gió ở mức Vừa hoặc Auto, và nhấn 'SWING' để cánh đảo gió giúp khí mát lan tỏa dễ chịu khắp phòng."
+        "Bước 1: Hướng remote điều khiển về phía máy lạnh và nhấn nút Bật/Tắt (ON/OFF).",
+        "Bước 2: Nhấn nút MODE để chọn chế độ làm mát (COOL hoặc biểu tượng bông tuyết).",
+        "Bước 3: Sử dụng các phím điều chỉnh để cài đặt nhiệt độ phòng về mức thoải mái phù hợp.",
+        "Bước 4: Tùy chỉnh tốc độ quạt gió (FAN) và hướng gió (SWING) để khí mát lan tỏa dễ chịu khắp phòng."
       ],
-      "note": "Mức nhiệt độ khuyến nghị 24 - 26°C giúp phòng luôn mát mẻ thư thái và tránh sốc nhiệt. Vui lòng đóng kín các cửa sổ, cửa ban công khi bật máy lạnh và bấm nút OFF khi rời phòng."
+      "note": "Khuyến nghị cài đặt nhiệt độ ở mức vừa phải để tạo cảm giác dễ chịu và tiết kiệm điện năng. Vui lòng đóng kín cửa sổ khi bật điều hòa và tắt thiết bị khi rời khỏi phòng."
     }
   ]
 }

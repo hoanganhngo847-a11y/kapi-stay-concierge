@@ -1,3 +1,9 @@
+/*
+ * TÀI LIỆU THAM CHIẾU TEST FIXTURES (QA / TV9 PROPOSAL)
+ * Mục đích: Cung cấp mẫu dữ liệu phục vụ kiểm thử giao diện độc lập.
+ * Phạm vi sở hữu: File này đóng vai trò đề xuất test data, sẽ bàn giao cho TV8 (Database Foundation) tích hợp chính thức và TV1 review. TV9 không tự ý áp đặt database schema/seed vào migration hệ thống.
+ */
+
 -- ============================================================================
 -- File: docs/mock-seed.sql
 -- Mục đích: Dữ liệu giả lập (Mock Seed Data) phục vụ kiểm thử độc lập các màn hình
@@ -169,9 +175,14 @@ values
 on conflict (room_id) do nothing;
 
 -- ============================================================================
--- 2. TẠO 2 VOUCHER MẪU (vouchers & voucher_redemptions)
--- - Mã hợp lệ: "KAPI50" (giảm 50k, is_active = true)
--- - Mã hết hạn: "HETTIEN" (hết hạn / không khả dụng để test luồng checkout)
+-- 2. TẠO 2 VOUCHER MẪU (vouchers & voucher_redemptions) - CHUẨN LOYALTY RULE
+-- - Mã hợp lệ: "KAPI40" / "KAPI_LOYALTY"
+--   + voucher_type: 'percentage_discount' (giảm 40%, tối đa 400.000đ)
+--   + max_eligible_base_vnd: 1.000.000đ (base cap)
+--   + points_cost: 500 điểm
+--   + hạn sử dụng: current_timestamp + interval '24 hours'
+--   + is_active: true
+-- - Mã test lỗi: "HETTIEN" (is_active = false / EXPIRED để test validation)
 -- ============================================================================
 
 -- 2.1 Định nghĩa voucher (vouchers)
@@ -187,11 +198,11 @@ insert into public.vouchers (
 values
   (
     'f1111111-1111-1111-1111-111111111111',
-    'KAPI50',
+    'KAPI40',
     'percentage_discount',
     500.0000,
-    10.00,
-    500000,
+    40.00,
+    1000000,
     true
   ),
   (
@@ -199,8 +210,8 @@ values
     'HETTIEN',
     'percentage_discount',
     500.0000,
-    10.00,
-    500000,
+    40.00,
+    1000000,
     false
   )
 on conflict (id) do nothing;
@@ -222,26 +233,27 @@ values
     'f1111111-1111-1111-1111-111111111111',
     '00000000-0000-0000-0000-000000000001',
     'AVAILABLE',
-    now(),
-    now() + interval '24 hours',
-    50000
+    current_timestamp,
+    current_timestamp + interval '24 hours',
+    260000
   ),
   (
     'fd222222-2222-2222-2222-222222222222',
     'f2222222-2222-2222-2222-222222222222',
     '00000000-0000-0000-0000-000000000001',
     'EXPIRED',
-    now() - interval '2 days',
-    now() - interval '1 day',
+    current_timestamp - interval '2 days',
+    current_timestamp - interval '1 day',
     null
   )
 on conflict (id) do nothing;
 
 -- ============================================================================
 -- 3. TẠO 1 ĐƠN ĐẶT PHÒNG MẪU (bookings & booking_access_credentials)
--- - Trạng thái: 'confirmed'
+-- - Trạng thái: 'confirmed', thanh toán 'verified'
 -- - Check-in: hôm nay (current_date)
 -- - Check-out: ngày mai (current_date + 1)
+-- - Áp voucher giảm giá 40% (260.000đ trên tiền phòng 650.000đ)
 -- - Kèm khóa số điện tử (Digital Key) hiển thị trực tiếp trên trang /my-stay
 -- ============================================================================
 
@@ -269,8 +281,8 @@ values (
   current_date + 1,
   2,
   650000,
-  50000,
-  600000,
+  260000,
+  390000,
   'verified',
   'confirmed',
   now(),
@@ -308,9 +320,9 @@ on conflict (id) do nothing;
 -- UPDATE tickets SET user_id = 'DÁN_USER_UID_GOOGLE_VÀO_ĐÂY' WHERE booking_id = '00000000-0000-0000-0000-000000000021';
 
 -- ============================================================================
--- 4. TẠO 2 PHIẾU BÁO SỰ CỐ MẪU (tickets)
--- - Vé 1: "Điều hòa chảy nước" trạng thái 'pending'
--- - Vé 2: "Xin thêm gối" trạng thái 'in_progress'
+-- 4. TẠO 2 PHIẾU BÁO SỰ CỐ MẪU (tickets) - ĐỊNH DẠNG UUID HỢP LỆ
+-- - Vé 1: "Điều hòa chảy nước" trạng thái 'pending' (ID: ...00000031)
+-- - Vé 2: "Xin thêm gối" trạng thái 'in_progress' (ID: ...00000032)
 -- Phục vụ kiểm thử trang /my-stay của khách và /admin của vận hành viên
 -- ============================================================================
 insert into public.tickets (
@@ -327,7 +339,7 @@ insert into public.tickets (
 )
 values
   (
-    't1111111-1111-1111-1111-111111111111',
+    '00000000-0000-0000-0000-000000000031',
     '00000000-0000-0000-0000-000000000001',
     '00000000-0000-0000-0000-000000000021',
     'e1111111-1111-1111-1111-111111111111',
@@ -339,7 +351,7 @@ values
     now() - interval '30 minutes'
   ),
   (
-    't2222222-2222-2222-2222-222222222222',
+    '00000000-0000-0000-0000-000000000032',
     '00000000-0000-0000-0000-000000000001',
     '00000000-0000-0000-0000-000000000021',
     'e1111111-1111-1111-1111-111111111111',
@@ -366,11 +378,11 @@ commit;
 /*
 begin;
 
--- 1. Xóa tickets giả lập
+-- 1. Xóa tickets giả lập (UUID chuẩn hex)
 delete from public.tickets
 where id in (
-  't1111111-1111-1111-1111-111111111111',
-  't2222222-2222-2222-2222-222222222222'
+  '00000000-0000-0000-0000-000000000031',
+  '00000000-0000-0000-0000-000000000032'
 );
 
 -- 2. Xóa mã khóa số (digital keys) của đơn đặt phòng mẫu
