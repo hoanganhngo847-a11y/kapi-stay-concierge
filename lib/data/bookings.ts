@@ -60,12 +60,12 @@ export async function checkRoomAvailability(
 
     // Gọi RPC function check_room_availability từ Supabase
     const { data, error } = await supabase.rpc(
-      "check_room_availability" as any,
+      "check_room_availability",
       {
         p_room_id: cleanRoomId,
         p_check_in: cleanCheckIn,
         p_check_out: cleanCheckOut,
-      } as any
+      }
     );
 
     if (error) {
