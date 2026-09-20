@@ -2,7 +2,11 @@
   "_metadata": {
     "isDemoData": true,
     "version": "1.0.0-draft",
-    "notice": "Toàn bộ thông tin địa chỉ, hotline, cơ sở y tế và địa điểm ẩm thực trong file này là dữ liệu giả lập (fixture/demo), cần thay thế bằng dữ liệu thực tế khi vận hành chính thức."
+    "notice": "Toàn bộ thông tin địa chỉ, hotline, cơ sở y tế và địa điểm ẩm thực trong file này là dữ liệu giả lập (fixture/demo), cần thay thế bằng dữ liệu thực tế khi vận hành chính thức.",
+    "uiIntegrationContract": {
+      "targetOwner": "TV6 (Guest Guide / Room Details)",
+      "handlingRule": "Khi modelVerified === false, UI frontend không được render các bước thao tác chi tiết model-specific mà phải hiển thị banner cảnh báo: 'Hướng dẫn thiết bị đang ở chế độ chờ xác minh model thực tế, vui lòng liên hệ lễ tân/hotline nếu cần trợ giúp'."
+    }
   },
   "branches": [
     {
