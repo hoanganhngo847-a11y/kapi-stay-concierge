@@ -19,7 +19,6 @@ import { RoomBookingWidget } from "@/components/rooms/RoomBookingWidget";
 
 interface RoomDetailPageProps {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
 export async function generateMetadata({
@@ -45,31 +44,8 @@ export async function generateMetadata({
 // Dynamic rendering for room details
 export const dynamic = "force-dynamic";
 
-export default async function RoomDetailPage({
-  params,
-  searchParams,
-}: RoomDetailPageProps) {
+export default async function RoomDetailPage({ params }: RoomDetailPageProps) {
   const { id } = await params;
-  const resolvedSearchParams = searchParams ? await searchParams : {};
-
-  const rawCheckIn =
-    resolvedSearchParams?.check_in || resolvedSearchParams?.checkIn;
-  const checkIn =
-    typeof rawCheckIn === "string"
-      ? rawCheckIn
-      : Array.isArray(rawCheckIn)
-      ? rawCheckIn[0]
-      : "";
-
-  const rawCheckOut =
-    resolvedSearchParams?.check_out || resolvedSearchParams?.checkOut;
-  const checkOut =
-    typeof rawCheckOut === "string"
-      ? rawCheckOut
-      : Array.isArray(rawCheckOut)
-      ? rawCheckOut[0]
-      : "";
-
   const { data: room, error } = await getPublicRoomById(id);
 
   if (error || !room) {
@@ -80,12 +56,6 @@ export default async function RoomDetailPage({
     room.image_paths && room.image_paths.length > 0
       ? room.image_paths[0]
       : null;
-  const isImageValid = Boolean(
-    primaryImage &&
-      (primaryImage.startsWith("/") ||
-        primaryImage.startsWith("http://") ||
-        primaryImage.startsWith("https://"))
-  );
 
   return (
     <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
@@ -137,19 +107,27 @@ export default async function RoomDetailPage({
 
           {/* Primary Visual Banner */}
           <div className="w-full h-72 sm:h-96 rounded-2xl border border-dark/10 bg-light/70 overflow-hidden relative flex items-center justify-center">
-            {isImageValid && primaryImage ? (
+            {primaryImage && primaryImage.startsWith("/") ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={primaryImage}
                 alt={room.name}
                 className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.currentTarget.style.display = "none";
+                  const parent = e.currentTarget.parentElement;
+                  if (parent) {
+                    const ph = parent.querySelector(".detail-placeholder");
+                    if (ph) (ph as HTMLElement).style.display = "flex";
+                  }
+                }}
               />
             ) : null}
 
             {/* Tasteful Neutral Placeholder */}
             <div
               className={`detail-placeholder w-full h-full flex flex-col items-center justify-center gap-3 p-8 text-center ${
-                isImageValid ? "hidden" : "flex"
+                primaryImage && primaryImage.startsWith("/") ? "hidden" : "flex"
               }`}
             >
               <div className="w-16 h-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
@@ -231,11 +209,7 @@ export default async function RoomDetailPage({
 
         {/* Sidebar Column (1 col): Booking Widget */}
         <div className="lg:col-span-1">
-          <RoomBookingWidget
-            room={room}
-            initialCheckIn={checkIn}
-            initialCheckOut={checkOut}
-          />
+          <RoomBookingWidget room={room} />
         </div>
       </div>
     </div>

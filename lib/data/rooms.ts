@@ -59,9 +59,15 @@ export function parseImagePaths(raw: unknown): string[] {
 
 export interface RoomCatalogFilters {
   propertyId?: string;
-  capacity?: number;
-  checkIn?: string;
-  checkOut?: string;
+  property_id?: string | string[];
+  location_code?: string | string[];
+  location?: string | string[];
+  capacity?: number | string | string[];
+  max_guests?: number | string | string[];
+  guests?: number | string | string[];
+  checkIn?: string | string[];
+  checkOut?: string | string[];
+  [key: string]: unknown;
 }
 
 /**
@@ -100,12 +106,35 @@ export async function getPublicRooms(filters?: RoomCatalogFilters): Promise<{
       )
       .eq("is_listed", true);
 
-    if (filters?.propertyId && filters.propertyId.trim().length > 0) {
-      query = query.eq("property_id", filters.propertyId.trim());
+    const rawProp =
+      filters?.propertyId ||
+      filters?.property_id ||
+      filters?.location_code ||
+      filters?.location;
+    const propertyId =
+      typeof rawProp === "string"
+        ? rawProp.trim()
+        : Array.isArray(rawProp) && typeof rawProp[0] === "string"
+          ? rawProp[0].trim()
+          : "";
+
+    if (propertyId.length > 0) {
+      query = query.eq("property_id", propertyId);
     }
 
-    if (filters?.capacity && filters.capacity > 0) {
-      query = query.gte("capacity", filters.capacity);
+    const rawCapacity =
+      filters?.capacity ?? filters?.max_guests ?? filters?.guests;
+    const capacityNum =
+      typeof rawCapacity === "number"
+        ? rawCapacity
+        : typeof rawCapacity === "string"
+          ? parseInt(rawCapacity, 10)
+          : Array.isArray(rawCapacity) && typeof rawCapacity[0] === "string"
+            ? parseInt(rawCapacity[0], 10)
+            : 0;
+
+    if (!isNaN(capacityNum) && capacityNum > 0) {
+      query = query.gte("capacity", capacityNum);
     }
 
     query = query.order("nightly_price_vnd", { ascending: true });

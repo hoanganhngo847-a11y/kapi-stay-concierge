@@ -3,15 +3,9 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { ArrowLeft, DoorOpen } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { createClient } from "@/lib/supabase/server";
 import { RoomCard } from "@/components/rooms/RoomCard";
 import { RoomFilters } from "@/components/rooms/RoomFilters";
-import {
-  parseAmenities,
-  parseImagePaths,
-  type PublicRoom,
-  type PublicProperty,
-} from "@/lib/data/rooms";
+import { getPublicRooms, getActiveProperties } from "@/lib/data/rooms";
 
 export const metadata = {
   title: "Danh sách phòng | Kapi Stay Concierge",
@@ -27,13 +21,19 @@ interface RoomsPageProps {
 }
 
 export default async function RoomsPage({ searchParams }: RoomsPageProps) {
-  const resolvedParams = searchParams ? await searchParams : {};
+  const resolvedParams = (await searchParams) || {};
 
-  // 1. Đọc tham số lọc từ URL: location_code/location và max_guests/guests
+  // Lấy danh sách phòng trực tiếp từ hàm getPublicRooms và danh sách cơ sở từ getActiveProperties
+  const [{ data: roomsList = [] }, { data: propertiesList = [] }] =
+    await Promise.all([
+      getPublicRooms(resolvedParams),
+      getActiveProperties(),
+    ]);
+
   const rawLocation =
-    resolvedParams?.location_code ||
-    resolvedParams?.location ||
-    resolvedParams?.property_id;
+    resolvedParams.location_code ||
+    resolvedParams.location ||
+    resolvedParams.property_id;
   const location =
     typeof rawLocation === "string"
       ? rawLocation.trim()
@@ -42,9 +42,9 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
         : "";
 
   const rawGuests =
-    resolvedParams?.max_guests ||
-    resolvedParams?.guests ||
-    resolvedParams?.capacity;
+    resolvedParams.max_guests ||
+    resolvedParams.guests ||
+    resolvedParams.capacity;
   const guestsStr =
     typeof rawGuests === "string"
       ? rawGuests.trim()
@@ -55,118 +55,6 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
     guestsStr && !isNaN(parseInt(guestsStr, 10))
       ? parseInt(guestsStr, 10)
       : 0;
-
-  let propertiesList: PublicProperty[] = [];
-  let roomsList: PublicRoom[] = [];
-
-  try {
-    const supabase = await createClient();
-
-    // Query danh sách cơ sở từ bảng properties để hiển thị bộ lọc
-    const { data: propData } = await supabase
-      .from("properties")
-      .select("id, name, slug, address, maps_url")
-      .eq("is_active", true)
-      .order("name", { ascending: true });
-
-    if (propData && propData.length > 0) {
-      propertiesList = propData as PublicProperty[];
-    }
-
-    // Query dữ liệu bảng rooms: supabase.from('rooms').select('*')
-    // TUYỆT ĐỐI KHÔNG query bảng bookings để tránh lỗi RLS
-    // Dùng .eq('location_code'), .gte('max_guests') từ tham số URL
-    interface SupabaseRoomRow {
-      id: string;
-      property_id?: string;
-      location_code?: string;
-      name: string;
-      description: string | null;
-      nightly_price_vnd: number;
-      capacity?: number;
-      max_guests?: number;
-      amenities: unknown;
-      image_paths: unknown;
-      is_listed?: boolean;
-    }
-
-    interface DynamicQueryResult {
-      data: SupabaseRoomRow[] | null;
-      error: { code?: string; message: string } | null;
-    }
-
-    interface DynamicQueryBuilder extends PromiseLike<DynamicQueryResult> {
-      eq: (col: string, val: string | number) => DynamicQueryBuilder;
-      gte: (col: string, val: string | number) => DynamicQueryBuilder;
-      order: (
-        col: string,
-        opts: { ascending: boolean }
-      ) => DynamicQueryBuilder;
-    }
-
-    interface DynamicSupabaseClient {
-      from: (table: string) => {
-        select: (cols: string) => DynamicQueryBuilder;
-      };
-    }
-
-    const dynamicClient = supabase as unknown as DynamicSupabaseClient;
-    let query = dynamicClient.from("rooms").select("*");
-
-    // Lọc theo cơ sở (location_code) nếu có
-    if (location) {
-      query = query.eq("location_code", location);
-    }
-
-    // Lọc theo số lượng khách (max_guests) nếu có
-    if (guests > 0) {
-      query = query.gte("max_guests", guests);
-    }
-
-    // Sắp xếp theo giá phòng tăng dần
-    query = query.order("nightly_price_vnd", { ascending: true });
-
-    let { data, error } = await query;
-
-    // Hỗ trợ database schema khi sử dụng property_id và capacity (mã lỗi 42703: column does not exist)
-    if (error && error.code === "42703") {
-      let dbQuery = supabase.from("rooms").select("*");
-      if (location) {
-        dbQuery = dbQuery.eq("property_id", location);
-      }
-      if (guests > 0) {
-        dbQuery = dbQuery.gte("capacity", guests);
-      }
-      dbQuery = dbQuery.order("nightly_price_vnd", { ascending: true });
-      const res = await dbQuery;
-      data = res.data as SupabaseRoomRow[] | null;
-      error = res.error;
-    }
-
-    if (error) {
-      console.error("Lỗi truy vấn bảng rooms Supabase:", error.message);
-    } else if (data && data.length > 0) {
-      roomsList = data.map((item: SupabaseRoomRow) => {
-        const property =
-          propertiesList.find((p) => p.id === (item.property_id || item.location_code)) || null;
-
-        return {
-          id: item.id,
-          property_id: item.property_id || item.location_code || "",
-          name: item.name,
-          description: item.description,
-          nightly_price_vnd: Number(item.nightly_price_vnd) || 0,
-          capacity: Number(item.capacity || item.max_guests) || 2,
-          amenities: parseAmenities(item.amenities),
-          image_paths: parseImagePaths(item.image_paths),
-          is_listed: item.is_listed ?? true,
-          property,
-        };
-      });
-    }
-  } catch (err) {
-    console.error("Lỗi kết nối Supabase:", err);
-  }
 
   const hasActiveFilters = Boolean(location || guests > 0);
   const activePropertyName = propertiesList.find((p) => p.id === location)?.name;
