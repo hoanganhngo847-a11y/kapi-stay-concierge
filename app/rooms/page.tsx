@@ -204,7 +204,7 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
       {/* Số lượng phòng tìm thấy */}
       <div className="flex items-center justify-between text-xs text-dark/60 mb-6">
         <span>
-          Tìm thấy <strong className="text-dark font-semibold">{roomsList.length}</strong> phòng khả dụng
+          Tìm thấy <strong className="text-dark font-semibold">{roomsList.length}</strong> phòng phù hợp
           {activePropertyName ? ` tại "${activePropertyName}"` : ""}
           {guests > 0 ? ` (cho từ ${guests} khách)` : ""}
         </span>
@@ -221,11 +221,9 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
           </h2>
           <p className="text-sm text-dark/60 mb-6 leading-relaxed">
             {hasActiveFilters
-              ? `Không có phòng nào đáp ứng tiêu chí lọc${
-                  activePropertyName ? ` tại "${activePropertyName}"` : ""
-                }${
-                  guests > 0 ? ` cho từ ${guests} khách` : ""
-                }. Quý khách vui lòng thử chọn cơ sở khác hoặc điều chỉnh số lượng khách.`
+              ? `Không có phòng nào đáp ứng tiêu chí lọc${activePropertyName ? ` tại "${activePropertyName}"` : ""
+              }${guests > 0 ? ` cho từ ${guests} khách` : ""
+              }. Quý khách vui lòng thử chọn cơ sở khác hoặc điều chỉnh số lượng khách.`
               : "Không tìm thấy phòng phù hợp trên hệ thống. Quý khách vui lòng quay lại sau."}
           </p>
           {hasActiveFilters && (
