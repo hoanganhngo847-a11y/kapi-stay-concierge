@@ -15,8 +15,8 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-    -- Kiểm tra tính hợp lệ của ngày
-    IF p_check_out <= p_check_in THEN
+    -- Kiểm tra tính hợp lệ của tham số đầu vào
+    IF p_room_id IS NULL OR p_check_in IS NULL OR p_check_out IS NULL OR p_check_out <= p_check_in THEN
         RETURN FALSE;
     END IF;
 
@@ -29,14 +29,15 @@ BEGIN
     END IF;
 
     -- Kiểm tra xem có booking nào trùng lịch không
-    -- Canonical blocking statuses: confirmed, completed (loại trừ cancelled, refunded)
+    -- Booking statuses that currently block availability: confirmed, completed
+    -- Half-open interval: existing.check_in < requested.check_out AND existing.check_out > requested.check_in
     RETURN NOT EXISTS (
         SELECT 1
         FROM public.bookings
         WHERE room_id = p_room_id
           AND LOWER(booking_status) IN ('confirmed', 'completed')
-          AND LOWER(booking_status) NOT IN ('cancelled', 'refunded')
-          AND (check_in < p_check_out AND check_out > p_check_in)
+          AND check_in < p_check_out
+          AND check_out > p_check_in
     );
 END;
 $$;
