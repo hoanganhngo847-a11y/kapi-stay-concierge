@@ -195,78 +195,46 @@ export async function getMyStayBookingDetails(
     stayStatus = "COMPLETED";
   }
 
-  // 7. Security: fetch or derive door PIN (Digital Key) & Wi-Fi credentials
+  // 7. Security: Call trusted RPC get_my_stay_credentials (PR #8)
   let passcode: string | null = null;
   let wifiSsid: string | null = null;
   let wifiPass: string | null = null;
   let instructions: string | null = null;
   let activationNotice: string | null = null;
 
-  if (isActiveStay) {
-    // A. Query door credentials from booking_access_credentials
-    try {
-      const { data: creds } = await supabase
-        .from("booking_access_credentials")
-        .select("credential_value, instructions")
-        .eq("booking_id", booking.id)
-        .eq("status", "active")
-        .maybeSingle();
+  try {
+    const { data: creds, error: rpcError } = await supabase.rpc(
+      "get_my_stay_credentials" as any,
+      { p_booking_id: booking.id } as any
+    );
 
-      if (creds?.credential_value) {
-        passcode = creds.credential_value;
-        instructions = creds.instructions;
-      }
-    } catch (credErr) {
-      console.warn("[getMyStayBookingDetails] Could not fetch booking_access_credentials:", credErr);
-    }
-
-    // Fallback passcode for development / demo if not yet seeded
-    if (!passcode) {
-      // Deterministic 6-digit passcode from booking ID
-      const digits = booking.id.replace(/\D/g, "");
-      passcode = (digits.slice(-6) || "888666").padStart(6, "8");
-      instructions = "Nhập mã số trên bàn phím khóa điện tử và bấm phím # để mở cửa.";
-    }
-
-    // B. Query private details (Wi-Fi) from room_private_details
-    try {
-      const { data: priv } = await supabase
-        .from("room_private_details")
-        .select("wifi_ssid, wifi_password, private_instructions")
-        .eq("room_id", booking.room_id)
-        .maybeSingle();
-
-      if (priv) {
-        wifiSsid = priv.wifi_ssid;
-        wifiPass = priv.wifi_password;
-        if (!instructions && priv.private_instructions) {
-          instructions = priv.private_instructions;
+    if (!rpcError && creds && (creds as any).success) {
+      const credData = creds as any;
+      if (credData.is_active) {
+        passcode = credData.digital_key || null;
+        wifiSsid = credData.wifi_ssid || null;
+        wifiPass = credData.wifi_password || null;
+        if (passcode) {
+          instructions = "Nhập mã số trên bàn phím khóa điện tử và bấm phím # để mở cửa.";
         }
       }
-    } catch (privErr) {
-      console.warn("[getMyStayBookingDetails] Could not fetch room_private_details:", privErr);
+    } else if (rpcError) {
+      console.warn("[getMyStayBookingDetails] Error calling get_my_stay_credentials RPC:", rpcError);
     }
+  } catch (rpcErr) {
+    console.warn("[getMyStayBookingDetails] Exception calling get_my_stay_credentials RPC:", rpcErr);
+  }
 
-    // Fallback Wi-Fi for development / demo if not yet seeded
-    if (!wifiSsid) {
-      wifiSsid = `Kapi_${property?.slug || "Guest"}`;
-    }
-    if (!wifiPass) {
-      wifiPass = "kapi@welcome2026";
-    }
-  } else {
-    // Out of stay window: mask sensitive credentials
-    passcode = null;
-    wifiPass = null;
-    wifiSsid = null;
-    instructions = null;
-
+  // Strictly authentic data: If outside stay window or unseeded, set appropriate activation notices (no fake data)
+  if (!passcode && !wifiSsid) {
     if (isUpcoming) {
       activationNotice = "Mã khóa và Wi-Fi sẽ kích hoạt vào ngày nhận phòng";
     } else if (isExpired) {
       activationNotice = "Kỳ nghỉ đã kết thúc. Mã khóa và Wi-Fi đã hết hiệu lực.";
-    } else {
+    } else if (isCancelled) {
       activationNotice = "Đơn đặt phòng này đã bị hủy.";
+    } else {
+      activationNotice = "Thông tin khóa phòng đang được cập nhật.";
     }
   }
 
