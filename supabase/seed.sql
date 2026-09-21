@@ -2,10 +2,18 @@
 -- ============================================================================
 -- Supabase Seed Data: seed.sql
 -- Dự án: Kapi Stay Concierge (TV8 - Database & Backend Data)
--- Nhiệm vụ: Nạp đầy đủ dữ liệu mẫu chuẩn cho 4 cơ sở và 8 phòng nghỉ Kapi Stay
+-- Mục đích: Nạp dữ liệu demo/local fixture cho 4 cơ sở và 8 phòng nghỉ Kapi Stay
 -- (Hà Nội, Đà Nẵng, Đà Lạt, TP. Hồ Chí Minh)
--- Tuân thủ chuẩn kiến trúc chuẩn hóa: properties, rooms, room_operations, room_private_details
--- An toàn: Dùng ON CONFLICT (id) DO UPDATE / ON CONFLICT DO NOTHING, tuyệt đối không dùng TRUNCATE hay DELETE
+--
+-- QUY TẮC DỮ LIỆU FIXTURE:
+-- 1. Đây hoàn toàn là dữ liệu demo / local fixture phục vụ phát triển cục bộ và kiểm thử UI/dev.
+--    Tuyệt đối không phải dữ liệu thực tế đã xác minh của Kapi Stay / Kapi House trong môi trường production.
+--    Không tự suy diễn địa chỉ, Wi-Fi, phòng nghỉ, hình ảnh là thông tin thực tế đã xác minh.
+-- 2. Tuyệt đối không chứa secret production, không chứa thông tin khách hàng thật, không seed auth.users.
+-- 3. Tuyệt đối không chứa mã PIN cửa / static Digital Key (Digital Key phải booking-scoped và tạo động theo stay window).
+-- 4. Thông tin Wi-Fi (SSID/mật khẩu) và hình ảnh (Unsplash) chỉ là placeholder minh họa cho local demo fixture.
+-- 5. Tuân thủ kiến trúc phân tách bảng: properties, rooms, room_operations, room_private_details, vouchers.
+-- 6. An toàn & idempotent: Dùng ON CONFLICT (...) DO UPDATE, tuyệt đối không dùng TRUNCATE hay DELETE.
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
@@ -54,7 +62,8 @@ on conflict (id) do update set
 
 -- ----------------------------------------------------------------------------
 -- 2. DANH MỤC 8 PHÒNG NGHỈ TRẢI ĐỀU 4 CƠ SỞ (PUBLIC ROOM CATALOG)
--- Giá phòng: 450.000đ - 1.450.000đ/đêm. Ảnh Unsplash chủ đề homestay/boutique hotel.
+-- Giá phòng demo: 450.000đ - 1.450.000đ/đêm.
+-- Ảnh Unsplash chỉ là ảnh placeholder minh họa cho local demo fixture, không phải ảnh chụp thực tế của Kapi Stay.
 -- ----------------------------------------------------------------------------
 insert into public.rooms (
   id,
@@ -216,8 +225,9 @@ on conflict (room_id) do update set
 
 -- ----------------------------------------------------------------------------
 -- 4. THÔNG TIN BẢO MẬT PHÒNG NGHỈ (ROOM PRIVATE DETAILS)
--- Bao gồm Tên Wi-Fi (wifi_ssid), Mật khẩu Wi-Fi (wifi_password)
--- và Hướng dẫn bảo mật / sử dụng Digital Key (Digital Key được cấp động theo từng booking, không lưu mã tĩnh)
+-- Bao gồm Tên Wi-Fi (wifi_ssid), Mật khẩu Wi-Fi (wifi_password) - chỉ là placeholder/demo credentials,
+-- tuyệt đối không phải production secrets.
+-- Hướng dẫn bảo mật / sử dụng Digital Key ở mức demo (Digital Key được cấp động theo từng booking, không lưu mã tĩnh).
 -- ----------------------------------------------------------------------------
 insert into public.room_private_details (
   room_id,
@@ -281,6 +291,8 @@ on conflict (room_id) do update set
 
 -- ----------------------------------------------------------------------------
 -- 5. VOUCHER MẪU CHO HỆ THỐNG LOYALTY (LOYALTY VOUCHER DEFINITION)
+-- Khớp quy tắc nghiệp vụ loyalty: 500 điểm đổi voucher 40%, giới hạn tối đa trên giá gốc 1.000.000đ
+-- (mức giảm tối đa suy ra là 400.000đ). Không tạo thêm bảng hay quy tắc ngoài thiết kế.
 -- ----------------------------------------------------------------------------
 insert into public.vouchers (
   id,
@@ -301,4 +313,10 @@ values
     1000000,
     true
   )
-on conflict (id) do nothing;
+on conflict (id) do update set
+  name = excluded.name,
+  voucher_type = excluded.voucher_type,
+  points_cost = excluded.points_cost,
+  discount_percentage = excluded.discount_percentage,
+  max_eligible_base_vnd = excluded.max_eligible_base_vnd,
+  is_active = excluded.is_active;
