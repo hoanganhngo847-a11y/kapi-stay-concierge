@@ -2,7 +2,11 @@
 
 import { createClient } from "@/lib/supabase/server";
 
-export type RoomOperationalStatus = "ready" | "occupied" | "cleaning";
+export type RoomOperationalStatus =
+  | "ready"
+  | "occupied"
+  | "cleaning"
+  | "maintenance";
 
 export type TicketStatus = "pending" | "in_progress" | "resolved";
 
@@ -49,26 +53,28 @@ export interface StaffDashboardData {
     updated_at: string;
     updated_by: string | null;
   }>;
-  support_tickets?: Array<{
+  tickets?: Array<{
     id: string;
     booking_id: string;
     room_id: string;
-    room_name: string;
+    room_name: string | null;
     user_id: string;
     guest_name: string | null;
+    guest_phone?: string | null;
     category: string;
     description: string;
+    media_paths?: string[];
     status: string;
-    resolution_notes: string | null;
     created_at: string;
     updated_at: string;
   }>;
   today_bookings?: Array<{
     id: string;
     room_id: string;
-    room_name: string;
+    room_name: string | null;
     user_id: string;
     guest_name: string | null;
+    guest_phone?: string | null;
     check_in: string;
     check_out: string;
     guest_count: number;
@@ -80,6 +86,85 @@ export interface StaffDashboardData {
   error?: string;
 }
 
+interface RpcUpdateRoomResult {
+  success: boolean;
+  error?: string;
+  room_id?: string;
+  room_name?: string;
+  operational_status?: string;
+  updated_at?: string;
+  updated_by?: string | null;
+}
+
+interface RpcUpdateTicketResult {
+  success: boolean;
+  error?: string;
+  ticket?: {
+    id?: string;
+    booking_id?: string;
+    room_id?: string;
+    user_id?: string;
+    category?: string;
+    description?: string;
+    media_paths?: string[];
+    status?: string;
+    created_at?: string;
+    updated_at?: string;
+    rooms?: {
+      id: string;
+      name: string;
+    } | null;
+    profiles?: {
+      id: string;
+      display_name: string | null;
+      phone: string | null;
+    } | null;
+  };
+}
+
+interface RpcDashboardResult {
+  success: boolean;
+  error?: string;
+  today?: string;
+  room_operations?: Array<{
+    room_id: string;
+    room_name: string;
+    operational_status: string;
+    updated_at: string;
+    updated_by: string | null;
+  }>;
+  tickets?: Array<{
+    id: string;
+    booking_id: string;
+    room_id: string;
+    room_name: string | null;
+    user_id: string;
+    guest_name: string | null;
+    guest_phone?: string | null;
+    category: string;
+    description: string;
+    media_paths?: string[];
+    status: string;
+    created_at: string;
+    updated_at: string;
+  }>;
+  today_bookings?: Array<{
+    id: string;
+    room_id: string;
+    room_name: string | null;
+    user_id: string;
+    guest_name: string | null;
+    guest_phone?: string | null;
+    check_in: string;
+    check_out: string;
+    guest_count: number;
+    booking_status: string;
+    payment_status: string;
+    is_checkin_today: boolean;
+    is_checkout_today: boolean;
+  }>;
+}
+
 /**
  * Verifies that the current authenticated user has 'staff' or 'admin' privileges.
  * Authoritative check against database table public.staff_roles (PR #9).
@@ -89,7 +174,7 @@ export interface StaffDashboardData {
 export async function verifyStaffRole(): Promise<{
   id: string;
   email?: string;
-  role: string;
+  role: "staff" | "admin";
 }> {
   const supabase = await createClient();
 
@@ -103,47 +188,35 @@ export async function verifyStaffRole(): Promise<{
   }
 
   // Authoritative role check against database table public.staff_roles
-  const { data: roleData } = await supabase
+  const { data: roleData, error: roleError } = await supabase
     .from("staff_roles")
     .select("role")
     .eq("user_id", user.id)
     .maybeSingle();
 
-  let isAuthorized = Boolean(roleData?.role);
-  let resolvedRole = roleData?.role || "staff";
-
-  // Double-check via RPC is_staff
-  if (!isAuthorized) {
-    try {
-      const { data: isStaffRpc } = await supabase.rpc("is_staff" as any, {
-        p_user_id: user.id,
-      } as any);
-      if (isStaffRpc === true) {
-        isAuthorized = true;
-      }
-    } catch {
-      // ignore RPC error
-    }
+  if (roleError) {
+    console.error("[verifyStaffRole] Lỗi truy vấn bảng staff_roles:", roleError.message);
+    throw new Error("Không thể xác thực quyền hạn người dùng.");
   }
 
-  if (!isAuthorized) {
+  if (!roleData || (roleData.role !== "staff" && roleData.role !== "admin")) {
     throw new Error("Forbidden: Bạn không có quyền truy cập trang quản trị.");
   }
 
   return {
     id: user.id,
     email: user.email,
-    role: resolvedRole,
+    role: roleData.role,
   };
 }
 
 /**
- * Updates the housekeeping/operational status of a room via trusted RPC `update_room_cleaning_status`.
+ * Updates the housekeeping/operational status of a room via trusted RPC `update_room_operational_status`.
  * Strict permission: Requires 'admin' or 'staff' role verified via `verifyStaffRole()`.
  *
  * @param roomId - The UUID of the room to update
- * @param status - The new operational status ('ready' | 'occupied' | 'cleaning')
- * @returns Promise<RoomOperationRecord> - The updated operational status record
+ * @param status - The new operational status ('ready' | 'occupied' | 'cleaning' | 'maintenance')
+ * @returns Promise<RoomOperationRecord> - The updated operational status record returned from RPC
  */
 export async function updateRoomStatus(
   roomId: string,
@@ -160,61 +233,65 @@ export async function updateRoomStatus(
     "ready",
     "occupied",
     "cleaning",
+    "maintenance",
   ];
 
   if (!validStatuses.includes(status)) {
-    throw new Error(
-      `Trạng thái phòng không hợp lệ. Cho phép: ${validStatuses.join(", ")}`
-    );
+    throw new Error("Trạng thái vận hành phòng không hợp lệ.");
   }
 
   const supabase = await createClient();
 
-  // Call trusted RPC update_room_cleaning_status
-  const { data: rpcResult, error: rpcError } = await supabase.rpc(
-    "update_room_cleaning_status" as any,
+  const { data: rpcRaw, error: rpcError } = await supabase.rpc(
+    "update_room_operational_status",
     {
       p_room_id: cleanRoomId,
-      p_cleaning_status: status,
-    } as any
+      p_operational_status: status,
+    }
   );
 
-  if (rpcError || (rpcResult && !(rpcResult as any).success)) {
-    const errMsg =
-      rpcError?.message ||
-      (rpcResult as any)?.error ||
-      "Không thể cập nhật trạng thái vận hành phòng.";
-    console.error(`[updateRoomStatus] Lỗi RPC (${cleanRoomId}):`, errMsg);
-    throw new Error(errMsg);
+  if (rpcError) {
+    console.error(`[updateRoomStatus] Lỗi RPC (${cleanRoomId}):`, rpcError.message);
+    throw new Error("Không thể cập nhật trạng thái vận hành phòng.");
   }
 
-  // Query updated record for return
-  const { data: opData } = await supabase
-    .from("room_operations")
-    .select(`
-      room_id,
-      operational_status,
-      updated_at,
-      updated_by,
-      rooms (
-        id,
-        name
-      )
-    `)
-    .eq("room_id", cleanRoomId)
-    .maybeSingle();
+  const result = rpcRaw as unknown as RpcUpdateRoomResult | null;
 
-  const rawRoom = opData?.rooms as unknown;
-  const room = Array.isArray(rawRoom)
-    ? rawRoom[0]
-    : (rawRoom as { id: string; name: string } | null);
+  if (!result || result.success !== true) {
+    const domainError = result?.error;
+    console.error(`[updateRoomStatus] RPC trả về thất bại (${cleanRoomId}):`, domainError);
+    if (domainError === "FORBIDDEN_STAFF_ONLY") {
+      throw new Error("Forbidden: Bạn không có quyền thực hiện thao tác này.");
+    }
+    if (domainError === "ROOM_NOT_FOUND") {
+      throw new Error("Không tìm thấy phòng tương ứng.");
+    }
+    if (domainError === "INVALID_OPERATIONAL_STATUS") {
+      throw new Error("Trạng thái vận hành phòng không hợp lệ.");
+    }
+    throw new Error("Không thể cập nhật trạng thái vận hành phòng.");
+  }
+
+  if (
+    !result.room_id ||
+    typeof result.operational_status !== "string" ||
+    !result.updated_at
+  ) {
+    console.error("[updateRoomStatus] RPC trả về payload không đúng định dạng:", result);
+    throw new Error("Dữ liệu phản hồi từ máy chủ không hợp lệ.");
+  }
 
   return {
-    room_id: cleanRoomId,
-    operational_status: status,
-    updated_at: opData?.updated_at || new Date().toISOString(),
-    updated_by: staff.id,
-    rooms: room || null,
+    room_id: result.room_id,
+    operational_status: result.operational_status,
+    updated_at: result.updated_at,
+    updated_by: result.updated_by ?? staff.id,
+    rooms: result.room_name
+      ? {
+          id: result.room_id,
+          name: result.room_name,
+        }
+      : null,
   };
 }
 
@@ -224,18 +301,16 @@ export async function updateRoomStatus(
  *
  * @param ticketId - The UUID of the ticket to update
  * @param status - The new ticket status ('pending' | 'in_progress' | 'resolved')
- * @param resolutionNotes - Optional resolution notes
- * @returns Promise<AdminTicketRecord> - The updated ticket record
+ * @returns Promise<AdminTicketRecord> - The updated ticket record returned from RPC
  */
 export async function updateTicketStatusAdmin(
   ticketId: string,
-  status: TicketStatus,
-  resolutionNotes?: string
+  status: TicketStatus
 ): Promise<AdminTicketRecord> {
   await verifyStaffRole();
 
   if (!ticketId || typeof ticketId !== "string" || ticketId.trim().length === 0) {
-    throw new Error("Mã yêu cầu hỗ trợ (ticketId) không hợp lệ.");
+    throw new Error("Mã yêu cầu hỗ trợ không hợp lệ.");
   }
 
   const cleanTicketId = ticketId.trim();
@@ -246,86 +321,70 @@ export async function updateTicketStatusAdmin(
   ];
 
   if (!validStatuses.includes(status)) {
-    throw new Error(
-      `Trạng thái ticket không hợp lệ. Cho phép: ${validStatuses.join(", ")}`
-    );
+    throw new Error("Trạng thái yêu cầu hỗ trợ không hợp lệ.");
   }
 
   const supabase = await createClient();
 
-  // Call trusted RPC update_ticket_status
-  const { data: rpcResult, error: rpcError } = await supabase.rpc(
-    "update_ticket_status" as any,
+  const { data: rpcRaw, error: rpcError } = await supabase.rpc(
+    "update_ticket_status",
     {
       p_ticket_id: cleanTicketId,
       p_status: status,
-      p_resolution_notes: resolutionNotes || null,
-    } as any
+    }
   );
 
-  if (rpcError || (rpcResult && !(rpcResult as any).success)) {
-    const errMsg =
-      rpcError?.message ||
-      (rpcResult as any)?.error ||
-      "Không thể cập nhật trạng thái yêu cầu hỗ trợ.";
-    console.error(`[updateTicketStatusAdmin] Lỗi RPC (${cleanTicketId}):`, errMsg);
-    throw new Error(errMsg);
+  if (rpcError) {
+    console.error(`[updateTicketStatusAdmin] Lỗi RPC (${cleanTicketId}):`, rpcError.message);
+    throw new Error("Không thể cập nhật trạng thái yêu cầu hỗ trợ.");
   }
 
-  // Query updated record for return
-  const { data: ticketData } = await supabase
-    .from("tickets")
-    .select(`
-      id,
-      booking_id,
-      room_id,
-      user_id,
-      category,
-      description,
-      media_paths,
-      status,
-      created_at,
-      updated_at,
-      rooms (
-        id,
-        name
-      ),
-      profiles (
-        id,
-        display_name,
-        phone
-      )
-    `)
-    .eq("id", cleanTicketId)
-    .maybeSingle();
+  const result = rpcRaw as unknown as RpcUpdateTicketResult | null;
 
-  const rawRoom = ticketData?.rooms as unknown;
-  const room = Array.isArray(rawRoom)
-    ? rawRoom[0]
-    : (rawRoom as { id: string; name: string } | null);
+  if (!result || result.success !== true) {
+    const domainError = result?.error;
+    console.error(`[updateTicketStatusAdmin] RPC trả về thất bại (${cleanTicketId}):`, domainError);
+    if (domainError === "FORBIDDEN_STAFF_ONLY") {
+      throw new Error("Forbidden: Bạn không có quyền thực hiện thao tác này.");
+    }
+    if (domainError === "TICKET_NOT_FOUND") {
+      throw new Error("Không tìm thấy yêu cầu hỗ trợ.");
+    }
+    if (domainError === "INVALID_TICKET_STATUS") {
+      throw new Error("Trạng thái yêu cầu hỗ trợ không hợp lệ.");
+    }
+    throw new Error("Không thể cập nhật trạng thái yêu cầu hỗ trợ.");
+  }
 
-  const rawProfile = ticketData?.profiles as unknown;
-  const profile = Array.isArray(rawProfile)
-    ? rawProfile[0]
-    : (rawProfile as {
-        id: string;
-        display_name: string | null;
-        phone: string | null;
-      } | null);
+  const t = result.ticket;
+  if (
+    !t ||
+    typeof t !== "object" ||
+    !t.id ||
+    !t.booking_id ||
+    !t.room_id ||
+    !t.user_id ||
+    typeof t.status !== "string" ||
+    !t.created_at ||
+    !t.updated_at
+  ) {
+    console.error("[updateTicketStatusAdmin] RPC trả về ticket payload không đúng định dạng:", result);
+    throw new Error("Dữ liệu phản hồi từ máy chủ không hợp lệ.");
+  }
 
   return {
-    id: cleanTicketId,
-    booking_id: ticketData?.booking_id || "",
-    room_id: ticketData?.room_id || "",
-    user_id: ticketData?.user_id || "",
-    category: ticketData?.category || "",
-    description: ticketData?.description || "",
-    media_paths: ticketData?.media_paths || [],
-    status: status,
-    created_at: ticketData?.created_at || new Date().toISOString(),
-    updated_at: ticketData?.updated_at || new Date().toISOString(),
-    rooms: room,
-    profiles: profile,
+    id: t.id,
+    booking_id: t.booking_id,
+    room_id: t.room_id,
+    user_id: t.user_id,
+    category: t.category ?? "",
+    description: t.description ?? "",
+    media_paths: Array.isArray(t.media_paths) ? t.media_paths : [],
+    status: t.status,
+    created_at: t.created_at,
+    updated_at: t.updated_at,
+    rooms: t.rooms ?? null,
+    profiles: t.profiles ?? null,
   };
 }
 
@@ -338,12 +397,38 @@ export async function getStaffDashboardData(): Promise<StaffDashboardData> {
   await verifyStaffRole();
 
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("get_staff_dashboard_data" as any);
+  const { data: rpcRaw, error: rpcError } = await supabase.rpc("get_staff_dashboard_data");
 
-  if (error) {
-    console.error("[getStaffDashboardData] Lỗi RPC get_staff_dashboard_data:", error.message);
-    throw new Error(error.message || "Không thể tải dữ liệu bảng điều khiển vận hành.");
+  if (rpcError) {
+    console.error("[getStaffDashboardData] Lỗi RPC get_staff_dashboard_data:", rpcError.message);
+    throw new Error("Không thể tải dữ liệu bảng điều khiển vận hành.");
   }
 
-  return data as StaffDashboardData;
+  const result = rpcRaw as unknown as RpcDashboardResult | null;
+
+  if (!result || result.success !== true) {
+    const domainError = result?.error;
+    console.error("[getStaffDashboardData] RPC trả về thất bại:", domainError);
+    if (domainError === "FORBIDDEN_STAFF_ONLY") {
+      throw new Error("Forbidden: Bạn không có quyền truy cập trang quản trị.");
+    }
+    throw new Error("Không thể tải dữ liệu bảng điều khiển vận hành.");
+  }
+
+  if (
+    !Array.isArray(result.room_operations) ||
+    !Array.isArray(result.tickets) ||
+    !Array.isArray(result.today_bookings)
+  ) {
+    console.error("[getStaffDashboardData] Dữ liệu RPC không đúng cấu trúc danh sách:", result);
+    throw new Error("Dữ liệu phản hồi từ máy chủ không hợp lệ.");
+  }
+
+  return {
+    success: true,
+    today: result.today,
+    room_operations: result.room_operations,
+    tickets: result.tickets,
+    today_bookings: result.today_bookings,
+  };
 }
