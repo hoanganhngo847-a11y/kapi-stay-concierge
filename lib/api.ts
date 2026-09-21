@@ -8,8 +8,10 @@ export {
   verifyStaffRole,
   updateRoomStatus,
   updateTicketStatusAdmin,
+  getStaffDashboardData,
   type RoomOperationalStatus,
   type TicketStatus,
   type RoomOperationRecord,
   type AdminTicketRecord,
+  type StaffDashboardData,
 } from "@/lib/data/admin";
