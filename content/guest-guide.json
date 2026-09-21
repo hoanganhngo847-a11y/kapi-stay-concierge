@@ -1,17 +1,21 @@
 {
   "_metadata": {
     "isDemoData": true,
+    "productionReady": false,
+    "verified": false,
     "version": "1.0.0-draft",
-    "notice": "Toàn bộ thông tin địa chỉ, hotline, cơ sở y tế và địa điểm ẩm thực trong file này là dữ liệu giả lập (fixture/demo), cần thay thế bằng dữ liệu thực tế khi vận hành chính thức.",
+    "notice": "Toàn bộ thông tin địa chỉ, hotline, cơ sở y tế, địa điểm ẩm thực và nội quy trong file này là dữ liệu giả lập (fixture/demo), chưa được xác thực vận hành.",
     "uiIntegrationContract": {
       "targetOwner": "TV6 (Guest Guide / Room Details)",
-      "handlingRule": "Khi modelVerified === false, UI frontend không được render các bước thao tác chi tiết model-specific mà phải hiển thị banner cảnh báo: 'Hướng dẫn thiết bị đang ở chế độ chờ xác minh model thực tế, vui lòng liên hệ lễ tân/hotline nếu cần trợ giúp'."
+      "handlingRule": "Khi productionReady === false hoặc verified === false, UI frontend không được render các thông tin liên hệ/địa chỉ/nội quy như dữ liệu vận hành thật (phải hiển thị nhãn/banner thông báo dữ liệu mẫu). Đặc biệt với thiết bị có modelVerified === false, không render thao tác chi tiết model-specific mà hiển thị thông báo chờ xác minh model thực tế."
     }
   },
   "branches": [
     {
       "branchId": "dvn",
       "branchName": "Kapi House — Đặng Văn Ngữ",
+      "status": "draft",
+      "verified": false,
       "address": "Số 12 Ngõ 4C Đặng Văn Ngữ, Phường Trung Tự, Quận Đống Đa, Hà Nội",
       "hotline": "0988 123 456",
       "checkInTime": "14:00",
@@ -20,6 +24,8 @@
     {
       "branchId": "tay-ho",
       "branchName": "Kapi House — Tây Hồ",
+      "status": "draft",
+      "verified": false,
       "address": "Số 28 Ngõ 52 Tô Ngọc Vân, Phường Quảng An, Quận Tây Hồ, Hà Nội",
       "hotline": "0988 123 457",
       "checkInTime": "14:00",
@@ -28,6 +34,8 @@
     {
       "branchId": "cau-giay",
       "branchName": "Kapi House — Cầu Giấy",
+      "status": "draft",
+      "verified": false,
       "address": "Số 15 Ngõ 68 Cầu Giấy, Phường Quan Hoa, Quận Cầu Giấy, Hà Nội",
       "hotline": "0988 123 458",
       "checkInTime": "14:00",
@@ -36,6 +44,8 @@
     {
       "branchId": "hoan-kiem",
       "branchName": "Kapi House — Hoàn Kiếm",
+      "status": "draft",
+      "verified": false,
       "address": "Số 36 Ngõ Huyện, Phường Hàng Trống, Quận Hoàn Kiếm, Hà Nội",
       "hotline": "0988 123 459",
       "checkInTime": "14:00",
@@ -46,6 +56,8 @@
     {
       "branchId": "dvn",
       "name": "Bún Đậu Mơ Phố",
+      "status": "draft",
+      "verified": false,
       "nearestBranch": "Kapi House — Đặng Văn Ngữ",
       "category": "Món ăn truyền thống Hà Nội",
       "walkingDistance": "150m (khoảng 2 phút đi bộ)",
@@ -55,6 +67,8 @@
     {
       "branchId": "dvn",
       "name": "Cà Phê Sân Vườn Xóm 10",
+      "status": "draft",
+      "verified": false,
       "nearestBranch": "Kapi House — Đặng Văn Ngữ",
       "category": "Cà phê & Không gian thư giãn",
       "walkingDistance": "200m (khoảng 3 phút đi bộ)",
@@ -64,6 +78,8 @@
     {
       "branchId": "tay-ho",
       "name": "Maison de Blanc Bakery & Café",
+      "status": "draft",
+      "verified": false,
       "nearestBranch": "Kapi House — Tây Hồ",
       "category": "Cà phê sân vườn & Bánh ngọt Pháp",
       "walkingDistance": "350m (khoảng 5 phút đi bộ)",
@@ -73,6 +89,8 @@
     {
       "branchId": "tay-ho",
       "name": "Quán Ốc Nóng & Ăn Vặt Hồ Tây",
+      "status": "draft",
+      "verified": false,
       "nearestBranch": "Kapi House — Tây Hồ",
       "category": "Quán ăn vặt & Ẩm thực đường phố",
       "walkingDistance": "400m (khoảng 5 phút đi bộ)",
@@ -82,6 +100,8 @@
     {
       "branchId": "cau-giay",
       "name": "Bánh Cuốn Nóng Bà Xuân",
+      "status": "draft",
+      "verified": false,
       "nearestBranch": "Kapi House — Cầu Giấy",
       "category": "Món ăn sáng & Ăn nhẹ truyền thống",
       "walkingDistance": "180m (khoảng 2 phút đi bộ)",
@@ -91,6 +111,8 @@
     {
       "branchId": "cau-giay",
       "name": "Bếp Chay An Lạc",
+      "status": "draft",
+      "verified": false,
       "nearestBranch": "Kapi House — Cầu Giấy",
       "category": "Ẩm thực chay thanh tịnh",
       "walkingDistance": "300m (khoảng 4 phút đi bộ)",
@@ -100,6 +122,8 @@
     {
       "branchId": "hoan-kiem",
       "name": "Cà Phê Loading T",
+      "status": "draft",
+      "verified": false,
       "nearestBranch": "Kapi House — Hoàn Kiếm",
       "category": "Quán cà phê cổ điển & Không gian hoài niệm",
       "walkingDistance": "250m (khoảng 3 phút đi bộ)",
@@ -109,6 +133,8 @@
     {
       "branchId": "hoan-kiem",
       "name": "Phở Bò Ấu Triệu",
+      "status": "draft",
+      "verified": false,
       "nearestBranch": "Kapi House — Hoàn Kiếm",
       "category": "Đặc sản phở Hà Nội",
       "walkingDistance": "200m (khoảng 3 phút đi bộ)",
@@ -120,6 +146,8 @@
     {
       "branchId": "dvn",
       "name": "Cửa Hàng Tiện Lợi Circle K 24/7",
+      "status": "draft",
+      "verified": false,
       "category": "Cửa hàng tiện lợi 24/7",
       "address": "Số 8 Đặng Văn Ngữ, Phường Trung Tự, Quận Đống Đa, Hà Nội",
       "hotline": "1900 636 726"
@@ -127,6 +155,8 @@
     {
       "branchId": "dvn",
       "name": "Nhà Thuốc FPT Long Châu 24/7",
+      "status": "draft",
+      "verified": false,
       "category": "Nhà thuốc mở 24/7",
       "address": "112 Chùa Bộc, Phường Trung Liệt, Quận Đống Đa, Hà Nội",
       "hotline": "1800 6928"
@@ -134,6 +164,8 @@
     {
       "branchId": "dvn",
       "name": "Cây ATM Đa Năng Vietcombank / BIDV 24/7",
+      "status": "draft",
+      "verified": false,
       "category": "Cây ATM",
       "address": "58 Phạm Ngọc Thạch, Phường Kim Liên, Quận Đống Đa, Hà Nội",
       "hotline": "1900 545 413"
@@ -141,6 +173,8 @@
     {
       "branchId": "tay-ho",
       "name": "Bệnh Viện Đa Khoa Quốc Tế Thu Cúc / Cấp Cứu 115",
+      "status": "draft",
+      "verified": false,
       "category": "Trạm y tế / Bệnh viện",
       "address": "286 Thụy Khuê, Phường Bưởi, Quận Tây Hồ, Hà Nội",
       "hotline": "1900 558 896"
@@ -148,6 +182,8 @@
     {
       "branchId": "tay-ho",
       "name": "Cửa Hàng Tiện Lợi Circle K Quảng An 24/7",
+      "status": "draft",
+      "verified": false,
       "category": "Cửa hàng tiện lợi 24/7",
       "address": "Số 32 Tô Ngọc Vân, Phường Quảng An, Quận Tây Hồ, Hà Nội",
       "hotline": "1900 636 726"
@@ -155,6 +191,8 @@
     {
       "branchId": "cau-giay",
       "name": "Nhà Thuốc Pharmacity 24/7 Cầu Giấy",
+      "status": "draft",
+      "verified": false,
       "category": "Nhà thuốc mở 24/7",
       "address": "Số 72 Cầu Giấy, Phường Quan Hoa, Quận Cầu Giấy, Hà Nội",
       "hotline": "1800 6821"
@@ -162,6 +200,8 @@
     {
       "branchId": "cau-giay",
       "name": "Cây ATM BIDV / Techcombank 24/7 Cầu Giấy",
+      "status": "draft",
+      "verified": false,
       "category": "Cây ATM",
       "address": "Số 165 Cầu Giấy, Phường Quan Hoa, Quận Cầu Giấy, Hà Nội",
       "hotline": "1900 545 415"
@@ -169,6 +209,8 @@
     {
       "branchId": "hoan-kiem",
       "name": "Bệnh Viện Hữu Nghị Việt Đức / Cấp Cứu 115",
+      "status": "draft",
+      "verified": false,
       "category": "Trạm y tế / Bệnh viện",
       "address": "40 Tràng Thi, Phường Hàng Bông, Quận Hoàn Kiếm, Hà Nội",
       "hotline": "1900 1902"
@@ -176,43 +218,46 @@
     {
       "branchId": "hoan-kiem",
       "name": "Cửa Hàng Tiện Lợi Circle K Lý Quốc Sư 24/7",
+      "status": "draft",
+      "verified": false,
       "category": "Cửa hàng tiện lợi 24/7",
       "address": "Số 28 Lý Quốc Sư, Phường Hàng Trống, Quận Hoàn Kiếm, Hà Nội",
       "hotline": "1900 636 726"
     }
   ],
-  "houseRules": [
-    {
-      "id": "quiet-hours",
-      "title": "Giờ giấc yên tĩnh sau 22:00",
-      "description": "Xin quý khách vui lòng đi nhẹ, nói khẽ và hạn chế âm lượng các thiết bị giải trí sau 22:00 để giữ gìn không gian yên tĩnh và giấc ngủ cho các phòng xung quanh."
-    },
-    {
-      "id": "no-smoking",
-      "title": "Cấm hút thuốc trong phòng ngủ",
-      "description": "Tuyệt đối không hút thuốc lá truyền thống và thuốc lá điện tử trong phòng ngủ hay không gian kín. Quý khách vui lòng sử dụng khu vực ban công ngoài trời có bố trí sẵn gạt tàn."
-    },
-    {
-      "id": "common-cleanliness",
-      "title": "Giữ gìn vệ sinh chung",
-      "description": "Là mô hình homestay tự phục vụ thân thiện, quý khách vui lòng rửa sạch nồi niêu, bát đĩa sau khi dùng bữa và thu gom rác đúng vị trí trước khi rời phòng."
-    },
-    {
-      "id": "turn-off-appliances",
-      "title": "Tắt thiết bị điện khi ra ngoài",
-      "description": "Quý khách vui lòng kiểm tra và tắt điều hòa nhiệt độ, bình nóng lạnh, bếp từ và các thiết bị điện không cần thiết mỗi khi ra khỏi phòng để đảm bảo an toàn cháy nổ và tiết kiệm năng lượng."
-    },
-    {
-      "id": "property-care",
-      "title": "Bảo quản đồ đạc và tài sản",
-      "description": "Xin quý khách vui lòng nâng niu, giữ gìn trang thiết bị nội thất trong phòng và cẩn thận với chìa khóa/mật mã cửa. Trường hợp xảy ra hư hại hoặc thất lạc, homestay xin phép phụ thu theo bảng giá niêm yết."
-    }
-  ],
+  "houseRules": {
+    "status": "draft",
+    "verified": false,
+    "notice": "Nội quy phòng mang tính chất demo tham khảo hiển thị giao diện, chưa phải policy vận hành chính thức từ Kapi House / TV1.",
+    "rules": [
+      {
+        "id": "hr-01",
+        "rule": "Không hút thuốc trong phòng và khu vực chung của tòa nhà."
+      },
+      {
+        "id": "hr-02",
+        "rule": "Giữ yên lặng sau 22:00 để không ảnh hưởng đến các căn hộ lân cận."
+      },
+      {
+        "id": "hr-03",
+        "rule": "Tắt điều hòa và các thiết bị điện công suất lớn khi ra khỏi phòng."
+      },
+      {
+        "id": "hr-04",
+        "rule": "Không mang thú cưng vào phòng khi chưa đăng ký trước với quản lý."
+      },
+      {
+        "id": "hr-05",
+        "rule": "Bảo quản trang thiết bị; kiểm tra tình trạng tài sản khi nhận và trả phòng."
+      }
+    ]
+  },
   "deviceGuides": [
     {
       "deviceId": "smart-lock",
       "deviceName": "Khóa cửa điện tử mã số",
       "status": "draft",
+      "verified": false,
       "modelVerified": false,
       "videoUrl": null,
       "steps": [
@@ -227,6 +272,7 @@
       "deviceId": "water-heater",
       "deviceName": "Bình nóng lạnh",
       "status": "draft",
+      "verified": false,
       "modelVerified": false,
       "videoUrl": null,
       "steps": [
@@ -241,6 +287,7 @@
       "deviceId": "induction-cooker",
       "deviceName": "Bếp từ đôi",
       "status": "draft",
+      "verified": false,
       "modelVerified": false,
       "videoUrl": null,
       "steps": [
@@ -255,6 +302,7 @@
       "deviceId": "air-conditioner",
       "deviceName": "Điều hòa nhiệt độ",
       "status": "draft",
+      "verified": false,
       "modelVerified": false,
       "videoUrl": null,
       "steps": [
