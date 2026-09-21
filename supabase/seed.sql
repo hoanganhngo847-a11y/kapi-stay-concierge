@@ -1,17 +1,12 @@
+-- LOCAL / DEMO FIXTURE ONLY - DO NOT RUN IN PRODUCTION OR SHARED ENVIRONMENTS
 -- ============================================================================
 -- Supabase Seed Data: seed.sql
 -- Dự án: Kapi Stay Concierge (TV8 - Database & Backend Data)
 -- Nhiệm vụ: Nạp đầy đủ dữ liệu mẫu chuẩn cho 4 cơ sở và 8 phòng nghỉ Kapi Stay
 -- (Hà Nội, Đà Nẵng, Đà Lạt, TP. Hồ Chí Minh)
 -- Tuân thủ chuẩn kiến trúc chuẩn hóa: properties, rooms, room_operations, room_private_details
+-- An toàn: Dùng ON CONFLICT (id) DO UPDATE / ON CONFLICT DO NOTHING, tuyệt đối không dùng TRUNCATE hay DELETE
 -- ============================================================================
-
--- ----------------------------------------------------------------------------
--- 0. DỌN DẸP DỮ LIỆU CŨ (CLEANUP)
--- ----------------------------------------------------------------------------
--- Truncate bảng rooms và các bảng phụ thuộc cascade, xóa sạch properties cũ
-TRUNCATE TABLE public.rooms CASCADE;
-DELETE FROM public.properties;
 
 -- ----------------------------------------------------------------------------
 -- 1. DANH MỤC 4 CƠ SỞ (PROPERTIES / BRANCHES)
@@ -222,7 +217,7 @@ on conflict (room_id) do update set
 -- ----------------------------------------------------------------------------
 -- 4. THÔNG TIN BẢO MẬT PHÒNG NGHỈ (ROOM PRIVATE DETAILS)
 -- Bao gồm Tên Wi-Fi (wifi_ssid), Mật khẩu Wi-Fi (wifi_password)
--- và Mã khóa số thông minh (passcode trong private_instructions)
+-- và Hướng dẫn bảo mật / sử dụng Digital Key (Digital Key được cấp động theo từng booking, không lưu mã tĩnh)
 -- ----------------------------------------------------------------------------
 insert into public.room_private_details (
   room_id,
@@ -235,49 +230,49 @@ values
     'a1111111-1111-1111-1111-111111111111',
     'KapiStay_HaNoi_5G',
     'kapistay2026',
-    'Mã khóa số thông minh: 123456#. Chạm sáng bàn phím số điện tử, nhập mã số và kết thúc bằng phím # để mở cửa.'
+    'Sử dụng Digital Key được cấp trong mục Chuyến đi của tôi trên ứng dụng Kapi Stay để mở cửa. Chạm sáng màn hình khóa điện tử trước khi nhập mã.'
   ),
   (
     'a2222222-2222-2222-2222-222222222222',
     'KapiStay_HaNoi_5G',
     'kapistay2026',
-    'Mã khóa số thông minh: 654321#. Chạm sáng bàn phím số điện tử, nhập mã số và kết thúc bằng phím # để mở cửa.'
+    'Sử dụng Digital Key được cấp trong mục Chuyến đi của tôi trên ứng dụng Kapi Stay để mở cửa. Chạm sáng màn hình khóa điện tử trước khi nhập mã.'
   ),
   (
     'b1111111-1111-1111-1111-111111111111',
     'KapiStay_DaNang_5G',
     'kapistay2026',
-    'Mã khóa số thông minh: 789123#. Chạm sáng bàn phím số điện tử, nhập mã số và kết thúc bằng phím # để mở cửa.'
+    'Sử dụng Digital Key được cấp trong mục Chuyến đi của tôi trên ứng dụng Kapi Stay để mở cửa. Chạm sáng màn hình khóa điện tử trước khi nhập mã.'
   ),
   (
     'b2222222-2222-2222-2222-222222222222',
     'KapiStay_DaNang_5G',
     'kapistay2026',
-    'Mã khóa số thông minh: 321987#. Chạm sáng bàn phím số điện tử, nhập mã số và kết thúc bằng phím # để mở cửa.'
+    'Sử dụng Digital Key được cấp trong mục Chuyến đi của tôi trên ứng dụng Kapi Stay để mở cửa. Chạm sáng màn hình khóa điện tử trước khi nhập mã.'
   ),
   (
     'c1111111-1111-1111-1111-111111111111',
     'KapiStay_DaLat_5G',
     'kapistay2026',
-    'Mã khóa số thông minh: 888999#. Chạm sáng bàn phím số điện tử, nhập mã số và kết thúc bằng phím # để mở cửa.'
+    'Sử dụng Digital Key được cấp trong mục Chuyến đi của tôi trên ứng dụng Kapi Stay để mở cửa. Chạm sáng màn hình khóa điện tử trước khi nhập mã.'
   ),
   (
     'c2222222-2222-2222-2222-222222222222',
     'KapiStay_DaLat_5G',
     'kapistay2026',
-    'Mã khóa số thông minh: 456789#. Chạm sáng bàn phím số điện tử, nhập mã số và kết thúc bằng phím # để mở cửa.'
+    'Sử dụng Digital Key được cấp trong mục Chuyến đi của tôi trên ứng dụng Kapi Stay để mở cửa. Chạm sáng màn hình khóa điện tử trước khi nhập mã.'
   ),
   (
     'd1111111-1111-1111-1111-111111111111',
     'KapiStay_TPHCM_5G',
     'kapistay2026',
-    'Mã khóa số thông minh: 112233#. Chạm sáng bàn phím số điện tử, nhập mã số và kết thúc bằng phím # để mở cửa.'
+    'Sử dụng Digital Key được cấp trong mục Chuyến đi của tôi trên ứng dụng Kapi Stay để mở cửa. Chạm sáng màn hình khóa điện tử trước khi nhập mã.'
   ),
   (
     'd2222222-2222-2222-2222-222222222222',
     'KapiStay_TPHCM_5G',
     'kapistay2026',
-    'Mã khóa số thông minh: 998877#. Chạm sáng bàn phím số điện tử, nhập mã số và kết thúc bằng phím # để mở cửa.'
+    'Sử dụng Digital Key được cấp trong mục Chuyến đi của tôi trên ứng dụng Kapi Stay để mở cửa. Chạm sáng màn hình khóa điện tử trước khi nhập mã.'
   )
 on conflict (room_id) do update set
   wifi_ssid = excluded.wifi_ssid,
