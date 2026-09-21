@@ -11,22 +11,8 @@
 --    - public.update_ticket_status (validates and updates public.tickets)
 -- 4. Provides SECURITY DEFINER trusted read RPC:
 --    - public.get_staff_dashboard_data() (returns room_operations, tickets, today_bookings)
--- 5. Strict least privilege: no GRANT ALL to authenticated; guest users cannot direct-write.
+-- 5. Strict least privilege: no GRANT ALL to authenticated; no EXECUTE to anon; guest users cannot direct-write.
 -- ============================================================================
-
--- ----------------------------------------------------------------------------
--- 0. Cleanup Legacy / Deprecated Functions or Parallel Tables
--- ----------------------------------------------------------------------------
-
--- Ensure parallel support_tickets table is removed if created previously
-DROP TABLE IF EXISTS public.support_tickets CASCADE;
-
--- Drop legacy / replaced functions if they exist
-DROP FUNCTION IF EXISTS public.is_staff(UUID);
-DROP FUNCTION IF EXISTS public.update_room_cleaning_status(UUID, TEXT);
-DROP FUNCTION IF EXISTS public.update_ticket_status(UUID, TEXT, TEXT);
-DROP FUNCTION IF EXISTS public.update_ticket_status(UUID, TEXT);
-DROP FUNCTION IF EXISTS public.get_staff_dashboard_data();
 
 -- ----------------------------------------------------------------------------
 -- 1. Staff Roles Table & RLS Policy (Minimal Role Model: staff | admin)
@@ -287,10 +273,10 @@ $$;
 -- 5. Grant Permissions (Explicit Least Privilege)
 -- ----------------------------------------------------------------------------
 
-REVOKE ALL ON FUNCTION public.update_room_operational_status(UUID, TEXT) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.update_ticket_status(UUID, TEXT) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.get_staff_dashboard_data() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.update_room_operational_status(UUID, TEXT) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.update_ticket_status(UUID, TEXT) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.get_staff_dashboard_data() FROM PUBLIC, anon;
 
-GRANT EXECUTE ON FUNCTION public.update_room_operational_status(UUID, TEXT) TO anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.update_ticket_status(UUID, TEXT) TO anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.get_staff_dashboard_data() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.update_room_operational_status(UUID, TEXT) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.update_ticket_status(UUID, TEXT) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.get_staff_dashboard_data() TO authenticated, service_role;

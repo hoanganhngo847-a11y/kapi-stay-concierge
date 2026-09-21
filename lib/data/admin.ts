@@ -14,7 +14,7 @@ export interface RoomOperationRecord {
   room_id: string;
   operational_status: string;
   updated_at: string;
-  updated_by: string | null;
+  updated_by: string;
   rooms?: {
     id: string;
     name: string;
@@ -93,7 +93,7 @@ interface RpcUpdateRoomResult {
   room_name?: string;
   operational_status?: string;
   updated_at?: string;
-  updated_by?: string | null;
+  updated_by?: string;
 }
 
 interface RpcUpdateTicketResult {
@@ -274,10 +274,30 @@ export async function updateRoomStatus(
 
   if (
     !result.room_id ||
+    typeof result.room_id !== "string" ||
+    result.room_id.trim().length === 0 ||
+    !result.room_name ||
+    typeof result.room_name !== "string" ||
+    result.room_name.trim().length === 0 ||
+    !result.operational_status ||
     typeof result.operational_status !== "string" ||
-    !result.updated_at
+    !validStatuses.includes(result.operational_status as RoomOperationalStatus) ||
+    !result.updated_at ||
+    typeof result.updated_at !== "string" ||
+    result.updated_at.trim().length === 0 ||
+    !result.updated_by ||
+    typeof result.updated_by !== "string" ||
+    result.updated_by.trim().length === 0
   ) {
     console.error("[updateRoomStatus] RPC trả về payload không đúng định dạng:", result);
+    throw new Error("Dữ liệu phản hồi từ máy chủ không hợp lệ.");
+  }
+
+  // Defense-in-depth: updated_by phải bằng staff.id
+  if (result.updated_by !== staff.id) {
+    console.error(
+      `[updateRoomStatus] Người cập nhật không khớp: expected ${staff.id}, got ${result.updated_by}`
+    );
     throw new Error("Dữ liệu phản hồi từ máy chủ không hợp lệ.");
   }
 
@@ -285,13 +305,11 @@ export async function updateRoomStatus(
     room_id: result.room_id,
     operational_status: result.operational_status,
     updated_at: result.updated_at,
-    updated_by: result.updated_by ?? staff.id,
-    rooms: result.room_name
-      ? {
-          id: result.room_id,
-          name: result.room_name,
-        }
-      : null,
+    updated_by: result.updated_by,
+    rooms: {
+      id: result.room_id,
+      name: result.room_name,
+    },
   };
 }
 
@@ -357,16 +375,37 @@ export async function updateTicketStatusAdmin(
   }
 
   const t = result.ticket;
+
   if (
     !t ||
     typeof t !== "object" ||
     !t.id ||
+    typeof t.id !== "string" ||
+    t.id.trim().length === 0 ||
     !t.booking_id ||
+    typeof t.booking_id !== "string" ||
+    t.booking_id.trim().length === 0 ||
     !t.room_id ||
+    typeof t.room_id !== "string" ||
+    t.room_id.trim().length === 0 ||
     !t.user_id ||
+    typeof t.user_id !== "string" ||
+    t.user_id.trim().length === 0 ||
+    !t.category ||
+    typeof t.category !== "string" ||
+    t.category.trim().length === 0 ||
+    typeof t.description !== "string" ||
+    !Array.isArray(t.media_paths) ||
+    !t.media_paths.every((item) => typeof item === "string") ||
+    !t.status ||
     typeof t.status !== "string" ||
+    !validStatuses.includes(t.status as TicketStatus) ||
     !t.created_at ||
-    !t.updated_at
+    typeof t.created_at !== "string" ||
+    t.created_at.trim().length === 0 ||
+    !t.updated_at ||
+    typeof t.updated_at !== "string" ||
+    t.updated_at.trim().length === 0
   ) {
     console.error("[updateTicketStatusAdmin] RPC trả về ticket payload không đúng định dạng:", result);
     throw new Error("Dữ liệu phản hồi từ máy chủ không hợp lệ.");
@@ -377,9 +416,9 @@ export async function updateTicketStatusAdmin(
     booking_id: t.booking_id,
     room_id: t.room_id,
     user_id: t.user_id,
-    category: t.category ?? "",
-    description: t.description ?? "",
-    media_paths: Array.isArray(t.media_paths) ? t.media_paths : [],
+    category: t.category,
+    description: t.description,
+    media_paths: t.media_paths,
     status: t.status,
     created_at: t.created_at,
     updated_at: t.updated_at,
