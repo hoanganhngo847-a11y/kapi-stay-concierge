@@ -23,11 +23,8 @@ interface RoomsPageProps {
 export default async function RoomsPage({ searchParams }: RoomsPageProps) {
   const resolvedParams = (await searchParams) || {};
 
-  // Parse searchParams chuẩn hóa dùng đúng key property_id và capacity
-  const rawPropertyId =
-    resolvedParams.property_id ||
-    resolvedParams.location_code ||
-    resolvedParams.location;
+  // Chuẩn hóa ID: Bỏ ngay lập tức việc dùng fallback location hoặc location_code gán cho property_id. Chỉ đọc property_id.
+  const rawPropertyId = resolvedParams.property_id;
   const propertyId =
     typeof rawPropertyId === "string"
       ? rawPropertyId.trim()
@@ -52,7 +49,30 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
         ? rawCapacity
         : 0;
 
-  // Lấy danh sách phòng trực tiếp từ hàm getPublicRooms và danh sách cơ sở từ getActiveProperties
+  // Lấy tham số check-in và check-out từ URL
+  const rawCheckIn =
+    resolvedParams["check-in"] ||
+    resolvedParams.check_in ||
+    resolvedParams.checkin;
+  const checkIn =
+    typeof rawCheckIn === "string"
+      ? rawCheckIn.trim()
+      : Array.isArray(rawCheckIn) && typeof rawCheckIn[0] === "string"
+        ? rawCheckIn[0].trim()
+        : "";
+
+  const rawCheckOut =
+    resolvedParams["check-out"] ||
+    resolvedParams.check_out ||
+    resolvedParams.checkout;
+  const checkOut =
+    typeof rawCheckOut === "string"
+      ? rawCheckOut.trim()
+      : Array.isArray(rawCheckOut) && typeof rawCheckOut[0] === "string"
+        ? rawCheckOut[0].trim()
+        : "";
+
+  // Lấy danh sách phòng trực tiếp từ hàm getPublicRooms (đã bao gồm lọc availability qua RPC) và danh sách cơ sở từ getActiveProperties
   const [
     { data: roomsList = [], error: roomsError },
     { data: propertiesList = [], error: propertiesError },
@@ -60,6 +80,8 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
     getPublicRooms({
       property_id: propertyId || undefined,
       capacity: capacity > 0 ? capacity : undefined,
+      check_in: checkIn || undefined,
+      check_out: checkOut || undefined,
     }),
     getActiveProperties(),
   ]);
@@ -68,7 +90,9 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
   if (loadError) {
     console.error("[RoomsPage] Lỗi tải dữ liệu phòng từ Supabase:", loadError);
   }
-  const hasActiveFilters = Boolean(propertyId || capacity > 0);
+  const hasActiveFilters = Boolean(
+    propertyId || capacity > 0 || (checkIn && checkOut)
+  );
   const activePropertyName = propertiesList.find((p) => p.id === propertyId)?.name;
 
   return (
@@ -127,6 +151,7 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
               Tìm thấy <strong className="text-dark font-semibold">{roomsList.length}</strong> phòng phù hợp
               {activePropertyName ? ` tại "${activePropertyName}"` : ""}
               {capacity > 0 ? ` (cho từ ${capacity} khách)` : ""}
+              {checkIn && checkOut ? ` (${checkIn} đến ${checkOut})` : ""}
             </span>
           </div>
 
@@ -142,7 +167,9 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
               <p className="text-sm text-dark/60 mb-6 leading-relaxed">
                 {hasActiveFilters
                   ? `Không có phòng nào đáp ứng tiêu chí lọc${activePropertyName ? ` tại "${activePropertyName}"` : ""
-                  }${capacity > 0 ? ` cho từ ${capacity} khách` : ""}. Quý khách vui lòng thử chọn cơ sở khác hoặc điều chỉnh số lượng khách.`
+                  }${capacity > 0 ? ` cho từ ${capacity} khách` : ""}${
+                    checkIn && checkOut ? ` trong khoảng ngày ${checkIn} - ${checkOut}` : ""
+                  }. Quý khách vui lòng thử chọn cơ sở khác hoặc điều chỉnh thời gian lưu trú.`
                   : "Không tìm thấy phòng phù hợp trên hệ thống. Quý khách vui lòng quay lại sau."}
               </p>
               {hasActiveFilters && (

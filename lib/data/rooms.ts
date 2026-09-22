@@ -1,4 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
+import { checkRoomAvailability } from "@/lib/data/bookings";
+
+export const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isValidUUID(val: unknown): val is string {
+  return typeof val === "string" && UUID_REGEX.test(val.trim());
+}
 
 export interface PublicProperty {
   id: string;
@@ -58,13 +66,12 @@ export function parseImagePaths(raw: unknown): string[] {
 }
 
 export interface RoomCatalogFilters {
-  propertyId?: string;
   property_id?: string | string[];
-  location_code?: string | string[];
-  location?: string | string[];
   capacity?: number | string | string[];
-  max_guests?: number | string | string[];
-  guests?: number | string | string[];
+  check_in?: string | string[];
+  check_out?: string | string[];
+  "check-in"?: string | string[];
+  "check-out"?: string | string[];
   checkIn?: string | string[];
   checkOut?: string | string[];
   [key: string]: unknown;
@@ -106,11 +113,8 @@ export async function getPublicRooms(filters?: RoomCatalogFilters): Promise<{
       )
       .eq("is_listed", true);
 
-    const rawProp =
-      filters?.property_id ||
-      filters?.propertyId ||
-      filters?.location_code ||
-      filters?.location;
+    // Chuẩn hóa ID: Bỏ mọi fallback location hoặc location_code gán cho property_id. Chỉ đọc property_id.
+    const rawProp = filters?.property_id;
     const propertyId =
       typeof rawProp === "string"
         ? rawProp.trim()
@@ -118,7 +122,8 @@ export async function getPublicRooms(filters?: RoomCatalogFilters): Promise<{
           ? rawProp[0].trim()
           : "";
 
-    if (propertyId.length > 0) {
+    // BẮT BUỘC: Kiểm tra đúng định dạng UUID hợp lệ trước khi đưa vào query để tránh sập Database
+    if (propertyId && isValidUUID(propertyId)) {
       query = query.eq("property_id", propertyId);
     }
 
@@ -170,6 +175,67 @@ export async function getPublicRooms(filters?: RoomCatalogFilters): Promise<{
       };
     });
 
+    // Lọc phòng trống theo ngày (Availability) nếu có tham số check-in và check-out
+    const rawCheckIn =
+      filters?.check_in ||
+      filters?.["check-in"] ||
+      filters?.checkIn;
+    const rawCheckOut =
+      filters?.check_out ||
+      filters?.["check-out"] ||
+      filters?.checkOut;
+
+    const checkIn =
+      typeof rawCheckIn === "string"
+        ? rawCheckIn.trim()
+        : Array.isArray(rawCheckIn) && typeof rawCheckIn[0] === "string"
+          ? rawCheckIn[0].trim()
+          : "";
+    const checkOut =
+      typeof rawCheckOut === "string"
+        ? rawCheckOut.trim()
+        : Array.isArray(rawCheckOut) && typeof rawCheckOut[0] === "string"
+          ? rawCheckOut[0].trim()
+          : "";
+
+    if (checkIn && checkOut) {
+      try {
+        const availabilityResults = await Promise.all(
+          rooms.map(async (room) => {
+            try {
+              const isAvailable = await checkRoomAvailability(
+                room.id,
+                checkIn,
+                checkOut
+              );
+              return isAvailable ? room : null;
+            } catch (err) {
+              console.error(
+                `[getPublicRooms] Lỗi kiểm tra phòng trống qua RPC cho phòng ${room.id}:`,
+                err
+              );
+              return null;
+            }
+          })
+        );
+
+        const availableRooms = availabilityResults.filter(
+          (room): room is PublicRoom => room !== null
+        );
+
+        return { data: availableRooms, error: null };
+      } catch (err) {
+        console.error(
+          "[getPublicRooms] Lỗi hệ thống khi gọi RPC check availability:",
+          err
+        );
+        return {
+          data: [],
+          error: "Không thể kiểm tra tình trạng phòng lúc này. Vui lòng thử lại.",
+        };
+      }
+    }
+
     return { data: rooms, error: null };
   } catch (err) {
     console.error("Unexpected error in getPublicRooms:", err);
@@ -218,14 +284,7 @@ export async function getPublicRoomById(id: string): Promise<{
   data: PublicRoom | null;
   error: string | null;
 }> {
-  if (!id || typeof id !== "string") {
-    return { data: null, error: "ID phòng không hợp lệ" };
-  }
-
-  // Defensive UUID check (32 hex characters with standard hyphenation)
-  const uuidRegex =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (!uuidRegex.test(id)) {
+  if (!id || !isValidUUID(id)) {
     return { data: null, error: "ID phòng không hợp lệ" };
   }
 

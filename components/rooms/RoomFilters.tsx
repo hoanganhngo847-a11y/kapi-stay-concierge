@@ -23,21 +23,19 @@ export function RoomFilters({
   const searchParams = useSearchParams();
 
   // Đọc trực tiếp từ URL searchParams - TUYỆT ĐỐI KHÔNG DÙNG useState
-  const currentLocation =
-    searchParams.get("property_id") ||
-    searchParams.get("location_code") ||
-    searchParams.get("location") ||
-    "";
+  const currentLocation = searchParams.get("property_id") || "";
   const currentGuests =
     searchParams.get("capacity") ||
     searchParams.get("max_guests") ||
     searchParams.get("guests") ||
     "";
   const currentCheckIn =
+    searchParams.get("check-in") ||
     searchParams.get("checkin") ||
     searchParams.get("check_in") ||
     "";
   const currentCheckOut =
+    searchParams.get("check-out") ||
     searchParams.get("checkout") ||
     searchParams.get("check_out") ||
     "";
@@ -49,13 +47,11 @@ export function RoomFilters({
 
     if (val) {
       params.set("property_id", val);
-      params.delete("location_code");
-      params.delete("location");
     } else {
       params.delete("property_id");
-      params.delete("location_code");
-      params.delete("location");
     }
+    params.delete("location_code");
+    params.delete("location");
 
     const query = params.toString();
     router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
@@ -91,8 +87,10 @@ export function RoomFilters({
     params.delete("guests");
     params.delete("checkin");
     params.delete("check_in");
+    params.delete("check-in");
     params.delete("checkout");
     params.delete("check_out");
+    params.delete("check-out");
     const query = params.toString();
     router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
