@@ -59,9 +59,9 @@ export function RoomCard(props: RoomCardProps) {
     searchParams?.get("checkout") ??
     "";
   const capacityParam =
-    searchParams?.get("capacity") ||
-    searchParams?.get("max_guests") ||
-    searchParams?.get("guests") ||
+    searchParams?.get("capacity") ??
+    searchParams?.get("max_guests") ??
+    searchParams?.get("guests") ??
     "";
 
   // Nối các tham số lọc vào đường dẫn detailHref để khách không bị mất dữ liệu lọc

@@ -133,32 +133,12 @@ export async function getPublicRooms(filters?: RoomCatalogFilters): Promise<{
   error: string | null;
 }> {
   try {
-    const supabase = await createClient();
+    // =========================================================================
+    // 1. VALIDATE TOÀN BỘ DỮ LIỆU ĐẦU VÀO TRƯỚC KHI TRUY VẤN DATABASE
+    // Phải chặn đứng và return error ngay lập tức nếu URL sai, KHÔNG query DB.
+    // =========================================================================
 
-    let query = supabase
-      .from("rooms")
-      .select(
-        `
-        id,
-        property_id,
-        name,
-        description,
-        nightly_price_vnd,
-        capacity,
-        amenities,
-        image_paths,
-        is_listed,
-        properties (
-          id,
-          name,
-          slug,
-          address,
-          maps_url
-        )
-      `
-      )
-      .eq("is_listed", true);
-
+    // (A) Validate property_id:
     // Chuẩn hóa ID: Bỏ mọi fallback location hoặc location_code gán cho property_id. Chỉ đọc property_id.
     const rawProp = filters?.property_id;
     const propertyId =
@@ -173,9 +153,9 @@ export async function getPublicRooms(filters?: RoomCatalogFilters): Promise<{
       if (!propertyId || !isValidUUID(propertyId)) {
         return { data: [], error: "Invalid property_id" };
       }
-      query = query.eq("property_id", propertyId);
     }
 
+    // (B) Validate capacity (kiểm tra nghiêm ngặt regex số nguyên dương):
     const rawCapacity =
       filters?.capacity ?? filters?.max_guests ?? filters?.guests;
     const capacityStr =
@@ -202,7 +182,94 @@ export async function getPublicRooms(filters?: RoomCatalogFilters): Promise<{
       }
     }
 
-    if (capacityNum > 0) {
+    // (C) Validate check-in / check-out:
+    // Ưu tiên cao nhất key chuẩn (canonical) check_in và check_out. Chỉ fallback sang alias khi undefined.
+    const rawCheckIn =
+      filters?.check_in ??
+      filters?.["check-in"] ??
+      filters?.checkIn;
+    const rawCheckOut =
+      filters?.check_out ??
+      filters?.["check-out"] ??
+      filters?.checkOut;
+
+    const checkIn =
+      typeof rawCheckIn === "string"
+        ? rawCheckIn.trim()
+        : Array.isArray(rawCheckIn) && typeof rawCheckIn[0] === "string"
+          ? rawCheckIn[0].trim()
+          : "";
+    const checkOut =
+      typeof rawCheckOut === "string"
+        ? rawCheckOut.trim()
+        : Array.isArray(rawCheckOut) && typeof rawCheckOut[0] === "string"
+          ? rawCheckOut[0].trim()
+          : "";
+
+    // Partial Date: Nếu URL chỉ có checkIn hoặc chỉ có checkOut (có 1 mà thiếu 1), return ngay { data: [], error: 'Vui lòng chọn đầy đủ ngày nhận và trả phòng' }. Không được bỏ qua filter.
+    if ((checkIn && !checkOut) || (!checkIn && checkOut)) {
+      return {
+        data: [],
+        error: "Vui lòng chọn đầy đủ ngày nhận và trả phòng",
+      };
+    }
+
+    if (checkIn && checkOut) {
+      // 1. Kiểm tra phải đúng định dạng YYYY-MM-DD và là ngày hợp lệ theo lịch
+      if (!isValidCalendarDate(checkIn) || !isValidCalendarDate(checkOut)) {
+        return { data: [], error: "Ngày check-in/check-out không hợp lệ" };
+      }
+
+      // 2. Quá khứ: Nếu có đủ 2 ngày hợp lệ, phải lấy ngày hiện tại (today) ép theo múi giờ Asia/Ho_Chi_Minh (đưa giờ về 00:00:00). Nếu checkIn nhỏ hơn ngày hiện tại, return ngay { data: [], error: 'Ngày nhận phòng không được nằm trong quá khứ' }.
+      const todayVNStr = getTodayInVietnam();
+      if (checkIn < todayVNStr) {
+        return {
+          data: [],
+          error: "Ngày nhận phòng không được nằm trong quá khứ",
+        };
+      }
+
+      // 3. Kiểm tra checkOut phải lớn hơn checkIn
+      if (checkOut <= checkIn) {
+        return { data: [], error: "Ngày check-in/check-out không hợp lệ" };
+      }
+    }
+
+    // =========================================================================
+    // 2. CHỈ KHI TẤT CẢ FILTER ĐỀU HỢP LỆ MỚI ĐƯỢC PHÉP QUERY DATABASE
+    // =========================================================================
+    const supabase = await createClient();
+
+    let query = supabase
+      .from("rooms")
+      .select(
+        `
+        id,
+        property_id,
+        name,
+        description,
+        nightly_price_vnd,
+        capacity,
+        amenities,
+        image_paths,
+        is_listed,
+        properties (
+          id,
+          name,
+          slug,
+          address,
+          maps_url
+        )
+      `
+      )
+      .eq("is_listed", true);
+
+    if (propertyId) {
+      query = query.eq("property_id", propertyId);
+    }
+
+    // Đảm bảo biến capacity nếu được truyền vào DB query phải luôn là số nguyên dương hợp lệ
+    if (Number.isInteger(capacityNum) && capacityNum > 0) {
       query = query.gte("capacity", capacityNum);
     }
 
@@ -239,59 +306,10 @@ export async function getPublicRooms(filters?: RoomCatalogFilters): Promise<{
       };
     });
 
-    // Lọc phòng trống theo ngày (Availability) nếu có tham số check-in và check-out:
-    // Ưu tiên cao nhất key chuẩn (canonical) check_in và check_out. Chỉ fallback sang alias khi undefined.
-    const rawCheckIn =
-      filters?.check_in ??
-      filters?.["check-in"] ??
-      filters?.checkIn;
-    const rawCheckOut =
-      filters?.check_out ??
-      filters?.["check-out"] ??
-      filters?.checkOut;
-
-    const checkIn =
-      typeof rawCheckIn === "string"
-        ? rawCheckIn.trim()
-        : Array.isArray(rawCheckIn) && typeof rawCheckIn[0] === "string"
-          ? rawCheckIn[0].trim()
-          : "";
-    const checkOut =
-      typeof rawCheckOut === "string"
-        ? rawCheckOut.trim()
-        : Array.isArray(rawCheckOut) && typeof rawCheckOut[0] === "string"
-          ? rawCheckOut[0].trim()
-          : "";
-
-    // Partial Date: Nếu URL chỉ có checkIn hoặc chỉ có checkOut (có 1 mà thiếu 1), return ngay { data: [], error: 'Vui lòng chọn đầy đủ ngày nhận và trả phòng' }. Không được bỏ qua filter.
-    if ((checkIn && !checkOut) || (!checkIn && checkOut)) {
-      return {
-        data: [],
-        error: "Vui lòng chọn đầy đủ ngày nhận và trả phòng",
-      };
-    }
-
+    // =========================================================================
+    // 3. TÍNH TOÁN AVAILABILITY CHO KHOẢNG NGÀY ĐÃ ĐƯỢC VALIDATE HỢP LỆ
+    // =========================================================================
     if (checkIn && checkOut) {
-      // Validate ngày tháng rành mạch:
-      // 1. Kiểm tra phải đúng định dạng YYYY-MM-DD và là ngày hợp lệ theo lịch
-      if (!isValidCalendarDate(checkIn) || !isValidCalendarDate(checkOut)) {
-        return { data: [], error: "Ngày check-in/check-out không hợp lệ" };
-      }
-
-      // 2. Quá khứ: Nếu có đủ 2 ngày hợp lệ, phải lấy ngày hiện tại (today) ép theo múi giờ Asia/Ho_Chi_Minh (đưa giờ về 00:00:00). Nếu checkIn nhỏ hơn ngày hiện tại, return ngay { data: [], error: 'Ngày nhận phòng không được nằm trong quá khứ' }.
-      const todayVNStr = getTodayInVietnam();
-      if (checkIn < todayVNStr) {
-        return {
-          data: [],
-          error: "Ngày nhận phòng không được nằm trong quá khứ",
-        };
-      }
-
-      // 3. Kiểm tra checkOut phải lớn hơn checkIn
-      if (checkOut <= checkIn) {
-        return { data: [], error: "Ngày check-in/check-out không hợp lệ" };
-      }
-
       try {
         // KHÔNG ĐƯỢC catch lỗi hệ thống/RPC rồi return null bên trong mapper để tránh UI hiểu nhầm là hết phòng.
         // Để exception văng ra ngoài cho catch block xử lý và trả về error rõ ràng.

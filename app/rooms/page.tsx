@@ -158,19 +158,19 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
           </div>
           <h2 className="text-xl font-bold text-red-700 mb-2">
             {loadError === "Số lượng khách không hợp lệ" ||
-            loadError === "Vui lòng chọn đầy đủ ngày nhận và trả phòng" ||
-            loadError === "Ngày nhận phòng không được nằm trong quá khứ" ||
-            loadError === "Ngày check-in/check-out không hợp lệ" ||
-            loadError === "Invalid property_id"
+              loadError === "Vui lòng chọn đầy đủ ngày nhận và trả phòng" ||
+              loadError === "Ngày nhận phòng không được nằm trong quá khứ" ||
+              loadError === "Ngày check-in/check-out không hợp lệ" ||
+              loadError === "Invalid property_id"
               ? loadError
               : "Đã xảy ra lỗi khi tải dữ liệu"}
           </h2>
           <p className="text-sm text-red-500 mb-6 leading-relaxed">
             {loadError === "Số lượng khách không hợp lệ" ||
-            loadError === "Vui lòng chọn đầy đủ ngày nhận và trả phòng" ||
-            loadError === "Ngày nhận phòng không được nằm trong quá khứ" ||
-            loadError === "Ngày check-in/check-out không hợp lệ" ||
-            loadError === "Invalid property_id"
+              loadError === "Vui lòng chọn đầy đủ ngày nhận và trả phòng" ||
+              loadError === "Ngày nhận phòng không được nằm trong quá khứ" ||
+              loadError === "Ngày check-in/check-out không hợp lệ" ||
+              loadError === "Invalid property_id"
               ? `${loadError}. Vui lòng kiểm tra lại bộ lọc tìm kiếm.`
               : "Không thể tải dữ liệu phòng lúc này. Vui lòng thử lại."}
           </p>

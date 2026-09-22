@@ -45,9 +45,9 @@ export function RoomFilters({
   // Đọc trực tiếp từ URL searchParams - TUYỆT ĐỐI KHÔNG DÙNG useState
   const currentLocation = searchParams.get("property_id") || "";
   const currentGuests =
-    searchParams.get("capacity") ||
-    searchParams.get("max_guests") ||
-    searchParams.get("guests") ||
+    searchParams.get("capacity") ??
+    searchParams.get("max_guests") ??
+    searchParams.get("guests") ??
     "";
   const currentCheckIn =
     searchParams.get("check_in") ??
