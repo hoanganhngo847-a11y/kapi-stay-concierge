@@ -24,14 +24,14 @@ export function RoomFilters({
 
   // Đọc trực tiếp từ URL searchParams - TUYỆT ĐỐI KHÔNG DÙNG useState
   const currentLocation =
+    searchParams.get("property_id") ||
     searchParams.get("location_code") ||
     searchParams.get("location") ||
-    searchParams.get("property_id") ||
     "";
   const currentGuests =
+    searchParams.get("capacity") ||
     searchParams.get("max_guests") ||
     searchParams.get("guests") ||
-    searchParams.get("capacity") ||
     "";
   const currentCheckIn =
     searchParams.get("checkin") ||
@@ -42,38 +42,38 @@ export function RoomFilters({
     searchParams.get("check_out") ||
     "";
 
-  // Xử lý thay đổi cơ sở (location/location_code) đẩy thẳng lên URL
+  // Xử lý thay đổi cơ sở (property_id) đẩy thẳng lên URL
   const handleLocationChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const params = new URLSearchParams(searchParams.toString());
     const val = e.target.value.trim();
 
     if (val) {
-      params.set("location_code", val);
-      params.set("location", val);
-      params.delete("property_id");
-    } else {
+      params.set("property_id", val);
       params.delete("location_code");
       params.delete("location");
+    } else {
       params.delete("property_id");
+      params.delete("location_code");
+      params.delete("location");
     }
 
     const query = params.toString();
     router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
 
-  // Xử lý thay đổi số lượng khách (max_guests/guests) đẩy thẳng lên URL
+  // Xử lý thay đổi số lượng khách (capacity) đẩy thẳng lên URL
   const handleGuestsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const params = new URLSearchParams(searchParams.toString());
     const val = e.target.value.trim();
 
     if (val && !isNaN(Number(val)) && Number(val) > 0) {
-      params.set("max_guests", val);
-      params.set("guests", val);
-      params.delete("capacity");
-    } else {
+      params.set("capacity", val);
       params.delete("max_guests");
       params.delete("guests");
+    } else {
       params.delete("capacity");
+      params.delete("max_guests");
+      params.delete("guests");
     }
 
     const query = params.toString();
@@ -83,12 +83,12 @@ export function RoomFilters({
   // Xóa bộ lọc
   const handleReset = () => {
     const params = new URLSearchParams(searchParams.toString());
+    params.delete("property_id");
     params.delete("location_code");
     params.delete("location");
-    params.delete("property_id");
+    params.delete("capacity");
     params.delete("max_guests");
     params.delete("guests");
-    params.delete("capacity");
     params.delete("checkin");
     params.delete("check_in");
     params.delete("checkout");

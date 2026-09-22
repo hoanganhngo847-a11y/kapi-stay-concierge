@@ -107,8 +107,8 @@ export async function getPublicRooms(filters?: RoomCatalogFilters): Promise<{
       .eq("is_listed", true);
 
     const rawProp =
-      filters?.propertyId ||
       filters?.property_id ||
+      filters?.propertyId ||
       filters?.location_code ||
       filters?.location;
     const propertyId =
@@ -162,7 +162,7 @@ export async function getPublicRooms(filters?: RoomCatalogFilters): Promise<{
         name: item.name,
         description: item.description,
         nightly_price_vnd: Number(item.nightly_price_vnd) || 0,
-        capacity: Number(item.capacity) || 2,
+        capacity: Number(item.capacity) || 0,
         amenities: parseAmenities(item.amenities),
         image_paths: parseImagePaths(item.image_paths),
         is_listed: item.is_listed,
@@ -275,7 +275,7 @@ export async function getPublicRoomById(id: string): Promise<{
         name: data.name,
         description: data.description,
         nightly_price_vnd: Number(data.nightly_price_vnd) || 0,
-        capacity: Number(data.capacity) || 2,
+        capacity: Number(data.capacity) || 0,
         amenities: parseAmenities(data.amenities),
         image_paths: parseImagePaths(data.image_paths),
         is_listed: data.is_listed,

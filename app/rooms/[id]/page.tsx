@@ -126,9 +126,8 @@ export default async function RoomDetailPage({ params }: RoomDetailPageProps) {
 
             {/* Tasteful Neutral Placeholder */}
             <div
-              className={`detail-placeholder w-full h-full flex flex-col items-center justify-center gap-3 p-8 text-center ${
-                primaryImage && primaryImage.startsWith("/") ? "hidden" : "flex"
-              }`}
+              className={`detail-placeholder w-full h-full flex flex-col items-center justify-center gap-3 p-8 text-center ${primaryImage && primaryImage.startsWith("/") ? "hidden" : "flex"
+                }`}
             >
               <div className="w-16 h-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
                 <DoorOpen className="w-8 h-8" />

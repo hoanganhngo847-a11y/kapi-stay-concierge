@@ -25,24 +25,24 @@ export function RoomCard(props: RoomCardProps) {
   const {
     room,
     id = room?.id || "",
-    name = room?.name || "Phòng nghỉ Kapi House",
-    location = room?.property?.name || room?.property?.address || "Hải Phòng",
-    maxGuests = room?.capacity || 2,
+    name = room?.name || "Chưa cập nhật",
+    location = room?.property?.name || room?.property?.address || "Chưa cập nhật",
+    maxGuests = room?.capacity ?? 0,
     bedType = room?.amenities?.find((a) =>
       a.toLowerCase().includes("giường") ||
       a.toLowerCase().includes("đệm") ||
       a.toLowerCase().includes("bed")
-    ) || "1 Giường đôi King size",
-    price = room?.nightly_price_vnd || 250000,
+    ) || "Chưa cập nhật",
+    price = room?.nightly_price_vnd ?? 0,
   } = props;
 
   const rawCover =
     props.coverImage ||
     (room?.image_paths && room.image_paths.length > 0
       ? room.image_paths[0]
-      : "/rooms/japan-t4.jpg");
+      : "");
 
-  const hasImage = Boolean(rawCover);
+  const hasImage = Boolean(rawCover && rawCover.trim() !== "");
   const detailHref = id ? `/rooms/${id}` : "/rooms";
 
   return (
@@ -68,9 +68,8 @@ export function RoomCard(props: RoomCardProps) {
 
         {/* Placeholder dự phòng */}
         <div
-          className={`room-placeholder w-full h-full flex flex-col items-center justify-center gap-2 p-6 text-center ${
-            hasImage ? "hidden" : "flex"
-          }`}
+          className={`room-placeholder w-full h-full flex flex-col items-center justify-center gap-2 p-6 text-center ${hasImage ? "hidden" : "flex"
+            }`}
         >
           <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
             <DoorOpen className="w-6 h-6" />
@@ -89,12 +88,14 @@ export function RoomCard(props: RoomCardProps) {
         </div>
 
         {/* Badge số khách tối đa */}
-        <div className="absolute top-3 right-3 z-10">
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-dark/70 text-white backdrop-blur-md shadow-sm">
-            <Users className="w-3 h-3" />
-            <span>Tối đa {maxGuests} khách</span>
-          </span>
-        </div>
+        {maxGuests > 0 && (
+          <div className="absolute top-3 right-3 z-10">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-dark/70 text-white backdrop-blur-md shadow-sm">
+              <Users className="w-3 h-3" />
+              <span>Tối đa {maxGuests} khách</span>
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Nội dung thông tin tĩnh của thẻ */}
@@ -116,11 +117,13 @@ export function RoomCard(props: RoomCardProps) {
         <div className="grid grid-cols-2 gap-2 my-3 py-2.5 px-3 rounded-xl bg-light/50 border border-dark/5 text-xs text-dark/80">
           <div className="flex items-center gap-1.5">
             <Users className="w-3.5 h-3.5 text-primary shrink-0" />
-            <span className="truncate font-medium">{maxGuests} khách</span>
+            <span className="truncate font-medium">
+              {maxGuests > 0 ? `${maxGuests} khách` : "Chưa cập nhật"}
+            </span>
           </div>
           <div className="flex items-center gap-1.5">
             <BedDouble className="w-3.5 h-3.5 text-secondary shrink-0" />
-            <span className="truncate font-medium">{bedType}</span>
+            <span className="truncate font-medium">{bedType || "Chưa cập nhật"}</span>
           </div>
         </div>
 
@@ -129,10 +132,18 @@ export function RoomCard(props: RoomCardProps) {
           <div>
             <span className="text-xs text-dark/50 block font-medium">Giá phòng</span>
             <div>
-              <span className="text-lg font-bold text-primary">
-                {formatVND(price)}
-              </span>
-              <span className="text-xs text-dark/60"> / đêm</span>
+              {price > 0 ? (
+                <>
+                  <span className="text-lg font-bold text-primary">
+                    {formatVND(price)}
+                  </span>
+                  <span className="text-xs text-dark/60"> / đêm</span>
+                </>
+              ) : (
+                <span className="text-base font-semibold text-dark/60">
+                  Chưa cập nhật
+                </span>
+              )}
             </div>
           </div>
 

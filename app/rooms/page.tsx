@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Suspense } from "react";
 import Link from "next/link";
-import { ArrowLeft, DoorOpen } from "lucide-react";
+import { ArrowLeft, DoorOpen, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { RoomCard } from "@/components/rooms/RoomCard";
 import { RoomFilters } from "@/components/rooms/RoomFilters";
@@ -23,41 +23,50 @@ interface RoomsPageProps {
 export default async function RoomsPage({ searchParams }: RoomsPageProps) {
   const resolvedParams = (await searchParams) || {};
 
-  // Lấy danh sách phòng trực tiếp từ hàm getPublicRooms và danh sách cơ sở từ getActiveProperties
-  const [{ data: roomsList = [] }, { data: propertiesList = [] }] =
-    await Promise.all([
-      getPublicRooms(resolvedParams),
-      getActiveProperties(),
-    ]);
-
-  const rawLocation =
+  // Parse searchParams chuẩn hóa dùng đúng key property_id và capacity
+  const rawPropertyId =
+    resolvedParams.property_id ||
     resolvedParams.location_code ||
-    resolvedParams.location ||
-    resolvedParams.property_id;
-  const location =
-    typeof rawLocation === "string"
-      ? rawLocation.trim()
-      : Array.isArray(rawLocation)
-        ? rawLocation[0].trim()
+    resolvedParams.location;
+  const propertyId =
+    typeof rawPropertyId === "string"
+      ? rawPropertyId.trim()
+      : Array.isArray(rawPropertyId) && typeof rawPropertyId[0] === "string"
+        ? rawPropertyId[0].trim()
         : "";
 
-  const rawGuests =
-    resolvedParams.max_guests ||
-    resolvedParams.guests ||
-    resolvedParams.capacity;
-  const guestsStr =
-    typeof rawGuests === "string"
-      ? rawGuests.trim()
-      : Array.isArray(rawGuests)
-        ? rawGuests[0].trim()
+  const rawCapacity =
+    resolvedParams.capacity ??
+    resolvedParams.max_guests ??
+    resolvedParams.guests;
+  const capacityStr =
+    typeof rawCapacity === "string"
+      ? rawCapacity.trim()
+      : Array.isArray(rawCapacity) && typeof rawCapacity[0] === "string"
+        ? rawCapacity[0].trim()
         : "";
-  const guests =
-    guestsStr && !isNaN(parseInt(guestsStr, 10))
-      ? parseInt(guestsStr, 10)
-      : 0;
+  const capacity =
+    capacityStr && !isNaN(parseInt(capacityStr, 10))
+      ? parseInt(capacityStr, 10)
+      : typeof rawCapacity === "number"
+        ? rawCapacity
+        : 0;
 
-  const hasActiveFilters = Boolean(location || guests > 0);
-  const activePropertyName = propertiesList.find((p) => p.id === location)?.name;
+  // Lấy danh sách phòng trực tiếp từ hàm getPublicRooms và danh sách cơ sở từ getActiveProperties
+  const [
+    { data: roomsList = [], error: roomsError },
+    { data: propertiesList = [], error: propertiesError },
+  ] = await Promise.all([
+    getPublicRooms({
+      property_id: propertyId || undefined,
+      capacity: capacity > 0 ? capacity : undefined,
+    }),
+    getActiveProperties(),
+  ]);
+
+  const loadError = roomsError || propertiesError;
+  const hasActiveFilters = Boolean(propertyId || capacity > 0);
+  const activePropertyName = propertiesList.find((p) => p.id === propertyId)?.name;
 
   return (
     <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-10 sm:py-16">
@@ -89,76 +98,98 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
         <RoomFilters properties={propertiesList} />
       </Suspense>
 
-      {/* Số lượng phòng tìm thấy */}
-      <div className="flex items-center justify-between text-xs text-dark/60 mb-6">
-        <span>
-          Tìm thấy <strong className="text-dark font-semibold">{roomsList.length}</strong> phòng phù hợp
-          {activePropertyName ? ` tại "${activePropertyName}"` : ""}
-          {guests > 0 ? ` (cho từ ${guests} khách)` : ""}
-        </span>
-      </div>
-
-      {/* Empty State: Hiển thị khi không tìm thấy phòng */}
-      {roomsList.length === 0 ? (
-        <div className="bg-white border border-dark/10 rounded-2xl p-10 sm:p-14 text-center max-w-lg mx-auto my-12 shadow-sm">
-          <div className="w-14 h-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto mb-4">
-            <DoorOpen className="w-7 h-7" />
+      {/* Error State: Bắt buộc render khi có lỗi từ getPublicRooms hoặc getActiveProperties */}
+      {loadError ? (
+        <div className="bg-red-50/80 border border-red-200 rounded-2xl p-8 sm:p-12 text-center max-w-lg mx-auto my-12 shadow-sm">
+          <div className="w-14 h-14 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="w-7 h-7" />
           </div>
-          <h2 className="text-xl font-bold text-dark mb-2">
-            Không tìm thấy phòng
+          <h2 className="text-xl font-bold text-red-700 mb-2">
+            Đã xảy ra lỗi khi tải dữ liệu
           </h2>
-          <p className="text-sm text-dark/60 mb-6 leading-relaxed">
-            {hasActiveFilters
-              ? `Không có phòng nào đáp ứng tiêu chí lọc${activePropertyName ? ` tại "${activePropertyName}"` : ""
-              }${guests > 0 ? ` cho từ ${guests} khách` : ""
-              }. Quý khách vui lòng thử chọn cơ sở khác hoặc điều chỉnh số lượng khách.`
-              : "Không tìm thấy phòng phù hợp trên hệ thống. Quý khách vui lòng quay lại sau."}
-          </p>
-          {hasActiveFilters && (
-            <Link href="/rooms">
-              <Button variant="outline" size="sm">
-                Xóa bộ lọc & Xem tất cả phòng
-              </Button>
-            </Link>
-          )}
+          <div className="text-sm text-red-500 mb-6 leading-relaxed">
+            {loadError}
+          </div>
+          <Link href="/rooms">
+            <Button variant="outline" size="sm" className="border-red-300 text-red-700 hover:bg-red-100">
+              Thử tải lại trang
+            </Button>
+          </Link>
         </div>
       ) : (
-        /* Render danh sách phòng bằng component RoomCard */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-          {roomsList.map((room) => {
-            const bedType =
-              room.amenities.find(
-                (a) =>
-                  a.toLowerCase().includes("giường") ||
-                  a.toLowerCase().includes("đệm") ||
-                  a.toLowerCase().includes("bed")
-              ) || "1 Giường đôi King size";
+        <>
+          {/* Số lượng phòng tìm thấy */}
+          <div className="flex items-center justify-between text-xs text-dark/60 mb-6">
+            <span>
+              Tìm thấy <strong className="text-dark font-semibold">{roomsList.length}</strong> phòng phù hợp
+              {activePropertyName ? ` tại "${activePropertyName}"` : ""}
+              {capacity > 0 ? ` (cho từ ${capacity} khách)` : ""}
+            </span>
+          </div>
 
-            const coverImage =
-              room.image_paths && room.image_paths.length > 0
-                ? room.image_paths[0]
-                : "/rooms/japan-t4.jpg";
+          {/* Empty State: Hiển thị khi không tìm thấy phòng */}
+          {roomsList.length === 0 ? (
+            <div className="bg-white border border-dark/10 rounded-2xl p-10 sm:p-14 text-center max-w-lg mx-auto my-12 shadow-sm">
+              <div className="w-14 h-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto mb-4">
+                <DoorOpen className="w-7 h-7" />
+              </div>
+              <h2 className="text-xl font-bold text-dark mb-2">
+                Không tìm thấy phòng
+              </h2>
+              <p className="text-sm text-dark/60 mb-6 leading-relaxed">
+                {hasActiveFilters
+                  ? `Không có phòng nào đáp ứng tiêu chí lọc${
+                      activePropertyName ? ` tại "${activePropertyName}"` : ""
+                    }${capacity > 0 ? ` cho từ ${capacity} khách` : ""}. Quý khách vui lòng thử chọn cơ sở khác hoặc điều chỉnh số lượng khách.`
+                  : "Không tìm thấy phòng phù hợp trên hệ thống. Quý khách vui lòng quay lại sau."}
+              </p>
+              {hasActiveFilters && (
+                <Link href="/rooms">
+                  <Button variant="outline" size="sm">
+                    Xóa bộ lọc & Xem tất cả phòng
+                  </Button>
+                </Link>
+              )}
+            </div>
+          ) : (
+            /* Render danh sách phòng bằng component RoomCard */
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+              {roomsList.map((room) => {
+                const bedType =
+                  room.amenities.find(
+                    (a) =>
+                      a.toLowerCase().includes("giường") ||
+                      a.toLowerCase().includes("đệm") ||
+                      a.toLowerCase().includes("bed")
+                  ) || "Chưa cập nhật";
 
-            const locationName =
-              room.property?.name ||
-              room.property?.address ||
-              "Kapi House Hải Phòng";
+                const coverImage =
+                  room.image_paths && room.image_paths.length > 0
+                    ? room.image_paths[0]
+                    : "";
 
-            return (
-              <RoomCard
-                key={room.id}
-                id={room.id}
-                coverImage={coverImage}
-                name={room.name}
-                location={locationName}
-                maxGuests={room.capacity}
-                bedType={bedType}
-                price={room.nightly_price_vnd}
-                room={room}
-              />
-            );
-          })}
-        </div>
+                const locationName =
+                  room.property?.name ||
+                  room.property?.address ||
+                  "Chưa cập nhật";
+
+                return (
+                  <RoomCard
+                    key={room.id}
+                    id={room.id}
+                    coverImage={coverImage}
+                    name={room.name || "Chưa cập nhật"}
+                    location={locationName}
+                    maxGuests={room.capacity}
+                    bedType={bedType}
+                    price={room.nightly_price_vnd}
+                    room={room}
+                  />
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
