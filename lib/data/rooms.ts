@@ -8,6 +8,33 @@ export function isValidUUID(val: unknown): val is string {
   return typeof val === "string" && UUID_REGEX.test(val.trim());
 }
 
+export const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Validates whether a value is a valid calendar date in YYYY-MM-DD format.
+ */
+export function isValidCalendarDate(val: unknown): val is string {
+  if (typeof val !== "string" || !DATE_REGEX.test(val.trim())) {
+    return false;
+  }
+  const [yearStr, monthStr, dayStr] = val.trim().split("-");
+  const year = parseInt(yearStr, 10);
+  const month = parseInt(monthStr, 10);
+  const day = parseInt(dayStr, 10);
+
+  if (month < 1 || month > 12 || day < 1 || day > 31) {
+    return false;
+  }
+
+  const d = new Date(Date.UTC(year, month - 1, day));
+  return (
+    d.getUTCFullYear() === year &&
+    d.getUTCMonth() === month - 1 &&
+    d.getUTCDate() === day
+  );
+}
+
+
 export interface PublicProperty {
   id: string;
   name: string;
@@ -178,14 +205,15 @@ export async function getPublicRooms(filters?: RoomCatalogFilters): Promise<{
       };
     });
 
-    // Lọc phòng trống theo ngày (Availability) nếu có tham số check-in và check-out
+    // Lọc phòng trống theo ngày (Availability) nếu có tham số check-in và check-out:
+    // Ưu tiên cao nhất key chuẩn (canonical) check_in và check_out. Chỉ fallback sang alias khi undefined.
     const rawCheckIn =
-      filters?.check_in ||
-      filters?.["check-in"] ||
+      filters?.check_in ??
+      filters?.["check-in"] ??
       filters?.checkIn;
     const rawCheckOut =
-      filters?.check_out ||
-      filters?.["check-out"] ||
+      filters?.check_out ??
+      filters?.["check-out"] ??
       filters?.checkOut;
 
     const checkIn =
@@ -202,6 +230,17 @@ export async function getPublicRooms(filters?: RoomCatalogFilters): Promise<{
           : "";
 
     if (checkIn && checkOut) {
+      // Validate ngày tháng rành mạch:
+      // 1. Kiểm tra phải đúng định dạng YYYY-MM-DD và là ngày hợp lệ theo lịch
+      if (!isValidCalendarDate(checkIn) || !isValidCalendarDate(checkOut)) {
+        return { data: [], error: "Ngày check-in/check-out không hợp lệ" };
+      }
+
+      // 2. Kiểm tra checkOut phải lớn hơn checkIn
+      if (checkOut <= checkIn) {
+        return { data: [], error: "Ngày check-in/check-out không hợp lệ" };
+      }
+
       try {
         // KHÔNG ĐƯỢC catch lỗi hệ thống/RPC rồi return null bên trong mapper để tránh UI hiểu nhầm là hết phòng.
         // Để exception văng ra ngoài cho catch block xử lý và trả về error rõ ràng.

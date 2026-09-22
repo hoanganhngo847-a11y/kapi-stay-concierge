@@ -49,14 +49,14 @@ export function RoomCard(props: RoomCardProps) {
 
   // Đọc các query params hiện tại (check_in, check_out, capacity) từ URL
   const checkIn =
-    searchParams?.get("check_in") ||
-    searchParams?.get("check-in") ||
-    searchParams?.get("checkin") ||
+    searchParams?.get("check_in") ??
+    searchParams?.get("check-in") ??
+    searchParams?.get("checkin") ??
     "";
   const checkOut =
-    searchParams?.get("check_out") ||
-    searchParams?.get("check-out") ||
-    searchParams?.get("checkout") ||
+    searchParams?.get("check_out") ??
+    searchParams?.get("check-out") ??
+    searchParams?.get("checkout") ??
     "";
   const capacityParam =
     searchParams?.get("capacity") ||

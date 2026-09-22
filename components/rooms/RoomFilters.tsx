@@ -50,14 +50,14 @@ export function RoomFilters({
     searchParams.get("guests") ||
     "";
   const currentCheckIn =
-    searchParams.get("check_in") ||
-    searchParams.get("check-in") ||
-    searchParams.get("checkin") ||
+    searchParams.get("check_in") ??
+    searchParams.get("check-in") ??
+    searchParams.get("checkin") ??
     "";
   const currentCheckOut =
-    searchParams.get("check_out") ||
-    searchParams.get("check-out") ||
-    searchParams.get("checkout") ||
+    searchParams.get("check_out") ??
+    searchParams.get("check-out") ??
+    searchParams.get("checkout") ??
     "";
 
   // Min selectable check-out date (bắt buộc lớn hơn check-in và không trong quá khứ)
@@ -93,13 +93,16 @@ export function RoomFilters({
     params.delete("checkin");
 
     if (!val) {
+      // Nếu Check-in bị xóa, BẮT BUỘC xóa luôn giá trị của Check-out
       params.delete("check_in");
+      params.delete("check_out");
+      params.delete("check-out");
+      params.delete("checkout");
     } else if (val >= todayStr) {
       params.set("check_in", val);
-      // Ngày check-out BẮT BUỘC phải lớn hơn check-in
-      if (currentCheckOut && currentCheckOut <= val) {
-        const nextDay = getNextDayStr(val);
-        params.set("check_out", nextDay);
+      // Nếu Check-in mới được chọn lớn hơn hoặc bằng Check-out hiện tại, tự động clear Check-out
+      if (currentCheckOut && val >= currentCheckOut) {
+        params.delete("check_out");
         params.delete("check-out");
         params.delete("checkout");
       }
@@ -240,19 +243,24 @@ export function RoomFilters({
         <div>
           <label
             htmlFor="filter-checkout"
-            className="block text-xs font-medium text-dark/70 mb-1.5"
+            className={`block text-xs font-medium mb-1.5 ${!currentCheckIn ? "text-dark/40" : "text-dark/70"
+              }`}
           >
             Trả phòng (Check-out)
           </label>
           <div className="relative">
-            <Calendar className="w-4 h-4 text-dark/40 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Calendar
+              className={`w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none ${!currentCheckIn ? "text-dark/25" : "text-dark/40"
+                }`}
+            />
             <input
               id="filter-checkout"
               type="date"
+              disabled={!currentCheckIn}
               min={minCheckOutStr}
-              value={currentCheckOut}
+              value={currentCheckIn ? currentCheckOut : ""}
               onChange={handleCheckOutChange}
-              className="w-full pl-9 pr-3 py-2.5 bg-light/50 border border-dark/15 rounded-xl text-xs sm:text-sm text-dark font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer"
+              className="w-full pl-9 pr-3 py-2.5 bg-light/50 border border-dark/15 rounded-xl text-xs sm:text-sm text-dark font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-dark/5"
             />
           </div>
         </div>

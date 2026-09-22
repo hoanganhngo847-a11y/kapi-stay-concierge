@@ -49,10 +49,12 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
         ? rawCapacity
         : 0;
 
-  // Lấy tham số check-in và check-out từ URL
+  // Lấy tham số check-in và check-out từ URL:
+  // Ưu tiên cao nhất key chuẩn (canonical) check_in và check_out (dấu gạch dưới).
+  // Chỉ fallback sang alias cũ (check-in, check-out) khi param chuẩn bị undefined.
   const rawCheckIn =
-    resolvedParams["check-in"] ||
-    resolvedParams.check_in ||
+    resolvedParams.check_in ??
+    resolvedParams["check-in"] ??
     resolvedParams.checkin;
   const checkIn =
     typeof rawCheckIn === "string"
@@ -62,8 +64,8 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
         : "";
 
   const rawCheckOut =
-    resolvedParams["check-out"] ||
-    resolvedParams.check_out ||
+    resolvedParams.check_out ??
+    resolvedParams["check-out"] ??
     resolvedParams.checkout;
   const checkOut =
     typeof rawCheckOut === "string"
@@ -167,8 +169,7 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
               <p className="text-sm text-dark/60 mb-6 leading-relaxed">
                 {hasActiveFilters
                   ? `Không có phòng nào đáp ứng tiêu chí lọc${activePropertyName ? ` tại "${activePropertyName}"` : ""
-                  }${capacity > 0 ? ` cho từ ${capacity} khách` : ""}${
-                    checkIn && checkOut ? ` trong khoảng ngày ${checkIn} - ${checkOut}` : ""
+                  }${capacity > 0 ? ` cho từ ${capacity} khách` : ""}${checkIn && checkOut ? ` trong khoảng ngày ${checkIn} - ${checkOut}` : ""
                   }. Quý khách vui lòng thử chọn cơ sở khác hoặc điều chỉnh thời gian lưu trú.`
                   : "Không tìm thấy phòng phù hợp trên hệ thống. Quý khách vui lòng quay lại sau."}
               </p>
