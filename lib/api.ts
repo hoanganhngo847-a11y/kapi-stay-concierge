@@ -4,3 +4,8 @@
  */
 
 export { checkRoomAvailability } from "@/lib/data/bookings";
+
+export {
+  getMyStayBookingDetails,
+  type MyStayBookingDetails,
+} from "@/lib/data/my-stay";

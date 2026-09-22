@@ -669,6 +669,12 @@ export type Database = {
         }
         Returns: boolean
       }
+      get_my_stay_credentials: {
+        Args: {
+          p_booking_id: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
