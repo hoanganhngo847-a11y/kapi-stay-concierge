@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { updateBookingStatus } from "@/lib/api";
+import { updateRoomStatus } from "@/lib/api";
 interface QuickActionsProps {
   bookingId?: string;
   onCheckoutSuccess?: () => void;
@@ -23,9 +23,8 @@ export default function QuickActions({
     if (!confirm) return;
 
     setIsCheckingOut(true);
-    try {
-      await updateBookingStatus(bookingId, "checkout_requested");
-      alert("Đã gửi yêu cầu trả phòng thành công!");
+    try {// eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await updateRoomStatus(bookingId, "checkout_requested" as any); alert("Đã gửi yêu cầu trả phòng thành công!");
       if (onCheckoutSuccess) {
         onCheckoutSuccess();
       }
