@@ -679,6 +679,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_room_availability: {
+        Args: {
+          p_room_id: string
+          p_check_in: string
+          p_check_out: string
+        }
+        Returns: boolean
+      }
+      get_my_stay_credentials: {
+        Args: {
+          p_booking_id: string
+        }
+        Returns: Json
+      }
       get_staff_dashboard_data: {
         Args: Record<PropertyKey, never>
         Returns: Json

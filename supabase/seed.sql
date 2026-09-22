@@ -1,47 +1,70 @@
+-- LOCAL / DEMO FIXTURE ONLY - DO NOT RUN IN PRODUCTION OR SHARED ENVIRONMENTS
 -- ============================================================================
 -- Supabase Seed Data: seed.sql
--- Development and catalog seed data only.
--- NO real customer data, NO real passwords, NO real door PINs, NO auth.users rows.
+-- Dự án: Kapi Stay Concierge (TV8 - Database & Backend Data)
+-- Mục đích: Nạp dữ liệu demo/local fixture cho 4 cơ sở và 8 phòng nghỉ Kapi Stay
+-- (Hà Nội, Đà Nẵng, Đà Lạt, TP. Hồ Chí Minh)
+--
+-- QUY TẮC DỮ LIỆU FIXTURE:
+-- 1. Đây hoàn toàn là dữ liệu demo / local fixture phục vụ phát triển cục bộ và kiểm thử UI/dev.
+--    Tuyệt đối không phải dữ liệu thực tế đã xác minh của Kapi Stay / Kapi House trong môi trường production.
+--    Không tự suy diễn địa chỉ, Wi-Fi, phòng nghỉ, hình ảnh là thông tin thực tế đã xác minh.
+-- 2. Tuyệt đối không chứa secret production, không chứa thông tin khách hàng thật, không seed auth.users.
+-- 3. Tuyệt đối không chứa mã PIN cửa / static Digital Key (Digital Key phải booking-scoped và tạo động theo stay window).
+-- 4. Thông tin Wi-Fi (SSID/mật khẩu) và hình ảnh (Unsplash) chỉ là placeholder minh họa cho local demo fixture.
+-- 5. Tuân thủ kiến trúc phân tách bảng: properties, rooms, room_operations, room_private_details, vouchers.
+-- 6. An toàn & idempotent: Dùng ON CONFLICT (...) DO UPDATE, tuyệt đối không dùng TRUNCATE hay DELETE.
 -- ============================================================================
 
--- 1. Seed Properties
+-- ----------------------------------------------------------------------------
+-- 1. DANH MỤC 4 CƠ SỞ (PROPERTIES / BRANCHES)
+-- ----------------------------------------------------------------------------
 insert into public.properties (id, name, slug, address, maps_url, is_active)
 values
   (
     '11111111-1111-1111-1111-111111111111',
-    'Kapi House — Biệt Thự Hoa Hồng',
-    'kapi-house-hoa-hong',
-    '12 Đường Hoa Hồng, Phường 4, TP. Đà Lạt',
-    'https://maps.google.com/?q=12+Hoa+Hong+Da+Lat',
+    'Kapi Stay Hà Nội - Phố Cổ Hoàn Kiếm',
+    'kapi-stay-ha-noi',
+    '18 Hàng Gai, Phường Hàng Gai, Quận Hoàn Kiếm, Hà Nội',
+    'https://maps.google.com/?q=18+Hang+Gai+Hoan+Kiem+Ha+Noi',
     true
   ),
   (
     '22222222-2222-2222-2222-222222222222',
-    'Kapi House — Thung Lũng Mây',
-    'kapi-house-thung-lung',
-    '45 Đặng Thái Thân, Phường 3, TP. Đà Lạt',
-    'https://maps.google.com/?q=45+Dang+Thai+Than+Da+Lat',
+    'Kapi Stay Đà Nẵng - Biển Mỹ Khê',
+    'kapi-stay-da-nang',
+    '36 Võ Nguyên Giáp, Phường Phước Mỹ, Quận Sơn Trà, TP. Đà Nẵng',
+    'https://maps.google.com/?q=36+Vo+Nguyen+Giap+Son+Tra+Da+Nang',
     true
   ),
   (
     '33333333-3333-3333-3333-333333333333',
-    'Kapi House — Ven Hồ Tuyền Lâm',
-    'kapi-house-ho-tuyen-lam',
-    'Khu Du Lịch Hồ Tuyền Lâm, Phường 4, TP. Đà Lạt',
-    'https://maps.google.com/?q=Ho+Tuyen+Lam+Da+Lat',
+    'Kapi Stay Đà Lạt - Thung Lũng Mây',
+    'kapi-stay-da-lat',
+    '45 Đặng Thái Thân, Phường 3, TP. Đà Lạt, Lâm Đồng',
+    'https://maps.google.com/?q=45+Dang+Thai+Than+Da+Lat',
     true
   ),
   (
     '44444444-4444-4444-4444-444444444444',
-    'Kapi House — Phố Cổ Trung Tâm',
-    'kapi-house-pho-co',
-    '88 Phan Đình Phùng, Phường 2, TP. Đà Lạt',
-    'https://maps.google.com/?q=88+Phan+Dinh+Phung+Da+Lat',
+    'Kapi Stay TP.HCM - Sài Gòn Riverside',
+    'kapi-stay-tp-hcm',
+    '15 Bến Vân Đồn, Phường 13, Quận 4, TP. Hồ Chí Minh',
+    'https://maps.google.com/?q=15+Ben+Van+Don+Quan+4+TP+Ho+Chi+Minh',
     true
   )
-on conflict (id) do nothing;
+on conflict (id) do update set
+  name = excluded.name,
+  slug = excluded.slug,
+  address = excluded.address,
+  maps_url = excluded.maps_url,
+  is_active = excluded.is_active;
 
--- 2. Seed Rooms (Public Catalog)
+-- ----------------------------------------------------------------------------
+-- 2. DANH MỤC 8 PHÒNG NGHỈ TRẢI ĐỀU 4 CƠ SỞ (PUBLIC ROOM CATALOG)
+-- Giá phòng demo: 450.000đ - 1.450.000đ/đêm.
+-- Ảnh Unsplash chỉ là ảnh placeholder minh họa cho local demo fixture, không phải ảnh chụp thực tế của Kapi Stay.
+-- ----------------------------------------------------------------------------
 insert into public.rooms (
   id,
   property_id,
@@ -54,62 +77,158 @@ insert into public.rooms (
   is_listed
 )
 values
+  -- [Cơ sở 1: Hà Nội]
   (
     'a1111111-1111-1111-1111-111111111111',
     '11111111-1111-1111-1111-111111111111',
-    'Phòng Deluxe Ban Công Hoa Nắng',
-    'Studio 1 giường đôi với ban công thoáng mát hướng vườn hoa.',
-    650000,
+    'Kapi Deluxe Studio - Ban Công Phố Cổ',
+    'Studio sang trọng ngập tràn ánh sáng tự nhiên với ban công ngắm trọn nhịp sống phố cổ Hà Nội, đầy đủ bếp nấu và tiện nghi thư giãn.',
+    750000,
     2,
-    array['Wifi tốc độ cao', 'Điều hòa 2 chiều', 'Tự check-in khóa số', 'Ban công thoáng mát'],
-    array['/rooms/deluxe-terrace.jpg'],
+    array['Điều hòa 2 chiều', 'Smart TV', 'Máy sấy tóc', 'Tủ lạnh mini', 'Bếp nấu', 'Ban công', 'Bình nóng lạnh'],
+    array[
+      'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=1200&q=80'
+    ],
+    true
+  ),
+  (
+    'a2222222-2222-2222-2222-222222222222',
+    '11111111-1111-1111-1111-111111111111',
+    'Kapi Cozy Attic - Gác Mái Hoàn Kiếm',
+    'Không gian gác mái ấm cúng mang phong cách Indochine hoài niệm giữa lòng Hà Nội, trang bị máy chiếu phim và góc làm việc thanh bình.',
+    550000,
+    2,
+    array['Điều hòa', 'Smart TV', 'Máy sấy tóc', 'Tủ lạnh mini', 'Máy chiếu phim', 'Bàn làm việc'],
+    array[
+      'https://images.unsplash.com/photo-1566665797739-1674de7a421a?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1618773928121-c32242e63f39?auto=format&fit=crop&w=1200&q=80'
+    ],
+    true
+  ),
+
+  -- [Cơ sở 2: Đà Nẵng]
+  (
+    'b1111111-1111-1111-1111-111111111111',
+    '22222222-2222-2222-2222-222222222222',
+    'Kapi Ocean Breeze Studio - View Biển Mỹ Khê',
+    'Căn hộ studio hiện đại đón trọn gió biển Mỹ Khê trong lành, ban công ngắm hoàng hôn rực rỡ cùng nội thất gỗ ấm áp.',
+    950000,
+    2,
+    array['Điều hòa', 'Smart TV', 'Máy sấy tóc', 'Tủ lạnh mini', 'Ban công', 'Bình siêu tốc'],
+    array[
+      'https://images.unsplash.com/photo-1578683010236-d716f9a3f461?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=1200&q=80'
+    ],
     true
   ),
   (
     'b2222222-2222-2222-2222-222222222222',
-    '11111111-1111-1111-1111-111111111111',
-    'Phòng Cozy Nest Ấm Cúng',
-    'Phòng tiêu chuẩn 1 giường lớn, trang bị máy chiếu phim và góc làm việc ấm cúng.',
-    480000,
-    2,
-    array['Khóa thông minh', 'Nước nóng 24/7', 'Máy chiếu phim', 'Bàn làm việc'],
-    array['/rooms/cozy-nest.jpg'],
-    true
-  ),
-  (
-    'c3333333-3333-3333-3333-333333333333',
     '22222222-2222-2222-2222-222222222222',
-    'Phòng Family Suite Gia Đình',
-    'Căn hộ 2 phòng ngủ tiện nghi với bếp nấu đầy đủ cho gia đình.',
-    1150000,
+    'Kapi Coastal Family Suite - Sơn Trà',
+    'Căn hộ 2 phòng ngủ cao cấp tiện nghi với gian bếp nấu đầy đủ cho cả gia đình, chỉ cách bờ biển Mỹ Khê 2 phút tản bộ.',
+    1450000,
     4,
-    array['Bếp nấu đầy đủ', 'Tủ lạnh lớn', 'Máy giặt sấy', 'Smart TV 55 inch'],
-    array['/rooms/family-suite.jpg'],
+    array['Điều hòa', 'Smart TV', 'Máy sấy tóc', 'Tủ lạnh mini', 'Bếp nấu', 'Máy giặt', 'Ban công'],
+    array[
+      'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=1200&q=80'
+    ],
+    true
+  ),
+
+  -- [Cơ sở 3: Đà Lạt]
+  (
+    'c1111111-1111-1111-1111-111111111111',
+    '33333333-3333-3333-3333-333333333333',
+    'Kapi Cozy Attic - View Đồi Thông',
+    'Phòng áp mái lãng mạn ngắm trọn đồi thông bạt ngàn của Đà Lạt, trang bị lò sưởi ấm cúng và bồn tắm ngâm thảo mộc thư giãn.',
+    680000,
+    2,
+    array['Lò sưởi ấm', 'Bồn tắm ngâm', 'Smart TV', 'Máy sấy tóc', 'Tủ lạnh mini', 'Ban công', 'Trà & Cà phê'],
+    array[
+      'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1613490493576-7fde63acd811?auto=format&fit=crop&w=1200&q=80'
+    ],
     true
   ),
   (
-    'd4444444-4444-4444-4444-444444444444',
-    '22222222-2222-2222-2222-222222222222',
-    'Phòng Studio Mây Ngàn',
-    'Studio cao cấp ngắm trọn thung lũng mây bồng bềnh, bồn tắm ngâm thư giãn.',
-    850000,
+    'c2222222-2222-2222-2222-222222222222',
+    '33333333-3333-3333-3333-333333333333',
+    'Kapi Valley Studio - Săn Mây Ban Mai',
+    'Studio cao cấp lưng chừng đồi mây, ban công săn mây bồng bềnh mỗi sáng sớm cùng khu bếp nấu ấm áp cho kỳ nghỉ đáng nhớ.',
+    890000,
     2,
-    array['View thung lũng', 'Bồn tắm ngâm', 'Máy sấy tóc cao cấp', 'Loa Bluetooth'],
-    array['/rooms/studio-may-ngan.jpg'],
+    array['Điều hòa 2 chiều', 'Smart TV', 'Máy sấy tóc', 'Tủ lạnh mini', 'Bếp nấu', 'Ban công', 'Nước nóng 24/7'],
+    array[
+      'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=1200&q=80'
+    ],
+    true
+  ),
+
+  -- [Cơ sở 4: TP. Hồ Chí Minh]
+  (
+    'd1111111-1111-1111-1111-111111111111',
+    '44444444-4444-4444-4444-444444444444',
+    'Kapi Modern Studio - Bến Vân Đồn',
+    'Studio phong cách tối giản thanh lịch kề bên sông Sài Gòn, giao thông thuận tiện di chuyển sang Quận 1 trong tích tắc.',
+    490000,
+    2,
+    array['Điều hòa', 'Smart TV', 'Máy sấy tóc', 'Tủ lạnh mini', 'Bàn làm việc', 'Ban công'],
+    array[
+      'https://images.unsplash.com/photo-1631049307264-da0ec9d70304?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1591088398332-8a7791972843?auto=format&fit=crop&w=1200&q=80'
+    ],
+    true
+  ),
+  (
+    'd2222222-2222-2222-2222-222222222222',
+    '44444444-4444-4444-4444-444444444444',
+    'Kapi Executive Suite - View Sông Sài Gòn',
+    'Suite hạng sang tầng cao ngắm trọn cảnh sông Sài Gòn lung linh về đêm, ban công thoáng mát và máy giặt sấy riêng biệt.',
+    1190000,
+    3,
+    array['Điều hòa', 'Smart TV', 'Máy sấy tóc', 'Tủ lạnh mini', 'Bếp nấu', 'Ban công', 'Máy giặt sấy'],
+    array[
+      'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80'
+    ],
     true
   )
-on conflict (id) do nothing;
+on conflict (id) do update set
+  property_id = excluded.property_id,
+  name = excluded.name,
+  description = excluded.description,
+  nightly_price_vnd = excluded.nightly_price_vnd,
+  capacity = excluded.capacity,
+  amenities = excluded.amenities,
+  image_paths = excluded.image_paths,
+  is_listed = excluded.is_listed;
 
--- 3. Seed Room Operations (Internal Development States)
+-- ----------------------------------------------------------------------------
+-- 3. TRẠNG THÁI VẬN HÀNH NỘI BỘ (ROOM OPERATIONS)
+-- Trạng thái mặc định: 'ready' (Sẵn sàng đón khách)
+-- ----------------------------------------------------------------------------
 insert into public.room_operations (room_id, operational_status)
 values
   ('a1111111-1111-1111-1111-111111111111', 'ready'),
+  ('a2222222-2222-2222-2222-222222222222', 'ready'),
+  ('b1111111-1111-1111-1111-111111111111', 'ready'),
   ('b2222222-2222-2222-2222-222222222222', 'ready'),
-  ('c3333333-3333-3333-3333-333333333333', 'ready'),
-  ('d4444444-4444-4444-4444-444444444444', 'ready')
-on conflict (room_id) do nothing;
+  ('c1111111-1111-1111-1111-111111111111', 'ready'),
+  ('c2222222-2222-2222-2222-222222222222', 'ready'),
+  ('d1111111-1111-1111-1111-111111111111', 'ready'),
+  ('d2222222-2222-2222-2222-222222222222', 'ready')
+on conflict (room_id) do update set
+  operational_status = excluded.operational_status;
 
--- 4. Seed Room Private Details (Development Placeholders Only)
+-- ----------------------------------------------------------------------------
+-- 4. THÔNG TIN BẢO MẬT PHÒNG NGHỈ (ROOM PRIVATE DETAILS)
+-- Bao gồm Tên Wi-Fi (wifi_ssid), Mật khẩu Wi-Fi (wifi_password) - chỉ là placeholder/demo credentials,
+-- tuyệt đối không phải production secrets.
+-- Hướng dẫn bảo mật / sử dụng Digital Key ở mức demo (Digital Key được cấp động theo từng booking, không lưu mã tĩnh).
+-- ----------------------------------------------------------------------------
 insert into public.room_private_details (
   room_id,
   wifi_ssid,
@@ -119,31 +238,62 @@ insert into public.room_private_details (
 values
   (
     'a1111111-1111-1111-1111-111111111111',
-    'Kapi_HoaHong_Guest',
-    'dev_placeholder_wifi_pass',
-    'Development placeholder: Chạm thẻ từ hoặc nhập mã PIN số trên bàn phím khóa điện tử.'
+    'KapiStay_HaNoi_5G',
+    'kapistay2026',
+    'Sử dụng Digital Key được cấp trong mục Chuyến đi của tôi trên ứng dụng Kapi Stay để mở cửa. Chạm sáng màn hình khóa điện tử trước khi nhập mã.'
+  ),
+  (
+    'a2222222-2222-2222-2222-222222222222',
+    'KapiStay_HaNoi_5G',
+    'kapistay2026',
+    'Sử dụng Digital Key được cấp trong mục Chuyến đi của tôi trên ứng dụng Kapi Stay để mở cửa. Chạm sáng màn hình khóa điện tử trước khi nhập mã.'
+  ),
+  (
+    'b1111111-1111-1111-1111-111111111111',
+    'KapiStay_DaNang_5G',
+    'kapistay2026',
+    'Sử dụng Digital Key được cấp trong mục Chuyến đi của tôi trên ứng dụng Kapi Stay để mở cửa. Chạm sáng màn hình khóa điện tử trước khi nhập mã.'
   ),
   (
     'b2222222-2222-2222-2222-222222222222',
-    'Kapi_HoaHong_Guest',
-    'dev_placeholder_wifi_pass',
-    'Development placeholder: Khóa cửa tự động kích hoạt mã PIN theo thời gian lưu trú.'
+    'KapiStay_DaNang_5G',
+    'kapistay2026',
+    'Sử dụng Digital Key được cấp trong mục Chuyến đi của tôi trên ứng dụng Kapi Stay để mở cửa. Chạm sáng màn hình khóa điện tử trước khi nhập mã.'
   ),
   (
-    'c3333333-3333-3333-3333-333333333333',
-    'Kapi_ThungLung_Guest',
-    'dev_placeholder_wifi_pass',
-    'Development placeholder: Vui lòng xem hướng dẫn sử dụng bếp gas và máy giặt trong tủ bếp.'
+    'c1111111-1111-1111-1111-111111111111',
+    'KapiStay_DaLat_5G',
+    'kapistay2026',
+    'Sử dụng Digital Key được cấp trong mục Chuyến đi của tôi trên ứng dụng Kapi Stay để mở cửa. Chạm sáng màn hình khóa điện tử trước khi nhập mã.'
   ),
   (
-    'd4444444-4444-4444-4444-444444444444',
-    'Kapi_ThungLung_Guest',
-    'dev_placeholder_wifi_pass',
-    'Development placeholder: Rèm cửa tự động điều khiển bằng remote cạnh đầu giường.'
+    'c2222222-2222-2222-2222-222222222222',
+    'KapiStay_DaLat_5G',
+    'kapistay2026',
+    'Sử dụng Digital Key được cấp trong mục Chuyến đi của tôi trên ứng dụng Kapi Stay để mở cửa. Chạm sáng màn hình khóa điện tử trước khi nhập mã.'
+  ),
+  (
+    'd1111111-1111-1111-1111-111111111111',
+    'KapiStay_TPHCM_5G',
+    'kapistay2026',
+    'Sử dụng Digital Key được cấp trong mục Chuyến đi của tôi trên ứng dụng Kapi Stay để mở cửa. Chạm sáng màn hình khóa điện tử trước khi nhập mã.'
+  ),
+  (
+    'd2222222-2222-2222-2222-222222222222',
+    'KapiStay_TPHCM_5G',
+    'kapistay2026',
+    'Sử dụng Digital Key được cấp trong mục Chuyến đi của tôi trên ứng dụng Kapi Stay để mở cửa. Chạm sáng màn hình khóa điện tử trước khi nhập mã.'
   )
-on conflict (room_id) do nothing;
+on conflict (room_id) do update set
+  wifi_ssid = excluded.wifi_ssid,
+  wifi_password = excluded.wifi_password,
+  private_instructions = excluded.private_instructions;
 
--- 5. Seed Approved Loyalty Voucher Definition
+-- ----------------------------------------------------------------------------
+-- 5. VOUCHER MẪU CHO HỆ THỐNG LOYALTY (LOYALTY VOUCHER DEFINITION)
+-- Khớp quy tắc nghiệp vụ loyalty: 500 điểm đổi voucher 40%, giới hạn tối đa trên giá gốc 1.000.000đ
+-- (mức giảm tối đa suy ra là 400.000đ). Không tạo thêm bảng hay quy tắc ngoài thiết kế.
+-- ----------------------------------------------------------------------------
 insert into public.vouchers (
   id,
   name,
@@ -163,4 +313,10 @@ values
     1000000,
     true
   )
-on conflict (id) do nothing;
+on conflict (id) do update set
+  name = excluded.name,
+  voucher_type = excluded.voucher_type,
+  points_cost = excluded.points_cost,
+  discount_percentage = excluded.discount_percentage,
+  max_eligible_base_vnd = excluded.max_eligible_base_vnd,
+  is_active = excluded.is_active;
