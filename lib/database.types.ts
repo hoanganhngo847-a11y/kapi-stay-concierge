@@ -96,6 +96,7 @@ export type Database = {
           booking_status: string
           check_in: string
           check_out: string
+          checkout_session_id: string | null
           created_at: string
           discount_amount_vnd: number
           final_paid_amount_vnd: number
@@ -111,6 +112,7 @@ export type Database = {
           booking_status: string
           check_in: string
           check_out: string
+          checkout_session_id?: string | null
           created_at?: string
           discount_amount_vnd?: number
           final_paid_amount_vnd: number
@@ -126,6 +128,7 @@ export type Database = {
           booking_status?: string
           check_in?: string
           check_out?: string
+          checkout_session_id?: string | null
           created_at?: string
           discount_amount_vnd?: number
           final_paid_amount_vnd?: number
@@ -138,6 +141,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "bookings_checkout_session_id_fkey"
+            columns: ["checkout_session_id"]
+            isOneToOne: false
+            referencedRelation: "checkout_sessions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "bookings_room_id_fkey"
             columns: ["room_id"]
@@ -491,6 +501,24 @@ export type Database = {
           },
         ]
       }
+      staff_roles: {
+        Row: {
+          created_at: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          role: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       tickets: {
         Row: {
           booking_id: string
@@ -661,7 +689,68 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      check_room_availability: {
+        Args: {
+          p_room_id: string
+          p_check_in: string
+          p_check_out: string
+        }
+        Returns: boolean
+      }
+      create_checkout_session_atomic: {
+        Args: {
+          p_check_in: string
+          p_check_out: string
+          p_guest_count: number
+          p_room_id: string
+        }
+        Returns: Json
+      }
+      finalize_verified_checkout_atomic: {
+        Args: {
+          p_checkout_session_id: string
+          p_verified_paid_amount_vnd: number
+          p_verified_payment_reference: string
+        }
+        Returns: Json
+      }
+      release_checkout_voucher_atomic: {
+        Args: {
+          p_checkout_session_id: string
+        }
+        Returns: Json
+      }
+      reserve_checkout_voucher_atomic: {
+        Args: {
+          p_checkout_session_id: string
+          p_voucher_redemption_id: string
+        }
+        Returns: Json
+      }
+      get_my_stay_credentials: {
+        Args: {
+          p_booking_id: string
+        }
+        Returns: Json
+      }
+      get_staff_dashboard_data: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      update_room_operational_status: {
+        Args: {
+          p_operational_status: string
+          p_room_id: string
+        }
+        Returns: Json
+      }
+      update_ticket_status: {
+        Args: {
+          p_status: string
+          p_ticket_id: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
