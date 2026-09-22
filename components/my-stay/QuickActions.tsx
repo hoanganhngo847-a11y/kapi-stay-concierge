@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-
+import { updateBookingStatus } from "@/lib/api";
 interface QuickActionsProps {
   bookingId?: string;
   onCheckoutSuccess?: () => void;
@@ -24,14 +24,12 @@ export default function QuickActions({
 
     setIsCheckingOut(true);
     try {
-      // Khi TV8 push API, sẽ mở comment dòng này để ghi nhận xuống DB:
-      // await updateBookingStatus(bookingId, "checkout_requested");
-
-      alert(`Đã gửi yêu cầu trả phòng cho mã đơn: ${bookingId}`);
+      await updateBookingStatus(bookingId, "checkout_requested");
+      alert("Đã gửi yêu cầu trả phòng thành công!");
       if (onCheckoutSuccess) {
         onCheckoutSuccess();
       }
-    } catch (error) {
+    } catch {
       alert("Gửi yêu cầu thất bại, vui lòng thử lại.");
     } finally {
       setIsCheckingOut(false);

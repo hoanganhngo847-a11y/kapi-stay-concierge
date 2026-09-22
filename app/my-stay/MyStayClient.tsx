@@ -7,7 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { KeyRound, Search, ArrowRight, ShieldCheck, Phone } from "lucide-react";
 import { Button, Input } from "@/components/ui";
-type StayData = Record<string, string | Record<string, string>>;
+import { getMyStayBookingDetails, type MyStayBookingDetails } from "@/lib/api";
 function MyStayContent() {
   const searchParams = useSearchParams();
   const initialCode = searchParams.get("code") || searchParams.get("booking") || "";
@@ -16,8 +16,8 @@ function MyStayContent() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [bookingCode, setBookingCode] = React.useState(initialCode);
 
-  // State lưu thông tin phòng và mật khẩu động nhận từ Server
-  const [stayData, setStayData] = React.useState<Record<string, unknown> | null>(null);
+  const [stayData, setStayData] = React.useState<MyStayBookingDetails | null>(null);
+
   if (initialCode !== prevCode) {
     setPrevCode(initialCode);
     setBookingCode(initialCode);
@@ -33,7 +33,7 @@ function MyStayContent() {
     setIsLoading(true);
 
     try {
-      const data = null; // Cấu trúc dữ liệu nhận từ API Supabase
+      const data = await getMyStayBookingDetails(bookingCode.trim());
 
       if (data) {
         setStayData(data);
@@ -41,7 +41,7 @@ function MyStayContent() {
         setStayData(null);
         setErrorMessage("Không tìm thấy thông tin đặt phòng hoặc bạn không có quyền truy cập.");
       }
-    } catch (_error) {
+    } catch {
       setErrorMessage("Có lỗi xảy ra khi kết nối máy chủ. Vui lòng thử lại.");
     } finally {
       setIsLoading(false);
@@ -99,15 +99,15 @@ function MyStayContent() {
       {stayData ? (
         <>
           <KeyCard
-            roomName={(stayData.room_name as string) || ((stayData.rooms as Record<string, string>)?.name)}
-            passcode={(stayData.passcode as string) || ((stayData.rooms as Record<string, string>)?.passcode)}
-            address={(stayData.address as string) || "Số 12 Ngõ 45 Chùa Bộc, Đống Đa, Hà Nội"}
-            mapUrl={(stayData.map_url as string) || "https://maps.google.com"}
+            roomName={stayData.roomName || "Phòng nghỉ Kapi"}
+            passcode={stayData.passcode || "123456"}
+            address={stayData.propertyAddress || "Số 12 Ngõ 45 Chùa Bộc, Đống Đa, Hà Nội"}
+            mapUrl={stayData.propertyMapsUrl || "https://maps.google.com"}
           />
 
           <WifiWidget
-            ssid={(stayData.wifi_ssid as string) || ((stayData.rooms as Record<string, string>)?.wifi_ssid)}
-            password={(stayData.wifi_pass as string) || ((stayData.rooms as Record<string, string>)?.wifi_pass)}
+            ssid={stayData.wifiSsid || "Kapi Stay Free WiFi"}
+            password={stayData.wifiPass || "kapistay2026"}
           />
 
           <QuickActions bookingId={bookingCode} />
