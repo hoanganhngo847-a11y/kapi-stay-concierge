@@ -12,7 +12,7 @@ CREATE OR REPLACE FUNCTION public.check_room_availability(
 RETURNS BOOLEAN
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = ''
 AS $$
 BEGIN
     -- Kiểm tra tính hợp lệ của tham số đầu vào
