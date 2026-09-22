@@ -1,4 +1,4 @@
-'use server';
+"use server";
 
 import { createClient } from "@/lib/supabase/server";
 
@@ -50,8 +50,8 @@ export interface MyStayBookingDetails {
   wifiPass: string | null;
   instructions: string | null;
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function parseCredentialsResponse(data: unknown): Promise<any> {
+
+function parseCredentialsResponse(data: unknown): MyStayCredentialsRpcResponse | null {
   if (!data || typeof data !== "object") {
     return null;
   }
@@ -339,7 +339,7 @@ export async function getMyStayBookingDetails(
       throw new Error("Lỗi hệ thống khi tải thông tin bảo mật phòng.");
     }
 
-    credsResponse = await parseCredentialsResponse(rawData);
+    credsResponse = parseCredentialsResponse(rawData);
   } catch (err: unknown) {
     if (err instanceof Error && err.message.startsWith("Lỗi hệ thống")) {
       throw err;

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { MyStayClient } from "./MyStayClient";
+import MyStayClient from "./MyStayClient";
 
 export const metadata = {
   title: "Kỳ nghỉ của tôi | Kapi Stay Concierge",

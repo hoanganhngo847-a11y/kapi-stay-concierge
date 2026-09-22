@@ -1,130 +1,131 @@
 "use client";
-import KeyCard from "@/components/my-stay/KeyCard";
-import WifiWidget from "@/components/my-stay/WifiWidget";
-import QuickActions from "@/components/my-stay/QuickActions";
-import * as React from "react";
-import { useSearchParams } from "next/navigation";
-import { Suspense } from "react";
-import { KeyRound, Search, ArrowRight, ShieldCheck, Phone } from "lucide-react";
-import { Button, Input } from "@/components/ui";
-import { getMyStayBookingDetails, type MyStayBookingDetails } from "@/lib/api";
-function MyStayContent() {
-  const searchParams = useSearchParams();
-  const initialCode = searchParams.get("code") || searchParams.get("booking") || "";
-  const [prevCode, setPrevCode] = React.useState(initialCode);
-  const [errorMessage, setErrorMessage] = React.useState("");
-  const [isLoading, setIsLoading] = React.useState(false);
-  const [bookingCode, setBookingCode] = React.useState(initialCode);
 
-  const [stayData, setStayData] = React.useState<MyStayBookingDetails | null>(null);
+import React, { useState } from "react";
+import { KeyCard, type StayStatus } from "@/components/my-stay/KeyCard";
+import WifiWidget from "@/components/my-stay/WifiWidget"; import { QuickActions } from "@/components/my-stay/QuickActions";
+import { getMyStayBookingDetails } from "@/lib/data/my-stay";
 
-  if (initialCode !== prevCode) {
-    setPrevCode(initialCode);
-    setBookingCode(initialCode);
-  }
+const SUPPORT_HOTLINE = "0901 234 567";
+
+interface StayData {
+  bookingId: string;
+  roomName?: string;
+  passcode?: string | null;
+  propertyAddress?: string | null;
+  propertyMapsUrl?: string | null;
+  wifiSsid?: string | null;
+  wifiPass?: string | null;
+  hasActiveCredential?: boolean;
+  activationNotice?: string;
+  stayStatus?: StayStatus;
+  isActiveStay?: boolean;
+}
+
+export default function MyStayClient() {
+  const [bookingInput, setBookingInput] = useState("");
+  const [stayData, setStayData] = useState<StayData | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!bookingCode.trim()) {
-      setErrorMessage("Vui lòng nhập mã đơn đặt phòng (Ví dụ: KP-1029)");
-      return;
-    }
-    setErrorMessage("");
+    if (!bookingInput.trim()) return;
+
     setIsLoading(true);
+    setErrorMessage(null);
 
     try {
-      const data = await getMyStayBookingDetails(bookingCode.trim());
-
-      if (data) {
-        setStayData(data);
-      } else {
-        setStayData(null);
+      const data = await getMyStayBookingDetails(bookingInput.trim());
+      if (!data) {
         setErrorMessage("Không tìm thấy thông tin đặt phòng hoặc bạn không có quyền truy cập.");
+        setStayData(null);
+      } else {
+        setStayData(data as StayData);
       }
-    } catch {
-      setErrorMessage("Có lỗi xảy ra khi kết nối máy chủ. Vui lòng thử lại.");
+    } catch (err: unknown) {
+      const errorObj = err as { code?: string; status?: number } | null | undefined;
+      if (errorObj?.code === "PGRST116" || errorObj?.status === 404) {
+        setErrorMessage("Mã đặt phòng không tồn tại hoặc không khớp với tài khoản của bạn.");
+      } else if (errorObj?.status === 401 || errorObj?.status === 403) {
+        setErrorMessage("Bạn cần đăng nhập để xem thông tin lưu trú này.");
+      } else {
+        setErrorMessage("Hệ thống tạm thời không khả dụng. Vui lòng thử lại sau.");
+      }
+      setStayData(null);
     } finally {
       setIsLoading(false);
     }
   };
 
+  const canRevealAccess = Boolean(stayData?.hasActiveCredential && stayData?.isActiveStay);
   return (
-    <div className="w-full max-w-lg mx-auto py-12 sm:py-20 px-4">
-      <div className="bg-white rounded-2xl border border-dark/10 shadow-sm p-6 sm:p-8">
-        <div className="text-center mb-6">
-          <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary border border-primary/20 flex items-center justify-center mx-auto mb-3">
-            <KeyRound className="w-6 h-6" />
-          </div>
-          <h1 className="text-2xl font-bold text-dark">Truy cập phòng của bạn</h1>
-          <p className="text-sm text-dark/60 mt-1">
-            Tra cứu thông tin nhận phòng, hướng dẫn mật mã và tiện ích homestay
-          </p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <Input
-            label="Mã đơn đặt phòng (Booking Code)"
-            placeholder="Ví dụ: KP-1029"
-            value={bookingCode}
-            onChange={(e) => {
-              setBookingCode(e.target.value);
-              if (errorMessage) setErrorMessage("");
-            }}
-            errorMessage={errorMessage}
-            startIcon={<Search className="w-4 h-4 text-dark/40" />}
-            autoFocus
+    <div className="max-w-2xl mx-auto p-4 space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <label htmlFor="bookingCode" className="block text-sm font-medium">
+          Mã đặt phòng (Booking ID)
+        </label>
+        <div className="flex gap-2">
+          <input
+            id="bookingCode"
+            type="text"
+            value={bookingInput}
+            onChange={(e) => setBookingInput(e.target.value)}
+            placeholder="Nhập UUID đơn hàng (VD: 123e4567-e89b-12d3-a456-426614174000)"
+            className="flex-1 px-3 py-2 border rounded-lg text-sm"
           />
-
-          <Button
+          <button
             type="submit"
-            isLoading={isLoading}
-            className="w-full h-11 text-base font-medium"
-            rightIcon={<ArrowRight className="w-4 h-4" />}
+            disabled={isLoading}
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium disabled:opacity-50"
           >
-            Tra cứu đơn phòng
-          </Button>
-        </form>
-
-        <div className="mt-8 pt-6 border-t border-dark/10 flex flex-col gap-3 text-xs text-dark/60">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-secondary shrink-0" />
-            <span>Mã đặt phòng được gửi qua SMS hoặc email khi đặt phòng thành công.</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Phone className="w-4 h-4 text-primary shrink-0" />
-            <span>Cần trợ giúp khẩn cấp? Gọi Hotline <strong>1900 xxxx</strong></span>          </div>
+            {isLoading ? "Đang tra cứu..." : "Tra cứu"}
+          </button>
         </div>
-      </div>
-      {/* Chỉ render KeyCard và WifiWidget khi tra cứu đúng dữ liệu từ Server */}
-      {stayData ? (
-        <>
-          <KeyCard
-            roomName={stayData.roomName || "Phòng nghỉ Kapi"}
-            passcode={stayData.passcode || "123456"}
-            address={stayData.propertyAddress || "Số 12 Ngõ 45 Chùa Bộc, Đống Đa, Hà Nội"}
-            mapUrl={stayData.propertyMapsUrl || "https://maps.google.com"}
+        <p className="text-xs text-muted-foreground">
+          Vui lòng nhập mã định danh đơn hàng được cung cấp trong xác nhận đặt phòng.
+        </p>
+      </form>
+
+      {errorMessage && (
+        <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-lg">
+          {errorMessage}
+        </div>
+      )}
+
+      {stayData && (
+        <div className="space-y-6 border-t pt-6">
+          {canRevealAccess && stayData.passcode ? (
+            <KeyCard
+              roomName={stayData.roomName}
+              passcode={stayData.passcode}
+              address={stayData.propertyAddress ?? undefined}
+              mapUrl={stayData.propertyMapsUrl ?? undefined}
+              stayStatus={stayData.stayStatus}
+            />
+          ) : (
+            <div className="p-4 rounded-xl border bg-muted/50 text-sm text-muted-foreground text-center">
+              {stayData.activationNotice ?? "Thông tin truy cập phòng chưa khả dụng."}
+            </div>
+          )}
+
+          {canRevealAccess && stayData.wifiSsid && stayData.wifiPass ? (
+            <WifiWidget ssid={stayData.wifiSsid} password={stayData.wifiPass} />
+          ) : null}
+
+          <QuickActions
+            bookingId={stayData.bookingId}
+            // Tạm thời disable cho tới khi backend cung cấp trusted guest checkout RPC
+            isCheckoutAllowed={false}
           />
 
-          <WifiWidget
-            ssid={stayData.wifiSsid || "Kapi Stay Free WiFi"}
-            password={stayData.wifiPass || "kapistay2026"}
-          />
-
-          <QuickActions bookingId={bookingCode} />
-        </>
-      ) : (
-        <div className="text-center py-6 text-sm text-dark/60 bg-gray-50 rounded-xl mt-6 border border-dark/5">
-          Vui lòng nhập mã đơn đặt phòng hợp lệ phía trên để hiển thị Mã khóa cửa và Wi-Fi.
+          <div className="text-xs text-muted-foreground text-center border-t pt-4">
+            Cần hỗ trợ gấp? Liên hệ Hotline:{" "}
+            <a href={`tel:${SUPPORT_HOTLINE.replace(/\s+/g, "")}`} className="font-semibold text-primary underline">
+              {SUPPORT_HOTLINE}
+            </a>
+          </div>
         </div>
       )}
     </div>
-  );
-}
-
-export function MyStayClient() {
-  return (
-    <Suspense fallback={<div className="p-8 text-center text-dark/60">Đang tải...</div>}>
-      <MyStayContent />
-    </Suspense>
   );
 }

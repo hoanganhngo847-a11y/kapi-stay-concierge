@@ -1,52 +1,82 @@
-"use client";
+import React from "react";
 
-import React, { useState } from "react";
+export type StayStatus = "ACTIVE" | "UPCOMING" | "COMPLETED" | "CANCELLED";
 
 interface KeyCardProps {
-    roomName: string;
+    roomName?: string;
     passcode: string;
-    address: string;
+    address?: string;
     mapUrl?: string;
+    stayStatus?: StayStatus;
+    statusLabel?: string;
 }
 
-export default function KeyCard({ roomName, passcode, address, mapUrl }: KeyCardProps) {
-    const [copied, setCopied] = useState(false);
+const STATUS_CONFIG: Record<StayStatus, { label: string; className: string }> = {
+    ACTIVE: {
+        label: "Đang lưu trú",
+        className: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    },
+    UPCOMING: {
+        label: "Sắp diễn ra",
+        className: "bg-blue-50 text-blue-700 border-blue-200",
+    },
+    COMPLETED: {
+        label: "Đã hoàn thành",
+        className: "bg-gray-100 text-gray-600 border-gray-200",
+    },
+    CANCELLED: {
+        label: "Đã hủy",
+        className: "bg-rose-50 text-rose-700 border-rose-200",
+    },
+};
 
-    const handleCopy = () => {
-        navigator.clipboard.writeText(passcode);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-    };
+export const KeyCard: React.FC<KeyCardProps> = ({
+    roomName,
+    passcode,
+    address,
+    mapUrl,
+    stayStatus = "ACTIVE",
+    statusLabel,
+}) => {
+    const currentStatus = STATUS_CONFIG[stayStatus] || STATUS_CONFIG.ACTIVE;
+    const displayLabel = statusLabel || currentStatus.label;
 
     return (
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 mb-4">
-            <div className="flex justify-between items-center mb-3">
-                <h3 className="font-semibold text-lg text-gray-800">Thông tin phòng {roomName}</h3>
-                <span className="bg-green-100 text-green-700 text-xs px-2.5 py-1 rounded-full font-medium">Đã nhận phòng</span>
-            </div>
-            <p className="text-sm text-gray-500 mb-4">{address}</p>
-
-            <div className="bg-slate-50 p-4 rounded-xl border border-dashed border-slate-200 text-center mb-4">
-                <span className="text-xs text-gray-500 block mb-1">MÃ KHÓA CỬA SỐ</span>
-                <div className="text-3xl font-extrabold tracking-widest text-indigo-600 mb-2">{passcode}</div>
-                <button
-                    onClick={handleCopy}
-                    className="text-xs bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg font-medium hover:bg-indigo-100 transition"
+        <div className="rounded-xl border bg-card p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-lg">{roomName || "Mã truy cập phòng"}</h3>
+                <span
+                    className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${currentStatus.className}`}
                 >
-                    {copied ? "✓ Đã sao chép mã" : "📋 Sao chép mã cửa"}
-                </button>
+                    {displayLabel}
+                </span>
             </div>
 
-            {mapUrl && (
-                <a
-                    href={mapUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block text-center w-full py-2.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-medium transition"
-                >
-                    📍 Mở vị trí trên Google Maps
-                </a>
+            <div className="mb-4">
+                <p className="text-sm text-muted-foreground">Mã mở cửa (Passcode)</p>
+                <p className="text-3xl font-mono font-bold tracking-wider text-primary mt-1">
+                    {passcode}
+                </p>
+            </div>
+
+            {address && (
+                <div className="text-sm text-muted-foreground border-t pt-3 mt-3">
+                    <p className="font-medium text-foreground">Địa chỉ:</p>
+                    <p>{address}</p>
+                    {mapUrl && (
+                        <a
+                            href={mapUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-primary underline hover:opacity-80 mt-1 inline-block"
+                        >
+                            Xem trên bản đồ
+                        </a>
+                    )}
+                </div>
             )}
         </div>
     );
-}
+};
+
+export default KeyCard;

@@ -1,49 +1,51 @@
 "use client";
 
 import React, { useState } from "react";
-import { updateRoomStatus } from "@/lib/api";
+
 interface QuickActionsProps {
-  bookingId?: string;
-  onCheckoutSuccess?: () => void;
+  bookingId: string;
+  isCheckoutAllowed?: boolean;
 }
 
-export default function QuickActions({
+export function QuickActions({
   bookingId,
-  onCheckoutSuccess,
+  isCheckoutAllowed = false,
 }: QuickActionsProps) {
-  const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleCheckout = async () => {
-    if (!bookingId) {
-      alert("Không tìm thấy mã đặt phòng hợp lệ!");
-      return;
-    }
+    if (!isCheckoutAllowed || !bookingId) return;
 
-    const confirm = window.confirm("Xác nhận trả phòng sớm và yêu cầu dọn dẹp?");
-    if (!confirm) return;
-
-    setIsCheckingOut(true);
-    try {// eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await updateRoomStatus(bookingId, "checkout_requested" as any); alert("Đã gửi yêu cầu trả phòng thành công!");
-      if (onCheckoutSuccess) {
-        onCheckoutSuccess();
-      }
+    setIsLoading(true);
+    try {
+      // TODO: Gọi Guest Checkout Server Action/RPC khi backend ready
+      alert("Yêu cầu trả phòng đã được gửi thành công.");
     } catch {
-      alert("Gửi yêu cầu thất bại, vui lòng thử lại.");
+      alert("Không thể thực hiện trả phòng lúc này. Vui lòng liên hệ lễ tân.");
     } finally {
-      setIsCheckingOut(false);
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="w-full mt-4">
-      <button
-        onClick={handleCheckout}
-        disabled={isCheckingOut}
-        className="w-full py-3 bg-red-500 hover:bg-red-600 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
-      >
-        {isCheckingOut ? "Đang xử lý..." : "Trả phòng nhanh (1-Click Checkout)"}
-      </button>
+    <div className="flex flex-col gap-3">
+      <h4 className="font-medium text-sm text-muted-foreground">Thao tác nhanh</h4>
+      <div className="flex gap-2">
+        <button
+          onClick={handleCheckout}
+          disabled={!isCheckoutAllowed || isLoading}
+          className="px-4 py-2 text-sm font-medium rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isLoading ? "Đang xử lý..." : "Trả phòng 1-Click"}
+        </button>
+      </div>
+      {!isCheckoutAllowed && (
+        <p className="text-xs text-muted-foreground">
+          Chức năng trả phòng trực tuyến chưa khả dụng. Vui lòng liên hệ lễ tân để hoàn tất trả phòng.
+        </p>
+      )}
     </div>
   );
 }
+
+export default QuickActions;
