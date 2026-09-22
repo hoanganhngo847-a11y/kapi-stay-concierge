@@ -22,7 +22,7 @@ CREATE OR REPLACE FUNCTION public.get_my_stay_credentials(p_booking_id UUID)
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = ''
 AS $$
 DECLARE
     v_user_id UUID := auth.uid();
