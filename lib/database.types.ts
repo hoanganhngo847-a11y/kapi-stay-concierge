@@ -501,6 +501,24 @@ export type Database = {
           },
         ]
       }
+      staff_roles: {
+        Row: {
+          created_at: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          role: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       tickets: {
         Row: {
           booking_id: string
@@ -671,6 +689,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_room_availability: {
+        Args: {
+          p_room_id: string
+          p_check_in: string
+          p_check_out: string
+        }
+        Returns: boolean
+      }
       create_checkout_session_atomic: {
         Args: {
           p_check_in: string
@@ -698,6 +724,30 @@ export type Database = {
         Args: {
           p_checkout_session_id: string
           p_voucher_redemption_id: string
+        }
+        Returns: Json
+      }
+      get_my_stay_credentials: {
+        Args: {
+          p_booking_id: string
+        }
+        Returns: Json
+      }
+      get_staff_dashboard_data: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      update_room_operational_status: {
+        Args: {
+          p_operational_status: string
+          p_room_id: string
+        }
+        Returns: Json
+      }
+      update_ticket_status: {
+        Args: {
+          p_status: string
+          p_ticket_id: string
         }
         Returns: Json
       }
