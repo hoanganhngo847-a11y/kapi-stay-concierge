@@ -65,6 +65,9 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
   ]);
 
   const loadError = roomsError || propertiesError;
+  if (loadError) {
+    console.error("[RoomsPage] Lỗi tải dữ liệu phòng từ Supabase:", loadError);
+  }
   const hasActiveFilters = Boolean(propertyId || capacity > 0);
   const activePropertyName = propertiesList.find((p) => p.id === propertyId)?.name;
 
@@ -107,9 +110,9 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
           <h2 className="text-xl font-bold text-red-700 mb-2">
             Đã xảy ra lỗi khi tải dữ liệu
           </h2>
-          <div className="text-sm text-red-500 mb-6 leading-relaxed">
-            {loadError}
-          </div>
+          <p className="text-sm text-red-500 mb-6 leading-relaxed">
+            Không thể tải dữ liệu phòng lúc này. Vui lòng thử lại.
+          </p>
           <Link href="/rooms">
             <Button variant="outline" size="sm" className="border-red-300 text-red-700 hover:bg-red-100">
               Thử tải lại trang
@@ -138,9 +141,8 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
               </h2>
               <p className="text-sm text-dark/60 mb-6 leading-relaxed">
                 {hasActiveFilters
-                  ? `Không có phòng nào đáp ứng tiêu chí lọc${
-                      activePropertyName ? ` tại "${activePropertyName}"` : ""
-                    }${capacity > 0 ? ` cho từ ${capacity} khách` : ""}. Quý khách vui lòng thử chọn cơ sở khác hoặc điều chỉnh số lượng khách.`
+                  ? `Không có phòng nào đáp ứng tiêu chí lọc${activePropertyName ? ` tại "${activePropertyName}"` : ""
+                  }${capacity > 0 ? ` cho từ ${capacity} khách` : ""}. Quý khách vui lòng thử chọn cơ sở khác hoặc điều chỉnh số lượng khách.`
                   : "Không tìm thấy phòng phù hợp trên hệ thống. Quý khách vui lòng quay lại sau."}
               </p>
               {hasActiveFilters && (
