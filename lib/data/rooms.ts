@@ -122,8 +122,11 @@ export async function getPublicRooms(filters?: RoomCatalogFilters): Promise<{
           ? rawProp[0].trim()
           : "";
 
-    // BẮT BUỘC: Kiểm tra đúng định dạng UUID hợp lệ trước khi đưa vào query để tránh sập Database
-    if (propertyId && isValidUUID(propertyId)) {
+    // BẮT BUỘC: Nếu có param property_id nhưng không phải UUID hợp lệ, BẮT BUỘC return ngay { data: [], error: 'Invalid property_id' }. Tuyệt đối KHÔNG silently ignore để query toàn bộ phòng (fail-open).
+    if (filters?.property_id !== undefined && filters?.property_id !== null && filters?.property_id !== "") {
+      if (!propertyId || !isValidUUID(propertyId)) {
+        return { data: [], error: "Invalid property_id" };
+      }
       query = query.eq("property_id", propertyId);
     }
 
@@ -200,22 +203,16 @@ export async function getPublicRooms(filters?: RoomCatalogFilters): Promise<{
 
     if (checkIn && checkOut) {
       try {
+        // KHÔNG ĐƯỢC catch lỗi hệ thống/RPC rồi return null bên trong mapper để tránh UI hiểu nhầm là hết phòng.
+        // Để exception văng ra ngoài cho catch block xử lý và trả về error rõ ràng.
         const availabilityResults = await Promise.all(
           rooms.map(async (room) => {
-            try {
-              const isAvailable = await checkRoomAvailability(
-                room.id,
-                checkIn,
-                checkOut
-              );
-              return isAvailable ? room : null;
-            } catch (err) {
-              console.error(
-                `[getPublicRooms] Lỗi kiểm tra phòng trống qua RPC cho phòng ${room.id}:`,
-                err
-              );
-              return null;
-            }
+            const isAvailable = await checkRoomAvailability(
+              room.id,
+              checkIn,
+              checkOut
+            );
+            return isAvailable ? room : null;
           })
         );
 
@@ -231,7 +228,10 @@ export async function getPublicRooms(filters?: RoomCatalogFilters): Promise<{
         );
         return {
           data: [],
-          error: "Không thể kiểm tra tình trạng phòng lúc này. Vui lòng thử lại.",
+          error:
+            err instanceof Error
+              ? err.message
+              : "Không thể kiểm tra tình trạng phòng lúc này. Vui lòng thử lại.",
         };
       }
     }

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { MapPin, Users, X, Filter } from "lucide-react";
+import { MapPin, Users, X, Filter, Calendar } from "lucide-react";
 
 export interface PropertyOption {
   id: string;
@@ -14,6 +14,24 @@ export interface RoomFiltersProps {
   className?: string;
 }
 
+function getLocalTodayStr(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function getNextDayStr(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + 1);
+  const ny = dt.getFullYear();
+  const nm = String(dt.getMonth() + 1).padStart(2, "0");
+  const nd = String(dt.getDate()).padStart(2, "0");
+  return `${ny}-${nm}-${nd}`;
+}
+
 export function RoomFilters({
   properties = [],
   className = "",
@@ -21,6 +39,8 @@ export function RoomFilters({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+
+  const todayStr = React.useMemo(() => getLocalTodayStr(), []);
 
   // Đọc trực tiếp từ URL searchParams - TUYỆT ĐỐI KHÔNG DÙNG useState
   const currentLocation = searchParams.get("property_id") || "";
@@ -30,15 +50,22 @@ export function RoomFilters({
     searchParams.get("guests") ||
     "";
   const currentCheckIn =
+    searchParams.get("check_in") ||
     searchParams.get("check-in") ||
     searchParams.get("checkin") ||
-    searchParams.get("check_in") ||
     "";
   const currentCheckOut =
+    searchParams.get("check_out") ||
     searchParams.get("check-out") ||
     searchParams.get("checkout") ||
-    searchParams.get("check_out") ||
     "";
+
+  // Min selectable check-out date (bắt buộc lớn hơn check-in và không trong quá khứ)
+  const minCheckOutStr = React.useMemo(() => {
+    return currentCheckIn && currentCheckIn >= todayStr
+      ? getNextDayStr(currentCheckIn)
+      : getNextDayStr(todayStr);
+  }, [currentCheckIn, todayStr]);
 
   // Xử lý thay đổi cơ sở (property_id) đẩy thẳng lên URL
   const handleLocationChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -52,6 +79,56 @@ export function RoomFilters({
     }
     params.delete("location_code");
     params.delete("location");
+
+    const query = params.toString();
+    router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
+
+  // Xử lý thay đổi ngày nhận phòng (check_in)
+  const handleCheckInChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const params = new URLSearchParams(searchParams.toString());
+    const val = e.target.value.trim();
+
+    params.delete("check-in");
+    params.delete("checkin");
+
+    if (!val) {
+      params.delete("check_in");
+    } else if (val >= todayStr) {
+      params.set("check_in", val);
+      // Ngày check-out BẮT BUỘC phải lớn hơn check-in
+      if (currentCheckOut && currentCheckOut <= val) {
+        const nextDay = getNextDayStr(val);
+        params.set("check_out", nextDay);
+        params.delete("check-out");
+        params.delete("checkout");
+      }
+    }
+
+    const query = params.toString();
+    router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
+
+  // Xử lý thay đổi ngày trả phòng (check_out)
+  const handleCheckOutChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const params = new URLSearchParams(searchParams.toString());
+    const val = e.target.value.trim();
+
+    params.delete("check-out");
+    params.delete("checkout");
+
+    if (!val) {
+      params.delete("check_out");
+    } else {
+      const minAllowed =
+        currentCheckIn && currentCheckIn >= todayStr
+          ? currentCheckIn
+          : todayStr;
+      // Ngày check-out BẮT BUỘC phải lớn hơn check-in và không trong quá khứ
+      if (val > minAllowed) {
+        params.set("check_out", val);
+      }
+    }
 
     const query = params.toString();
     router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
@@ -85,12 +162,12 @@ export function RoomFilters({
     params.delete("capacity");
     params.delete("max_guests");
     params.delete("guests");
-    params.delete("checkin");
     params.delete("check_in");
     params.delete("check-in");
-    params.delete("checkout");
+    params.delete("checkin");
     params.delete("check_out");
     params.delete("check-out");
+    params.delete("checkout");
     const query = params.toString();
     router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
@@ -108,9 +185,9 @@ export function RoomFilters({
         <span>Bộ lọc tìm kiếm phòng</span>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center">
-        {/* Dropdown chọn cơ sở (location) */}
-        <div className="sm:col-span-7">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-center">
+        {/* Dropdown chọn cơ sở (property_id) */}
+        <div>
           <label
             htmlFor="filter-location"
             className="block text-xs font-medium text-dark/70 mb-1.5"
@@ -138,8 +215,50 @@ export function RoomFilters({
           </div>
         </div>
 
-        {/* Input nhập số lượng khách (guests) */}
-        <div className="sm:col-span-5">
+        {/* Ô chọn ngày Check-in */}
+        <div>
+          <label
+            htmlFor="filter-checkin"
+            className="block text-xs font-medium text-dark/70 mb-1.5"
+          >
+            Nhận phòng (Check-in)
+          </label>
+          <div className="relative">
+            <Calendar className="w-4 h-4 text-dark/40 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              id="filter-checkin"
+              type="date"
+              min={todayStr}
+              value={currentCheckIn}
+              onChange={handleCheckInChange}
+              className="w-full pl-9 pr-3 py-2.5 bg-light/50 border border-dark/15 rounded-xl text-xs sm:text-sm text-dark font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer"
+            />
+          </div>
+        </div>
+
+        {/* Ô chọn ngày Check-out */}
+        <div>
+          <label
+            htmlFor="filter-checkout"
+            className="block text-xs font-medium text-dark/70 mb-1.5"
+          >
+            Trả phòng (Check-out)
+          </label>
+          <div className="relative">
+            <Calendar className="w-4 h-4 text-dark/40 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              id="filter-checkout"
+              type="date"
+              min={minCheckOutStr}
+              value={currentCheckOut}
+              onChange={handleCheckOutChange}
+              className="w-full pl-9 pr-3 py-2.5 bg-light/50 border border-dark/15 rounded-xl text-xs sm:text-sm text-dark font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer"
+            />
+          </div>
+        </div>
+
+        {/* Input nhập số lượng khách (capacity) */}
+        <div>
           <label
             htmlFor="filter-guests"
             className="block text-xs font-medium text-dark/70 mb-1.5"
@@ -153,7 +272,7 @@ export function RoomFilters({
               type="number"
               min="1"
               max="10"
-              placeholder="Nhập số khách (ví dụ: 2)"
+              placeholder="Số khách (ví dụ: 2)"
               value={currentGuests}
               onChange={handleGuestsChange}
               className="w-full pl-9 pr-3 py-2.5 bg-light/50 border border-dark/15 rounded-xl text-xs sm:text-sm text-dark placeholder:text-dark/40 font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"

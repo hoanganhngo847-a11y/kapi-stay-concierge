@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { DoorOpen, Users, ArrowRight, MapPin, KeyRound, BedDouble } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { formatVND } from "@/lib/utils/format";
@@ -22,6 +23,8 @@ export interface RoomCardProps {
 }
 
 export function RoomCard(props: RoomCardProps) {
+  const searchParams = useSearchParams();
+
   const {
     room,
     id = room?.id || "",
@@ -43,7 +46,33 @@ export function RoomCard(props: RoomCardProps) {
       : "");
 
   const hasImage = Boolean(rawCover && rawCover.trim() !== "");
-  const detailHref = id ? `/rooms/${id}` : "/rooms";
+
+  // Đọc các query params hiện tại (check_in, check_out, capacity) từ URL
+  const checkIn =
+    searchParams?.get("check_in") ||
+    searchParams?.get("check-in") ||
+    searchParams?.get("checkin") ||
+    "";
+  const checkOut =
+    searchParams?.get("check_out") ||
+    searchParams?.get("check-out") ||
+    searchParams?.get("checkout") ||
+    "";
+  const capacityParam =
+    searchParams?.get("capacity") ||
+    searchParams?.get("max_guests") ||
+    searchParams?.get("guests") ||
+    "";
+
+  // Nối các tham số lọc vào đường dẫn detailHref để khách không bị mất dữ liệu lọc
+  const queryParams = new URLSearchParams();
+  if (checkIn) queryParams.set("check_in", checkIn);
+  if (checkOut) queryParams.set("check_out", checkOut);
+  if (capacityParam) queryParams.set("capacity", capacityParam);
+
+  const queryString = queryParams.toString();
+  const basePath = id ? `/rooms/${id}` : "/rooms";
+  const detailHref = queryString ? `${basePath}?${queryString}` : basePath;
 
   return (
     <div className="bg-white rounded-2xl border border-dark/10 overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col group">
