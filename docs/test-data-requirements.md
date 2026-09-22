@@ -35,7 +35,7 @@ Khi chuẩn bị dữ liệu mẫu trong cơ sở dữ liệu Supabase, TV8 cầ
 4. **Định dạng UUID chuẩn Hex:**
    - Toàn bộ ID khóa chính và khóa ngoại mẫu phải là chuỗi UUID hợp lệ tuân thủ bảng chữ số Hex (`[0-9a-fA-F]`). Tuyệt đối không dùng ký tự ngoài quy chuẩn (như ký tự `t` hay tiền tố chuỗi `CK-...`).
 5. **Không tự chốt Enum / Status cứng nhắc:**
-   - Tại các cột trạng thái (`payment_status`, `booking_status`, `status` của checkout session hay ticket), tài liệu này đưa ra giá trị khuyến nghị và quy định rõ: **Sử dụng canonical status do TV1/TV8 thống nhất trong backend schema** (ví dụ: `payment_status = 'verified'/'paid'`, `booking_status = 'confirmed'`, session status = `'ACTIVE'/'PENDING'`).
+   - Tại các cột trạng thái (`payment_status`, `booking_status`, `status` của checkout session hay ticket), tài liệu này đưa ra giá trị khuyến nghị và quy định rõ: **Sử dụng canonical status do TV1/TV8 thống nhất trong backend schema** (ví dụ: `payment_status = 'verified'/'paid'`, `booking_status = 'confirmed'`, session status = `'ACTIVE'`).
 
 ---
 
@@ -109,7 +109,7 @@ Yêu cầu 01 bản ghi phiên checkout trong bảng `public.checkout_sessions` 
   - `gross_amount_vnd`: `1300000` (650.000đ $\times$ 2 đêm)
   - `discount_amount_vnd`: `400000` (áp voucher `KAPI40` giảm 40% trên base cap 1.000.000đ = tối đa 400.000đ)
   - `final_payable_amount_vnd`: `900000` ($1.300.000đ - 400.000đ = 900.000đ$, đúng check constraint tính toán)
-  - `status`: `'pending'` (hoặc canonical status do TV1/TV8 thống nhất trong backend schema)
+  - `status`: `'ACTIVE'` (tuân thủ canonical `checkout_sessions.status` CHECK constraint trên main: `ACTIVE`, `PAYMENT_PROCESSING`, `COMPLETED`, `EXPIRED`, `FAILED`)
   - `expires_at`: `current_timestamp + interval '30 minutes'`
   - `payment_reference`: `KAPI51PAY` (nội dung chuyển khoản đồng bộ cho VietQR)
 
@@ -174,7 +174,7 @@ Yêu cầu 02 tickets trong `public.tickets` có UUID hex chuẩn để kiểm t
 | **TC-01** | Lọc phòng theo cơ sở và số khách | Sử dụng **Phòng 4 (Kapi Family Suite DVN, capacity = 4)** tại Cơ sở Đặng Văn Ngữ (`...00000071`) làm Positive Case; các phòng còn lại kiểm thử lọc loại trừ (Mục 3.2). |
 | **TC-02** | Validation chọn ngày Check-out trước Check-in | Không phụ thuộc dữ liệu database, kiểm tra logic form frontend. |
 | **TC-03** | Khóa nút đặt khi phòng đã kín ngày | Đơn booking mẫu `...00000021` chiếm khoảng ngày `current_date` đến `current_date + 1` của phòng Studio Hoa Nắng (Mục 3.5). |
-| **TC-04** | Render mã VietQR thanh toán | Sử dụng Checkout Session `00000000-0000-0000-0000-000000000051` với số tiền 900.000đ và `payment_reference = 'KAPI51PAY'` (Mục 3.4). |
+| **TC-04** | Render mã VietQR thanh toán | Sử dụng Checkout Session `00000000-0000-0000-0000-000000000051` (trạng thái `status = 'ACTIVE'`) với số tiền 900.000đ và `payment_reference = 'KAPI51PAY'` (Mục 3.4). |
 | **TC-05** | Chặn khách vãng lai (Auth Guard) | Cần tài khoản khách mẫu `testguest@kapistay.local` (Mục 3.1) để hoàn tất đăng nhập chuyển hướng về `/login?next=/checkout`. |
 | **TC-06** | Hiển thị mã Digital Key & Copy Wi-Fi tại My Stay | Cần đơn booking `...00000021` (`confirmed`) và bản ghi mã PIN hợp lệ trong `booking_access_credentials` (Mục 3.5). *QA đảm bảo thời điểm test nằm trong khung 14:00 - 12:00.* |
 | **TC-07** | Gửi ticket báo sự cố đính kèm ảnh | Cần đơn booking đang diễn ra để gửi ticket không reload trang. |
