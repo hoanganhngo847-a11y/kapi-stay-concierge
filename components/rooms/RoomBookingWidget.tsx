@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import {
   Info,
   ShieldCheck,
@@ -17,7 +16,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { formatVND } from "@/lib/utils/format";
 import type { PublicRoom } from "@/lib/data/rooms";
-import { checkRoomAvailability } from "@/lib/api";
+import { checkRoomAvailability } from "@/lib/data/bookings";
 
 export type AvailabilityState =
   | { status: "IDLE" }
@@ -83,7 +82,6 @@ function calcCalendarNights(inDate: string, outDate: string): number {
 }
 
 export function RoomBookingWidget({ room }: RoomBookingWidgetProps) {
-  const router = useRouter();
   const todayStr = React.useMemo(() => getLocalTodayStr(), []);
   const maxCapacity = Math.max(1, Number(room.capacity) || 1);
 
@@ -92,6 +90,7 @@ export function RoomBookingWidget({ room }: RoomBookingWidgetProps) {
   const [checkOut, setCheckOut] = React.useState("");
   const [guests, setGuests] = React.useState(1);
   const [validationError, setValidationError] = React.useState<string | null>(null);
+  const [handoffMessage, setHandoffMessage] = React.useState<string | null>(null);
 
   // Availability State Machine (Initialized to IDLE)
   const [availability, setAvailability] = React.useState<AvailabilityState>({
@@ -118,10 +117,22 @@ export function RoomBookingWidget({ room }: RoomBookingWidgetProps) {
     const newVal = e.target.value;
     setCheckIn(newVal);
     setValidationError(null);
+    setHandoffMessage(null);
 
-    // Invalidate in-flight requests and immediately reset availability to IDLE
+    // Invalidate any in-flight request.
     requestIdRef.current += 1;
-    setAvailability({ status: "IDLE" });
+
+    // Reflect loading state immediately when the new date pair is valid.
+    if (
+      newVal &&
+      checkOut &&
+      newVal >= todayStr &&
+      checkOut > newVal
+    ) {
+      setAvailability({ status: "CHECKING" });
+    } else {
+      setAvailability({ status: "IDLE" });
+    }
 
     // If existing checkOut is before or on the new checkIn, reset checkOut
     if (checkOut && newVal >= checkOut) {
@@ -134,10 +145,22 @@ export function RoomBookingWidget({ room }: RoomBookingWidgetProps) {
     const newVal = e.target.value;
     setCheckOut(newVal);
     setValidationError(null);
+    setHandoffMessage(null);
 
-    // Invalidate in-flight requests and immediately reset availability to IDLE
+    // Invalidate any in-flight request.
     requestIdRef.current += 1;
-    setAvailability({ status: "IDLE" });
+
+    // Reflect loading state immediately when the selected range is valid.
+    if (
+      checkIn &&
+      newVal &&
+      checkIn >= todayStr &&
+      newVal > checkIn
+    ) {
+      setAvailability({ status: "CHECKING" });
+    } else {
+      setAvailability({ status: "IDLE" });
+    }
   };
 
   // Real Availability check triggered when valid date range is selected
@@ -148,13 +171,12 @@ export function RoomBookingWidget({ room }: RoomBookingWidgetProps) {
 
     if (!hasBothDates || !isChronologicallyValid) {
       requestIdRef.current += 1;
-      setAvailability((prev) => (prev.status === "IDLE" ? prev : { status: "IDLE" }));
       return;
     }
 
-    // Increment request ID to invalidate any prior in-flight request
+    // Increment request ID to invalidate any prior in-flight request.
+    // CHECKING state is already set by the date change handlers.
     const currentRequestId = ++requestIdRef.current;
-    setAvailability({ status: "CHECKING" });
 
     let isMounted = true;
 
@@ -244,15 +266,11 @@ export function RoomBookingWidget({ room }: RoomBookingWidgetProps) {
       return;
     }
 
-    // Checkout handoff: use the confirmed date snapshot from availability state
-    const params = new URLSearchParams({
-      roomId: room.id,
-      checkIn: availability.checkIn,
-      checkOut: availability.checkOut,
-      guests: String(guests),
-    });
-
-    router.push(`/checkout?${params.toString()}`);
+    // Checkout UI has not been integrated yet.
+    // Do not navigate to a non-existent /checkout route.
+    setHandoffMessage(
+      "Phòng còn trống và thông tin đặt phòng đã hợp lệ. Bước thanh toán sẽ được kết nối khi Checkout được tích hợp."
+    );
   };
 
   return (
@@ -403,6 +421,16 @@ export function RoomBookingWidget({ room }: RoomBookingWidgetProps) {
             </div>
           )}
         </div>
+
+        {handoffMessage && (
+          <div
+            className="p-3 rounded-xl bg-primary/5 border border-primary/20 text-xs text-primary leading-relaxed flex items-start gap-2"
+            role="status"
+          >
+            <Info className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+            <span>{handoffMessage}</span>
+          </div>
+        )}
 
         {/* Price Estimation Preview */}
         {nights > 0 && (

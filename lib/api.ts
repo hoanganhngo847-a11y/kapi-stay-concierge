@@ -4,3 +4,21 @@
  */
 
 export { checkRoomAvailability } from "@/lib/data/bookings";
+
+export {
+  getMyStayBookingDetails,
+  type MyStayBookingDetails,
+} from "@/lib/data/my-stay";
+
+// Admin Operations & Security
+export {
+  verifyStaffRole,
+  updateRoomStatus,
+  updateTicketStatusAdmin,
+  getStaffDashboardData,
+  type RoomOperationalStatus,
+  type TicketStatus,
+  type RoomOperationRecord,
+  type AdminTicketRecord,
+  type StaffDashboardData,
+} from "@/lib/data/admin";

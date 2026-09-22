@@ -26,6 +26,12 @@ export function Gallery({ imagePaths, roomName }: GalleryProps) {
     );
   }, [imagePaths, failedImages]);
 
+  // Clamp the rendered index without synchronously mutating state in an effect.
+  const safeLightboxIndex =
+    validImages.length > 0
+      ? Math.min(lightboxIndex, validImages.length - 1)
+      : 0;
+
   const handleImageError = React.useCallback((path: string) => {
     setFailedImages((prev) => ({ ...prev, [path]: true }));
   }, []);
@@ -40,11 +46,19 @@ export function Gallery({ imagePaths, roomName }: GalleryProps) {
   }, []);
 
   const handlePrevImage = React.useCallback(() => {
-    setLightboxIndex((prev) => (prev > 0 ? prev - 1 : validImages.length - 1));
+    setLightboxIndex((prev) => {
+      if (validImages.length === 0) return 0;
+      const current = Math.min(prev, validImages.length - 1);
+      return current > 0 ? current - 1 : validImages.length - 1;
+    });
   }, [validImages.length]);
 
   const handleNextImage = React.useCallback(() => {
-    setLightboxIndex((prev) => (prev < validImages.length - 1 ? prev + 1 : 0));
+    setLightboxIndex((prev) => {
+      if (validImages.length === 0) return 0;
+      const current = Math.min(prev, validImages.length - 1);
+      return current < validImages.length - 1 ? current + 1 : 0;
+    });
   }, [validImages.length]);
 
   // Handle ArrowLeft and ArrowRight keyboard navigation inside Lightbox
@@ -64,13 +78,6 @@ export function Gallery({ imagePaths, roomName }: GalleryProps) {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isLightboxOpen, validImages.length, handlePrevImage, handleNextImage]);
-
-  // Keep lightboxIndex strictly within valid bounds if images fail
-  React.useEffect(() => {
-    if (lightboxIndex >= validImages.length && validImages.length > 0) {
-      setLightboxIndex(validImages.length - 1);
-    }
-  }, [validImages.length, lightboxIndex]);
 
   // ---------------------------------------------------------------------------
   // Case 1: 0 valid images (empty array or all images failed to load)
@@ -142,7 +149,7 @@ export function Gallery({ imagePaths, roomName }: GalleryProps) {
           onClose={closeLightbox}
           roomName={roomName}
           validImages={validImages}
-          currentIndex={lightboxIndex}
+          currentIndex={safeLightboxIndex}
           onPrev={handlePrevImage}
           onNext={handleNextImage}
           onSelectIndex={setLightboxIndex}
@@ -266,7 +273,7 @@ export function Gallery({ imagePaths, roomName }: GalleryProps) {
         onClose={closeLightbox}
         roomName={roomName}
         validImages={validImages}
-        currentIndex={lightboxIndex}
+        currentIndex={safeLightboxIndex}
         onPrev={handlePrevImage}
         onNext={handleNextImage}
         onSelectIndex={setLightboxIndex}
