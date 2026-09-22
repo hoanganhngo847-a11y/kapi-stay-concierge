@@ -14,12 +14,19 @@ export interface RoomFiltersProps {
   className?: string;
 }
 
-function getLocalTodayStr(): string {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+function getTodayInVietnam(): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const year = parts.find((p) => p.type === "year")?.value;
+  const month = parts.find((p) => p.type === "month")?.value;
+  const day = parts.find((p) => p.type === "day")?.value;
+
+  return `${year}-${month}-${day}`;
 }
 
 function getNextDayStr(dateStr: string): string {
@@ -40,7 +47,7 @@ export function RoomFilters({
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const todayStr = React.useMemo(() => getLocalTodayStr(), []);
+  const todayStr = React.useMemo(() => getTodayInVietnam(), []);
 
   // Đọc trực tiếp từ URL searchParams - TUYỆT ĐỐI KHÔNG DÙNG useState
   const currentLocation = searchParams.get("property_id") || "";
@@ -142,14 +149,13 @@ export function RoomFilters({
     const params = new URLSearchParams(searchParams.toString());
     const val = e.target.value.trim();
 
-    if (val && !isNaN(Number(val)) && Number(val) > 0) {
+    params.delete("max_guests");
+    params.delete("guests");
+
+    if (/^\d+$/.test(val) && Number(val) > 0) {
       params.set("capacity", val);
-      params.delete("max_guests");
-      params.delete("guests");
     } else {
       params.delete("capacity");
-      params.delete("max_guests");
-      params.delete("guests");
     }
 
     const query = params.toString();
