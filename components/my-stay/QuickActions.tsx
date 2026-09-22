@@ -3,38 +3,50 @@
 import React, { useState } from "react";
 
 interface QuickActionsProps {
-    _bookingId?: string;
-    onCheckoutSuccess?: () => void;
+  bookingId?: string;
+  onCheckoutSuccess?: () => void;
 }
 
-export default function QuickActions({ onCheckoutSuccess }: QuickActionsProps) {
-    const [isCheckingOut, setIsCheckingOut] = useState(false);
+export default function QuickActions({
+  bookingId,
+  onCheckoutSuccess,
+}: QuickActionsProps) {
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
 
-    const handleCheckout = async () => {
-        const confirm = window.confirm("Bạn có chắc chắn muốn trả phòng và rời đi không?");
-        if (!confirm) return;
+  const handleCheckout = async () => {
+    if (!bookingId) {
+      alert("Không tìm thấy mã đặt phòng hợp lệ!");
+      return;
+    }
 
-        setIsCheckingOut(true);
-        try {
-            alert("Đã xác nhận trả phòng thành công! Cảm ơn bạn đã lưu trú.");
-            if (onCheckoutSuccess) onCheckoutSuccess();
-        } catch {
-            alert("Có lỗi xảy ra, vui lòng thử lại.");
-        } finally {
-            setIsCheckingOut(false);
-        }
-    };
+    const confirm = window.confirm("Xác nhận trả phòng sớm và yêu cầu dọn dẹp?");
+    if (!confirm) return;
 
-    return (
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 mb-4">
-            <h3 className="font-semibold text-gray-800 mb-3">Thao tác nhanh</h3>
-            <button
-                onClick={handleCheckout}
-                disabled={isCheckingOut}
-                className="w-full py-3 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl font-medium text-sm transition"
-            >
-                {isCheckingOut ? "Đang xử lý..." : "🚪 Trả phòng nhanh (1-Click Checkout)"}
-            </button>
-        </div>
-    );
+    setIsCheckingOut(true);
+    try {
+      // Khi TV8 push API, sẽ mở comment dòng này để ghi nhận xuống DB:
+      // await updateBookingStatus(bookingId, "checkout_requested");
+
+      alert(`Đã gửi yêu cầu trả phòng cho mã đơn: ${bookingId}`);
+      if (onCheckoutSuccess) {
+        onCheckoutSuccess();
+      }
+    } catch (error) {
+      alert("Gửi yêu cầu thất bại, vui lòng thử lại.");
+    } finally {
+      setIsCheckingOut(false);
+    }
+  };
+
+  return (
+    <div className="w-full mt-4">
+      <button
+        onClick={handleCheckout}
+        disabled={isCheckingOut}
+        className="w-full py-3 bg-red-500 hover:bg-red-600 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
+      >
+        {isCheckingOut ? "Đang xử lý..." : "Trả phòng nhanh (1-Click Checkout)"}
+      </button>
+    </div>
+  );
 }

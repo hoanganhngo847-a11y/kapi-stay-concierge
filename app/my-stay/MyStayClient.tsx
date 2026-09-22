@@ -7,20 +7,23 @@ import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { KeyRound, Search, ArrowRight, ShieldCheck, Phone } from "lucide-react";
 import { Button, Input } from "@/components/ui";
+type StayData = Record<string, string | Record<string, string>>;
 function MyStayContent() {
   const searchParams = useSearchParams();
-  const initialCode = searchParams.get("booking") || "";
+  const initialCode = searchParams.get("code") || searchParams.get("booking") || "";
   const [prevCode, setPrevCode] = React.useState(initialCode);
   const [errorMessage, setErrorMessage] = React.useState("");
   const [isLoading, setIsLoading] = React.useState(false);
   const [bookingCode, setBookingCode] = React.useState(initialCode);
-  // Sync state if search param changes during navigation without synchronous setState in effect
+
+  // State lưu thông tin phòng và mật khẩu động nhận từ Server
+  const [stayData, setStayData] = React.useState<Record<string, unknown> | null>(null);
   if (initialCode !== prevCode) {
     setPrevCode(initialCode);
     setBookingCode(initialCode);
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bookingCode.trim()) {
       setErrorMessage("Vui lòng nhập mã đơn đặt phòng (Ví dụ: KP-1029)");
@@ -29,10 +32,20 @@ function MyStayContent() {
     setErrorMessage("");
     setIsLoading(true);
 
-    setTimeout(() => {
+    try {
+      const data = null; // Cấu trúc dữ liệu nhận từ API Supabase
+
+      if (data) {
+        setStayData(data);
+      } else {
+        setStayData(null);
+        setErrorMessage("Không tìm thấy thông tin đặt phòng hoặc bạn không có quyền truy cập.");
+      }
+    } catch (_error) {
+      setErrorMessage("Có lỗi xảy ra khi kết nối máy chủ. Vui lòng thử lại.");
+    } finally {
       setIsLoading(false);
-      alert(`Đang tra cứu mã phòng: ${bookingCode.trim().toUpperCase()}`);
-    }, 800);
+    }
   };
 
   return (
@@ -79,24 +92,31 @@ function MyStayContent() {
           </div>
           <div className="flex items-center gap-2">
             <Phone className="w-4 h-4 text-primary shrink-0" />
-            <span>Cần trợ giúp khẩn cấp? Gọi Hotline <strong>0988.123.456</strong></span>
-          </div>
+            <span>Cần trợ giúp khẩn cấp? Gọi Hotline <strong>1900 xxxx</strong></span>          </div>
         </div>
       </div>
-      {/* Component của Chi */}
-      <KeyCard
-        roomName="Phòng 301 - Deluxe Studio"
-        passcode="889966"
-        address="Số 12 Ngõ 45 Chùa Bộc, Đống Đa, Hà Nội"
-        mapUrl="https://maps.google.com"
-      />
+      {/* Chỉ render KeyCard và WifiWidget khi tra cứu đúng dữ liệu từ Server */}
+      {stayData ? (
+        <>
+          <KeyCard
+            roomName={(stayData.room_name as string) || ((stayData.rooms as Record<string, string>)?.name)}
+            passcode={(stayData.passcode as string) || ((stayData.rooms as Record<string, string>)?.passcode)}
+            address={(stayData.address as string) || "Số 12 Ngõ 45 Chùa Bộc, Đống Đa, Hà Nội"}
+            mapUrl={(stayData.map_url as string) || "https://maps.google.com"}
+          />
 
-      <WifiWidget
-        ssid="Kapi_Stay_P301"
-        password="kapihouse2026"
-      />
+          <WifiWidget
+            ssid={(stayData.wifi_ssid as string) || ((stayData.rooms as Record<string, string>)?.wifi_ssid)}
+            password={(stayData.wifi_pass as string) || ((stayData.rooms as Record<string, string>)?.wifi_pass)}
+          />
 
-      <QuickActions />
+          <QuickActions bookingId={bookingCode} />
+        </>
+      ) : (
+        <div className="text-center py-6 text-sm text-dark/60 bg-gray-50 rounded-xl mt-6 border border-dark/5">
+          Vui lòng nhập mã đơn đặt phòng hợp lệ phía trên để hiển thị Mã khóa cửa và Wi-Fi.
+        </div>
+      )}
     </div>
   );
 }
