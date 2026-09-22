@@ -42,12 +42,31 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
       : Array.isArray(rawCapacity) && typeof rawCapacity[0] === "string"
         ? rawCapacity[0].trim()
         : "";
-  const capacity =
-    capacityStr && !isNaN(parseInt(capacityStr, 10))
-      ? parseInt(capacityStr, 10)
-      : typeof rawCapacity === "number"
-        ? rawCapacity
-        : 0;
+
+  let capacity = 0;
+  let capacityError: string | null = null;
+
+  // Kiểm tra nghiêm ngặt biến capacity từ URL:
+  // Tuyệt đối KHÔNG dùng parseInt lỏng lẻo (ví dụ 2abc thành 2).
+  // Nếu capacityStr tồn tại, BẮT BUỘC kiểm tra nghiêm ngặt bằng Regex /^\d+$/.
+  // Nếu chứa ký tự lạ (như 2abc, 2.9, abc) hoặc giá trị <= 0, chặn ngay lập tức: gán thành lỗi 'Số lượng khách không hợp lệ'.
+  if (rawCapacity !== undefined && rawCapacity !== null && rawCapacity !== "") {
+    if (typeof rawCapacity === "number") {
+      if (!Number.isInteger(rawCapacity) || rawCapacity <= 0) {
+        capacityError = "Số lượng khách không hợp lệ";
+      } else {
+        capacity = rawCapacity;
+      }
+    } else if (capacityStr) {
+      if (!/^\d+$/.test(capacityStr) || parseInt(capacityStr, 10) <= 0) {
+        capacityError = "Số lượng khách không hợp lệ";
+      } else {
+        capacity = parseInt(capacityStr, 10);
+      }
+    } else {
+      capacityError = "Số lượng khách không hợp lệ";
+    }
+  }
 
   // Lấy tham số check-in và check-out từ URL:
   // Ưu tiên cao nhất key chuẩn (canonical) check_in và check_out (dấu gạch dưới).
@@ -75,18 +94,22 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
         : "";
 
   // Lấy danh sách phòng trực tiếp từ hàm getPublicRooms (đã bao gồm lọc availability qua RPC) và danh sách cơ sở từ getActiveProperties
-  const [
-    { data: roomsList = [], error: roomsError },
-    { data: propertiesList = [], error: propertiesError },
-  ] = await Promise.all([
-    getPublicRooms({
-      property_id: propertyId || undefined,
-      capacity: capacity > 0 ? capacity : undefined,
-      check_in: checkIn || undefined,
-      check_out: checkOut || undefined,
-    }),
+  const [roomsRes, propertiesRes] = await Promise.all([
+    capacityError
+      ? Promise.resolve({ data: [], error: capacityError })
+      : getPublicRooms({
+        property_id: propertyId || undefined,
+        capacity: capacity > 0 ? capacity : undefined,
+        check_in: checkIn || undefined,
+        check_out: checkOut || undefined,
+      }),
     getActiveProperties(),
   ]);
+
+  const roomsList = roomsRes.data || [];
+  const roomsError = roomsRes.error;
+  const propertiesList = propertiesRes.data || [];
+  const propertiesError = propertiesRes.error;
 
   const loadError = roomsError || propertiesError;
   if (loadError) {
@@ -134,14 +157,26 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
             <AlertCircle className="w-7 h-7" />
           </div>
           <h2 className="text-xl font-bold text-red-700 mb-2">
-            Đã xảy ra lỗi khi tải dữ liệu
+            {loadError === "Số lượng khách không hợp lệ" ||
+            loadError === "Vui lòng chọn đầy đủ ngày nhận và trả phòng" ||
+            loadError === "Ngày nhận phòng không được nằm trong quá khứ" ||
+            loadError === "Ngày check-in/check-out không hợp lệ" ||
+            loadError === "Invalid property_id"
+              ? loadError
+              : "Đã xảy ra lỗi khi tải dữ liệu"}
           </h2>
           <p className="text-sm text-red-500 mb-6 leading-relaxed">
-            Không thể tải dữ liệu phòng lúc này. Vui lòng thử lại.
+            {loadError === "Số lượng khách không hợp lệ" ||
+            loadError === "Vui lòng chọn đầy đủ ngày nhận và trả phòng" ||
+            loadError === "Ngày nhận phòng không được nằm trong quá khứ" ||
+            loadError === "Ngày check-in/check-out không hợp lệ" ||
+            loadError === "Invalid property_id"
+              ? `${loadError}. Vui lòng kiểm tra lại bộ lọc tìm kiếm.`
+              : "Không thể tải dữ liệu phòng lúc này. Vui lòng thử lại."}
           </p>
           <Link href="/rooms">
             <Button variant="outline" size="sm" className="border-red-300 text-red-700 hover:bg-red-100">
-              Thử tải lại trang
+              Xóa bộ lọc và thử lại
             </Button>
           </Link>
         </div>

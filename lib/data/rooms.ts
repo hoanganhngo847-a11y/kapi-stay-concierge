@@ -34,6 +34,25 @@ export function isValidCalendarDate(val: unknown): val is string {
   );
 }
 
+/**
+ * Lấy ngày hiện tại (YYYY-MM-DD) theo múi giờ Asia/Ho_Chi_Minh (đưa giờ về 00:00:00).
+ */
+export function getTodayInVietnam(): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const year = parts.find((p) => p.type === "year")?.value;
+  const month = parts.find((p) => p.type === "month")?.value;
+  const day = parts.find((p) => p.type === "day")?.value;
+
+  return `${year}-${month}-${day}`;
+}
+
+
 
 export interface PublicProperty {
   id: string;
@@ -159,16 +178,31 @@ export async function getPublicRooms(filters?: RoomCatalogFilters): Promise<{
 
     const rawCapacity =
       filters?.capacity ?? filters?.max_guests ?? filters?.guests;
-    const capacityNum =
-      typeof rawCapacity === "number"
-        ? rawCapacity
-        : typeof rawCapacity === "string"
-          ? parseInt(rawCapacity, 10)
-          : Array.isArray(rawCapacity) && typeof rawCapacity[0] === "string"
-            ? parseInt(rawCapacity[0], 10)
-            : 0;
+    const capacityStr =
+      typeof rawCapacity === "string"
+        ? rawCapacity.trim()
+        : Array.isArray(rawCapacity) && typeof rawCapacity[0] === "string"
+          ? rawCapacity[0].trim()
+          : "";
 
-    if (!isNaN(capacityNum) && capacityNum > 0) {
+    let capacityNum = 0;
+    if (rawCapacity !== undefined && rawCapacity !== null && rawCapacity !== "") {
+      if (typeof rawCapacity === "number") {
+        if (!Number.isInteger(rawCapacity) || rawCapacity <= 0) {
+          return { data: [], error: "Số lượng khách không hợp lệ" };
+        }
+        capacityNum = rawCapacity;
+      } else if (capacityStr) {
+        if (!/^\d+$/.test(capacityStr) || parseInt(capacityStr, 10) <= 0) {
+          return { data: [], error: "Số lượng khách không hợp lệ" };
+        }
+        capacityNum = parseInt(capacityStr, 10);
+      } else {
+        return { data: [], error: "Số lượng khách không hợp lệ" };
+      }
+    }
+
+    if (capacityNum > 0) {
       query = query.gte("capacity", capacityNum);
     }
 
@@ -229,6 +263,14 @@ export async function getPublicRooms(filters?: RoomCatalogFilters): Promise<{
           ? rawCheckOut[0].trim()
           : "";
 
+    // Partial Date: Nếu URL chỉ có checkIn hoặc chỉ có checkOut (có 1 mà thiếu 1), return ngay { data: [], error: 'Vui lòng chọn đầy đủ ngày nhận và trả phòng' }. Không được bỏ qua filter.
+    if ((checkIn && !checkOut) || (!checkIn && checkOut)) {
+      return {
+        data: [],
+        error: "Vui lòng chọn đầy đủ ngày nhận và trả phòng",
+      };
+    }
+
     if (checkIn && checkOut) {
       // Validate ngày tháng rành mạch:
       // 1. Kiểm tra phải đúng định dạng YYYY-MM-DD và là ngày hợp lệ theo lịch
@@ -236,7 +278,16 @@ export async function getPublicRooms(filters?: RoomCatalogFilters): Promise<{
         return { data: [], error: "Ngày check-in/check-out không hợp lệ" };
       }
 
-      // 2. Kiểm tra checkOut phải lớn hơn checkIn
+      // 2. Quá khứ: Nếu có đủ 2 ngày hợp lệ, phải lấy ngày hiện tại (today) ép theo múi giờ Asia/Ho_Chi_Minh (đưa giờ về 00:00:00). Nếu checkIn nhỏ hơn ngày hiện tại, return ngay { data: [], error: 'Ngày nhận phòng không được nằm trong quá khứ' }.
+      const todayVNStr = getTodayInVietnam();
+      if (checkIn < todayVNStr) {
+        return {
+          data: [],
+          error: "Ngày nhận phòng không được nằm trong quá khứ",
+        };
+      }
+
+      // 3. Kiểm tra checkOut phải lớn hơn checkIn
       if (checkOut <= checkIn) {
         return { data: [], error: "Ngày check-in/check-out không hợp lệ" };
       }
