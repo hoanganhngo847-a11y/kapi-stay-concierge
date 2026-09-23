@@ -110,8 +110,10 @@ export function RoomBookingWidget({
       ? initialCheckOut
       : "";
   const normalizedInitialGuests =
-    Number.isInteger(initialGuests) && Number(initialGuests) > 0
-      ? Math.min(Number(initialGuests), maxCapacity)
+    typeof initialGuests === "number" &&
+    Number.isInteger(initialGuests) &&
+    initialGuests > 0
+      ? Math.min(initialGuests, maxCapacity)
       : 1;
 
   // Form State
