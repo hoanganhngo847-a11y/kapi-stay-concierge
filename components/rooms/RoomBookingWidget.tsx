@@ -1,78 +1,308 @@
 "use client";
 
 import * as React from "react";
-import { Info, ShieldCheck, ArrowRight } from "lucide-react";
+import {
+  Info,
+  ShieldCheck,
+  ArrowRight,
+  Minus,
+  Plus,
+  Users,
+  CheckCircle2,
+  AlertCircle,
+  AlertTriangle,
+  Loader2,
+} from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { formatVND } from "@/lib/utils/format";
 import type { PublicRoom } from "@/lib/data/rooms";
+import { checkRoomAvailability } from "@/lib/data/bookings";
 
-interface RoomBookingWidgetProps {
+export type AvailabilityState =
+  | { status: "IDLE" }
+  | { status: "CHECKING" }
+  | { status: "AVAILABLE"; checkIn: string; checkOut: string }
+  | {
+      status: "UNAVAILABLE";
+      checkIn: string;
+      checkOut: string;
+      reason?: string;
+    }
+  | {
+      status: "ERROR";
+      message: string;
+    };
+
+export interface RoomBookingWidgetProps {
   room: PublicRoom;
+  initialCheckIn?: string;
+  initialCheckOut?: string;
+  initialGuests?: number;
 }
 
-export function RoomBookingWidget({ room }: RoomBookingWidgetProps) {
-  // Today's date string YYYY-MM-DD
-  const todayStr = React.useMemo(() => {
-    const d = new Date();
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  }, []);
+/**
+ * Returns today's calendar date in Asia/Ho_Chi_Minh as YYYY-MM-DD.
+ * This must match the catalog/server date semantics.
+ */
+function getTodayInVietnam(): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
 
-  const [checkIn, setCheckIn] = React.useState("");
-  const [checkOut, setCheckOut] = React.useState("");
+  const year = parts.find((p) => p.type === "year")?.value;
+  const month = parts.find((p) => p.type === "month")?.value;
+  const day = parts.find((p) => p.type === "day")?.value;
+
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Timezone-safe helper returning the calendar date immediately following the given date.
+ */
+function getNextDayStr(dateStr: string): string {
+  const parts = dateStr.split("-").map(Number);
+  if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2]) return "";
+  const [year, month, day] = parts;
+  const next = new Date(Date.UTC(year, month - 1, day + 1));
+  const y = next.getUTCFullYear();
+  const m = String(next.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(next.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * Computes calendar nights between two YYYY-MM-DD dates strictly via UTC days.
+ */
+function calcCalendarNights(inDate: string, outDate: string): number {
+  if (!inDate || !outDate) return 0;
+  const partsIn = inDate.split("-").map(Number);
+  const partsOut = outDate.split("-").map(Number);
+  if (partsIn.length !== 3 || partsOut.length !== 3) return 0;
+
+  const [y1, m1, d1] = partsIn;
+  const [y2, m2, d2] = partsOut;
+  if (!y1 || !m1 || !d1 || !y2 || !m2 || !d2) return 0;
+
+  const utc1 = Date.UTC(y1, m1 - 1, d1);
+  const utc2 = Date.UTC(y2, m2 - 1, d2);
+  const diffDays = Math.round((utc2 - utc1) / 86_400_000);
+  return diffDays > 0 ? diffDays : 0;
+}
+
+export function RoomBookingWidget({
+  room,
+  initialCheckIn,
+  initialCheckOut,
+  initialGuests,
+}: RoomBookingWidgetProps) {
+  const todayStr = React.useMemo(() => getTodayInVietnam(), []);
+  const maxCapacity = Math.max(1, Number(room.capacity) || 1);
+
+  const normalizedInitialCheckIn =
+    initialCheckIn && initialCheckIn >= todayStr ? initialCheckIn : "";
+  const normalizedInitialCheckOut =
+    normalizedInitialCheckIn &&
+    initialCheckOut &&
+    initialCheckOut > normalizedInitialCheckIn
+      ? initialCheckOut
+      : "";
+  const normalizedInitialGuests =
+    typeof initialGuests === "number" &&
+    Number.isInteger(initialGuests) &&
+    initialGuests > 0
+      ? Math.min(initialGuests, maxCapacity)
+      : 1;
+
+  // Form State
+  const [checkIn, setCheckIn] = React.useState(normalizedInitialCheckIn);
+  const [checkOut, setCheckOut] = React.useState(normalizedInitialCheckOut);
+  const [guests, setGuests] = React.useState(normalizedInitialGuests);
   const [validationError, setValidationError] = React.useState<string | null>(null);
-  const [infoMessage, setInfoMessage] = React.useState<string | null>(null);
+  const [handoffMessage, setHandoffMessage] = React.useState<string | null>(null);
 
-  // Compute number of nights
+  // If the catalog handed us a complete valid date range, immediately verify it.
+  const [availability, setAvailability] = React.useState<AvailabilityState>(
+    normalizedInitialCheckIn && normalizedInitialCheckOut
+      ? { status: "CHECKING" }
+      : { status: "IDLE" }
+  );
+
+  // Request counter ref for stale response / race condition protection
+  const requestIdRef = React.useRef(0);
+
+  // Calculate calendar nights and pricing
   const nights = React.useMemo(() => {
-    if (!checkIn || !checkOut) return 0;
-    const d1 = new Date(checkIn);
-    const d2 = new Date(checkOut);
-    const diffTime = d2.getTime() - d1.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays > 0 ? diffDays : 0;
+    return calcCalendarNights(checkIn, checkOut);
   }, [checkIn, checkOut]);
 
   const estimatedTotal = nights * room.nightly_price_vnd;
 
+  // Minimum selectable check-out date
+  const minCheckOutStr = React.useMemo(() => {
+    return checkIn ? getNextDayStr(checkIn) : getNextDayStr(todayStr);
+  }, [checkIn, todayStr]);
+
+  // Handle Check-in change
   const handleCheckInChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setCheckIn(val);
+    const newVal = e.target.value;
+    setCheckIn(newVal);
     setValidationError(null);
-    setInfoMessage(null);
-    if (checkOut && val >= checkOut) {
+    setHandoffMessage(null);
+
+    // Invalidate any in-flight request.
+    requestIdRef.current += 1;
+
+    // Reflect loading state immediately when the new date pair is valid.
+    if (
+      newVal &&
+      checkOut &&
+      newVal >= todayStr &&
+      checkOut > newVal
+    ) {
+      setAvailability({ status: "CHECKING" });
+    } else {
+      setAvailability({ status: "IDLE" });
+    }
+
+    // If existing checkOut is before or on the new checkIn, reset checkOut
+    if (checkOut && newVal >= checkOut) {
       setCheckOut("");
     }
   };
 
+  // Handle Check-out change
   const handleCheckOutChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setCheckOut(val);
+    const newVal = e.target.value;
+    setCheckOut(newVal);
     setValidationError(null);
-    setInfoMessage(null);
+    setHandoffMessage(null);
+
+    // Invalidate any in-flight request.
+    requestIdRef.current += 1;
+
+    // Reflect loading state immediately when the selected range is valid.
+    if (
+      checkIn &&
+      newVal &&
+      checkIn >= todayStr &&
+      newVal > checkIn
+    ) {
+      setAvailability({ status: "CHECKING" });
+    } else {
+      setAvailability({ status: "IDLE" });
+    }
   };
 
-  const handleContinueBooking = (e: React.FormEvent) => {
+  // Real Availability check triggered when valid date range is selected
+  React.useEffect(() => {
+    // Only proceed when both dates are present and form a strictly valid range
+    const hasBothDates = Boolean(checkIn && checkOut);
+    const isChronologicallyValid = checkIn >= todayStr && checkOut > checkIn;
+
+    if (!hasBothDates || !isChronologicallyValid) {
+      requestIdRef.current += 1;
+      return;
+    }
+
+    // Increment request ID to invalidate any prior in-flight request.
+    // CHECKING state is already set by the date change handlers.
+    const currentRequestId = ++requestIdRef.current;
+
+    let isMounted = true;
+
+    async function verifyAvailability() {
+      try {
+        const isAvailable = await checkRoomAvailability(
+          room.id,
+          checkIn,
+          checkOut
+        );
+
+        // Guard: drop stale response if user changed dates or component unmounted
+        if (!isMounted || currentRequestId !== requestIdRef.current) {
+          return;
+        }
+
+        if (isAvailable === true) {
+          setAvailability({
+            status: "AVAILABLE",
+            checkIn,
+            checkOut,
+          });
+        } else {
+          setAvailability({
+            status: "UNAVAILABLE",
+            checkIn,
+            checkOut,
+            reason: "Phòng đã có khách đặt trong khoảng thời gian này.",
+          });
+        }
+      } catch (err) {
+        // Guard: drop stale response if user changed dates or component unmounted
+        if (!isMounted || currentRequestId !== requestIdRef.current) {
+          return;
+        }
+
+        console.error("[RoomBookingWidget] checkRoomAvailability error:", err);
+        setAvailability({
+          status: "ERROR",
+          message: "Không thể kiểm tra tình trạng phòng lúc này.",
+        });
+      }
+    }
+
+    verifyAvailability();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [room.id, checkIn, checkOut, todayStr]);
+
+  // Guest increment/decrement handlers bounded by [1, maxCapacity]
+  const handleDecrementGuests = () => {
+    setGuests((prev) => (prev > 1 ? prev - 1 : 1));
+  };
+
+  const handleIncrementGuests = () => {
+    setGuests((prev) => (prev < maxCapacity ? prev + 1 : maxCapacity));
+  };
+
+  // Form submit handler (strictly guards against unconfirmed availability and navigates to checkout)
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!checkIn) {
-      setValidationError("Vui lòng chọn ngày nhận phòng (Check-in).");
+    if (!checkIn || !checkOut) {
+      setValidationError("Vui lòng chọn đầy đủ ngày nhận và trả phòng.");
       return;
     }
-    if (!checkOut) {
-      setValidationError("Vui lòng chọn ngày trả phòng (Check-out).");
+
+    if (checkIn < todayStr) {
+      setValidationError("Ngày nhận phòng không được ở trong quá khứ.");
       return;
     }
+
     if (checkOut <= checkIn) {
       setValidationError("Ngày trả phòng phải sau ngày nhận phòng ít nhất 1 đêm.");
       return;
     }
 
-    setValidationError(null);
-    setInfoMessage(
-      "Giai đoạn tạo đơn thanh toán (Checkout) sẽ được kích hoạt ở Phase tiếp theo. Kapi House yêu cầu thanh toán đủ 100% trước khi xác nhận đặt phòng."
+    if (guests < 1 || guests > maxCapacity) {
+      setValidationError("Số lượng khách vượt quá sức chứa của phòng.");
+      return;
+    }
+
+    // Strictly guard against unconfirmed availability
+    if (availability.status !== "AVAILABLE") {
+      return;
+    }
+
+    // Checkout UI has not been integrated yet.
+    // Do not navigate to a non-existent /checkout route.
+    setHandoffMessage(
+      "Phòng còn trống và thông tin đặt phòng đã hợp lệ. Bước thanh toán sẽ được kết nối khi Checkout được tích hợp."
     );
   };
 
@@ -89,7 +319,7 @@ export function RoomBookingWidget({ room }: RoomBookingWidgetProps) {
         <span className="text-xs text-dark/50 font-medium">Tối đa {room.capacity} khách</span>
       </div>
 
-      <form onSubmit={handleContinueBooking} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4">
         {/* Date Selection Box */}
         <div className="rounded-xl border border-dark/15 overflow-hidden">
           <div className="grid grid-cols-2 divide-x divide-dark/15">
@@ -101,16 +331,14 @@ export function RoomBookingWidget({ room }: RoomBookingWidgetProps) {
               >
                 Nhận phòng
               </label>
-              <div className="relative">
-                <input
-                  id="checkin-date"
-                  type="date"
-                  min={todayStr}
-                  value={checkIn}
-                  onChange={handleCheckInChange}
-                  className="w-full bg-transparent text-sm font-medium text-dark focus:outline-none cursor-pointer"
-                />
-              </div>
+              <input
+                id="checkin-date"
+                type="date"
+                min={todayStr}
+                value={checkIn}
+                onChange={handleCheckInChange}
+                className="w-full bg-transparent text-sm font-medium text-dark focus:outline-none cursor-pointer"
+              />
             </div>
 
             {/* Check-out */}
@@ -121,62 +349,157 @@ export function RoomBookingWidget({ room }: RoomBookingWidgetProps) {
               >
                 Trả phòng
               </label>
-              <div className="relative">
-                <input
-                  id="checkout-date"
-                  type="date"
-                  min={checkIn || todayStr}
-                  value={checkOut}
-                  onChange={handleCheckOutChange}
-                  className="w-full bg-transparent text-sm font-medium text-dark focus:outline-none cursor-pointer"
-                />
-              </div>
+              <input
+                id="checkout-date"
+                type="date"
+                min={minCheckOutStr}
+                value={checkOut}
+                onChange={handleCheckOutChange}
+                className="w-full bg-transparent text-sm font-medium text-dark focus:outline-none cursor-pointer"
+              />
             </div>
           </div>
         </div>
 
-        {/* Validation Error */}
+        {/* Guest Selection Stepper */}
+        <div className="p-3 rounded-xl border border-dark/15 bg-light/30 flex items-center justify-between">
+          <div>
+            <label
+              htmlFor="guests-control"
+              className="block text-[11px] font-semibold text-dark/60 uppercase tracking-wider mb-0.5"
+            >
+              Số lượng khách
+            </label>
+            <div className="flex items-center gap-1.5 text-xs text-dark/70 font-medium">
+              <Users className="w-3.5 h-3.5 text-primary shrink-0" aria-hidden="true" />
+              <span>
+                {guests} khách <span className="text-dark/40 font-normal">(tối đa {maxCapacity})</span>
+              </span>
+            </div>
+          </div>
+
+          <div id="guests-control" className="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border border-dark/10 shadow-2xs">
+            <button
+              type="button"
+              onClick={handleDecrementGuests}
+              disabled={guests <= 1}
+              aria-label="Giảm số lượng khách"
+              className="w-7 h-7 flex items-center justify-center rounded-md text-dark/70 hover:bg-light disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              <Minus className="w-3.5 h-3.5" aria-hidden="true" />
+            </button>
+
+            <span className="w-5 text-center text-sm font-bold text-dark select-none" aria-live="polite">
+              {guests}
+            </span>
+
+            <button
+              type="button"
+              onClick={handleIncrementGuests}
+              disabled={guests >= maxCapacity}
+              aria-label="Tăng số lượng khách"
+              className="w-7 h-7 flex items-center justify-center rounded-md text-dark/70 hover:bg-light disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+
+        {/* Validation Error Message */}
         {validationError && (
-          <p className="text-xs text-red-600 font-medium" role="alert">
+          <p className="text-xs text-rose-600 font-medium" role="alert">
             {validationError}
           </p>
         )}
 
+        {/* Availability UI (5 States) */}
+        <div className="text-xs leading-relaxed">
+          {availability.status === "IDLE" && (
+            <div className="p-3 rounded-xl bg-light/50 border border-dark/10 text-dark/70 flex items-start gap-2.5">
+              <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" aria-hidden="true" />
+              <span>Chọn ngày nhận và trả phòng để kiểm tra tình trạng phòng.</span>
+            </div>
+          )}
+
+          {availability.status === "CHECKING" && (
+            <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 flex items-center gap-2.5">
+              <Loader2 className="w-4 h-4 text-blue-600 animate-spin shrink-0" aria-hidden="true" />
+              <span>Đang kiểm tra phòng trống...</span>
+            </div>
+          )}
+
+          {availability.status === "AVAILABLE" && (
+            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-center gap-2.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" aria-hidden="true" />
+              <span className="font-medium">Phòng còn trống trong khoảng thời gian bạn chọn.</span>
+            </div>
+          )}
+
+          {availability.status === "UNAVAILABLE" && (
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" aria-hidden="true" />
+              <div>
+                <span className="font-medium block">Phòng không còn trống trong khoảng thời gian này.</span>
+                {availability.reason && (
+                  <span className="text-rose-700 text-[11px] block mt-0.5">{availability.reason}</span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {availability.status === "ERROR" && (
+            <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 flex items-start gap-2.5">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" aria-hidden="true" />
+              <span>{availability.message || "Không thể kiểm tra tình trạng phòng lúc này."}</span>
+            </div>
+          )}
+        </div>
+
+        {handoffMessage && (
+          <div
+            className="p-3 rounded-xl bg-primary/5 border border-primary/20 text-xs text-primary leading-relaxed flex items-start gap-2"
+            role="status"
+          >
+            <Info className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+            <span>{handoffMessage}</span>
+          </div>
+        )}
+
         {/* Price Estimation Preview */}
         {nights > 0 && (
-          <div className="pt-2 pb-1 text-xs space-y-2 text-dark/70">
+          <div className="pt-2 pb-1 text-xs space-y-2 text-dark/70 border-t border-dark/10">
             <div className="flex justify-between items-center">
               <span>
                 {formatVND(room.nightly_price_vnd)} × {nights} đêm
               </span>
               <span className="font-semibold text-dark">{formatVND(estimatedTotal)}</span>
             </div>
-            <div className="flex justify-between items-center pt-2 border-t border-dark/10 text-sm font-bold text-dark">
+            <div className="flex justify-between items-center pt-2 border-t border-dark/5 text-sm font-bold text-dark">
               <span>Tạm tính</span>
               <span className="text-primary">{formatVND(estimatedTotal)}</span>
             </div>
           </div>
         )}
 
-        {/* CTA Button */}
+        {/* CTA Button (Strictly disabled unless AVAILABLE) */}
         <Button
           type="submit"
+          disabled={availability.status !== "AVAILABLE"}
+          isLoading={availability.status === "CHECKING"}
           className="w-full h-12 text-base font-semibold shadow-sm justify-center"
-          rightIcon={<ArrowRight className="w-4 h-4" />}
+          rightIcon={<ArrowRight className="w-4 h-4" aria-hidden="true" />}
         >
-          Tiếp tục đặt phòng
+          {availability.status === "AVAILABLE"
+            ? "Tiếp tục đặt phòng"
+            : availability.status === "CHECKING"
+            ? "Đang kiểm tra phòng..."
+            : availability.status === "UNAVAILABLE"
+            ? "Phòng không khả dụng"
+            : "Chọn ngày để đặt phòng"}
         </Button>
 
-        {/* Informative Note */}
-        {infoMessage && (
-          <div className="p-3 rounded-xl bg-primary/5 border border-primary/20 text-xs text-primary leading-relaxed flex items-start gap-2">
-            <Info className="w-4 h-4 shrink-0 mt-0.5" />
-            <span>{infoMessage}</span>
-          </div>
-        )}
-
         <div className="pt-4 border-t border-dark/10 flex items-center justify-center gap-2 text-xs text-dark/50">
-          <ShieldCheck className="w-4 h-4 text-secondary shrink-0" />
+          <ShieldCheck className="w-4 h-4 text-secondary shrink-0" aria-hidden="true" />
           <span>Tự check-in 24/7 • Không cần đặt cọc</span>
         </div>
       </form>

@@ -4,21 +4,38 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   ArrowLeft,
-  DoorOpen,
   MapPin,
   Users,
-  CheckCircle2,
   ExternalLink,
   ShieldCheck,
   Clock,
   Sparkles,
 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
-import { getPublicRoomById } from "@/lib/data/rooms";
+import {
+  getPublicRoomById,
+  getTodayInVietnam,
+  isValidCalendarDate,
+} from "@/lib/data/rooms";
+import { Gallery } from "@/components/rooms/Gallery";
+import { RoomAmenities } from "@/components/rooms/RoomAmenities";
 import { RoomBookingWidget } from "@/components/rooms/RoomBookingWidget";
+
+type RoomDetailSearchParams = {
+  [key: string]: string | string[] | undefined;
+};
 
 interface RoomDetailPageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<RoomDetailSearchParams>;
+}
+
+function getFirstParam(value: string | string[] | undefined): string {
+  if (typeof value === "string") return value.trim();
+  if (Array.isArray(value) && typeof value[0] === "string") {
+    return value[0].trim();
+  }
+  return "";
 }
 
 export async function generateMetadata({
@@ -44,24 +61,72 @@ export async function generateMetadata({
 // Dynamic rendering for room details
 export const dynamic = "force-dynamic";
 
-export default async function RoomDetailPage({ params }: RoomDetailPageProps) {
-  const { id } = await params;
+export default async function RoomDetailPage({
+  params,
+  searchParams,
+}: RoomDetailPageProps) {
+  const [{ id }, resolvedSearchParams] = await Promise.all([
+    params,
+    searchParams,
+  ]);
   const { data: room, error } = await getPublicRoomById(id);
 
   if (error || !room) {
     notFound();
   }
 
-  const primaryImage =
-    room.image_paths && room.image_paths.length > 0
-      ? room.image_paths[0]
-      : null;
+  const propertyId = getFirstParam(resolvedSearchParams.property_id);
+  const checkIn = getFirstParam(
+    resolvedSearchParams.check_in ??
+      resolvedSearchParams["check-in"] ??
+      resolvedSearchParams.checkin
+  );
+  const checkOut = getFirstParam(
+    resolvedSearchParams.check_out ??
+      resolvedSearchParams["check-out"] ??
+      resolvedSearchParams.checkout
+  );
+  const capacityRaw = getFirstParam(
+    resolvedSearchParams.capacity ??
+      resolvedSearchParams.max_guests ??
+      resolvedSearchParams.guests
+  );
+
+  const todayVN = getTodayInVietnam();
+  const hasValidDatePair =
+    isValidCalendarDate(checkIn) &&
+    isValidCalendarDate(checkOut) &&
+    checkIn >= todayVN &&
+    checkOut > checkIn;
+
+  const capacityNum = /^\d+$/.test(capacityRaw) ? Number(capacityRaw) : 0;
+  const initialGuests =
+    Number.isInteger(capacityNum) &&
+    capacityNum > 0 &&
+    capacityNum <= room.capacity
+      ? capacityNum
+      : undefined;
+
+  const catalogParams = new URLSearchParams();
+  if (propertyId === room.property_id) {
+    catalogParams.set("property_id", propertyId);
+  }
+  if (hasValidDatePair) {
+    catalogParams.set("check_in", checkIn);
+    catalogParams.set("check_out", checkOut);
+  }
+  if (initialGuests) {
+    catalogParams.set("capacity", String(initialGuests));
+  }
+
+  const catalogQuery = catalogParams.toString();
+  const catalogHref = catalogQuery ? `/rooms?${catalogQuery}` : "/rooms";
 
   return (
     <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
       {/* Back to catalog navigation */}
       <Link
-        href="/rooms"
+        href={catalogHref}
         className="inline-flex items-center gap-1.5 text-xs font-medium text-dark/60 hover:text-primary mb-6 transition-colors"
       >
         <ArrowLeft className="w-3.5 h-3.5" />
@@ -73,13 +138,17 @@ export default async function RoomDetailPage({ params }: RoomDetailPageProps) {
         <div className="lg:col-span-2 space-y-8">
           {/* Header Info */}
           <div>
-            {room.property && (
-              <div className="flex items-center gap-2 mb-2">
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              {room.property && (
                 <Badge variant="primary" size="sm" icon={<Sparkles className="w-3 h-3" />}>
                   {room.property.name}
                 </Badge>
-              </div>
-            )}
+              )}
+              <Badge variant="neutral" size="sm" icon={<Users className="w-3 h-3" />}>
+                Tối đa {room.capacity} khách
+              </Badge>
+            </div>
+
             <h1 className="text-2xl sm:text-4xl font-bold text-dark tracking-tight mb-3">
               {room.name}
             </h1>
@@ -105,49 +174,11 @@ export default async function RoomDetailPage({ params }: RoomDetailPageProps) {
             )}
           </div>
 
-          {/* Primary Visual Banner */}
-          <div className="w-full h-72 sm:h-96 rounded-2xl border border-dark/10 bg-light/70 overflow-hidden relative flex items-center justify-center">
-            {primaryImage && primaryImage.startsWith("/") ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={primaryImage}
-                alt={room.name}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  e.currentTarget.style.display = "none";
-                  const parent = e.currentTarget.parentElement;
-                  if (parent) {
-                    const ph = parent.querySelector(".detail-placeholder");
-                    if (ph) (ph as HTMLElement).style.display = "flex";
-                  }
-                }}
-              />
-            ) : null}
-
-            {/* Tasteful Neutral Placeholder */}
-            <div
-              className={`detail-placeholder w-full h-full flex flex-col items-center justify-center gap-3 p-8 text-center ${
-                primaryImage && primaryImage.startsWith("/") ? "hidden" : "flex"
-              }`}
-            >
-              <div className="w-16 h-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
-                <DoorOpen className="w-8 h-8" />
-              </div>
-              <div className="flex flex-col items-center">
-                <span className="font-semibold text-base text-dark">
-                  Kapi Stay Concierge
-                </span>
-                <span className="text-xs text-dark/40 mt-0.5">
-                  Hình ảnh thực tế đang được đồng bộ
-                </span>
-              </div>
-            </div>
-
-            <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur-xs px-3 py-1.5 rounded-lg border border-dark/10 text-xs font-medium text-dark flex items-center gap-1.5 shadow-2xs">
-              <Users className="w-3.5 h-3.5 text-primary" />
-              <span>Sức chứa: Tối đa {room.capacity} khách</span>
-            </div>
-          </div>
+          {/* Gallery Component */}
+          <Gallery
+            imagePaths={room.image_paths}
+            roomName={room.name}
+          />
 
           {/* Description Section */}
           <div className="space-y-3 pt-2">
@@ -159,22 +190,9 @@ export default async function RoomDetailPage({ params }: RoomDetailPageProps) {
           </div>
 
           {/* Amenities Section */}
-          {room.amenities.length > 0 && (
-            <div className="space-y-4 pt-4 border-t border-dark/10">
-              <h2 className="text-xl font-bold text-dark">Tiện nghi có sẵn</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {room.amenities.map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center gap-2.5 p-3 rounded-xl bg-light/40 border border-dark/5 text-sm text-dark/80"
-                  >
-                    <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
-                    <span>{item}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          <div className="pt-4 border-t border-dark/10">
+            <RoomAmenities amenities={room.amenities} />
+          </div>
 
           {/* Stay Features & House Rules */}
           <div className="space-y-4 pt-4 border-t border-dark/10">
@@ -209,7 +227,12 @@ export default async function RoomDetailPage({ params }: RoomDetailPageProps) {
 
         {/* Sidebar Column (1 col): Booking Widget */}
         <div className="lg:col-span-1">
-          <RoomBookingWidget room={room} />
+          <RoomBookingWidget
+            room={room}
+            initialCheckIn={hasValidDatePair ? checkIn : undefined}
+            initialCheckOut={hasValidDatePair ? checkOut : undefined}
+            initialGuests={initialGuests}
+          />
         </div>
       </div>
     </div>
