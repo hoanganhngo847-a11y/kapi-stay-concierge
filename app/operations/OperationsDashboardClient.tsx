@@ -1,549 +1,403 @@
 "use client";
 
-import * as React from "react";
-import Link from "next/link";
-import {
-  ArrowLeft,
-  Building2,
-  Calendar,
-  LifeBuoy,
-  DoorOpen,
-  LogIn,
-  LogOut,
-  Phone,
-  RefreshCw,
-  AlertCircle,
-  X,
-  Users,
-} from "lucide-react";
-import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
-import {
-  MetricsSummary,
-  type OperationsMetrics,
-} from "@/components/operations/MetricsSummary";
-import {
-  RoomOperationsTable,
-  type RoomOperationItem,
-  type OperationalStatus,
-} from "@/components/operations/RoomOperationsTable";
-import {
-  TicketOperationsList,
-  type OperationTicket,
-  type TicketStatus,
-} from "@/components/operations/TicketOperationsList";
-import {
-  updateRoomStatus,
-  updateTicketStatusAdmin,
-  type StaffDashboardData,
-  type RoomOperationalStatus,
-} from "@/lib/data/admin";
+import React, { useState, useTransition } from "react";
+import { updateRoomStatus, updateTicketStatusAdmin } from "@/lib/data/admin";
 
-export interface OperationsDashboardClientProps {
-  initialData: StaffDashboardData;
-  staffEmail?: string;
+interface OperationsDashboardClientProps {
+  initialData: any;
+  loadError?: boolean;
 }
 
-export function OperationsDashboardClient({
+export default function OperationsDashboardClient({
   initialData,
-  staffEmail,
+  loadError,
 }: OperationsDashboardClientProps) {
-  // ── 1. Local State initialized strictly from server payload ──────────────
-  const [rooms, setRooms] = React.useState<RoomOperationItem[]>(() => {
-    return (initialData.room_operations ?? []).map((ro) => ({
-      room_id: ro.room_id,
-      room_name: ro.room_name,
-      operational_status: ro.operational_status as OperationalStatus,
-      updated_at: ro.updated_at,
-      updated_by: ro.updated_by,
-    }));
-  });
+  const [isPending, startTransition] = useTransition();
 
-  const [tickets, setTickets] = React.useState<OperationTicket[]>(() => {
-    return (initialData.tickets ?? []).map((t) => ({
-      id: t.id,
-      roomName: t.room_name ?? "Phòng không xác định",
-      guestName: t.guest_name ?? "Khách không xác định",
-      guestPhone: t.guest_phone,
-      category: t.category,
-      description: t.description,
-      status: t.status as TicketStatus,
-      createdAt: t.created_at
-        ? new Intl.DateTimeFormat("vi-VN", {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: false,
-            timeZone: "Asia/Ho_Chi_Minh",
-          }).format(new Date(t.created_at))
-        : "Không rõ",
-      updatedAt: t.updated_at,
-    }));
-  });
-
-  const todayBookings = React.useMemo(
-    () => initialData.today_bookings ?? [],
-    [initialData.today_bookings]
-  );
-
-  const [activeTab, setActiveTab] = React.useState<"rooms" | "tickets" | "schedule">("rooms");
-  const [selectedRoomStatusFilter, setSelectedRoomStatusFilter] = React.useState<string>("all");
-  const [pendingRoomId, setPendingRoomId] = React.useState<string | null>(null);
-  const [pendingTicketId, setPendingTicketId] = React.useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
-  const [lastRefreshed, setLastRefreshed] = React.useState<string>("Vừa tải");
-  const [isRefreshing, setIsRefreshing] = React.useState<boolean>(false);
-
-  // ── 2. Dynamic Operational Metrics calculated from live state ────────────
-  const metrics: OperationsMetrics = React.useMemo(() => {
-    const totalRooms = rooms.length;
-    const availableRooms = rooms.filter((r) => r.operational_status === "ready").length;
-    const occupiedRooms = rooms.filter((r) => r.operational_status === "occupied").length;
-    const cleaningRooms = rooms.filter((r) => r.operational_status === "cleaning").length;
-    const maintenanceRooms = rooms.filter((r) => r.operational_status === "maintenance").length;
-    const todayCheckIns = todayBookings.filter((b) => b.is_checkin_today).length;
-    const todayCheckOuts = todayBookings.filter((b) => b.is_checkout_today).length;
-    const activeTickets = tickets.filter((t) => t.status !== "resolved").length;
-
-    return {
-      totalRooms,
-      availableRooms,
-      occupiedRooms,
-      cleaningRooms,
-      maintenanceRooms,
-      todayCheckIns,
-      todayCheckOuts,
-      activeTickets,
-    };
-  }, [rooms, tickets, todayBookings]);
-
-  // ── 3. KPI Filter Handler ────────────────────────────────────────────────
-  const handleMetricCardClick = (filterKey: string) => {
-    if (filterKey === "tickets") {
-      setActiveTab("tickets");
-    } else if (filterKey === "checkins" || filterKey === "checkouts") {
-      setActiveTab("schedule");
-    } else {
-      // Room operational statuses: "ready" | "occupied" | "cleaning" | "maintenance"
-      setActiveTab("rooms");
-      setSelectedRoomStatusFilter((prev) => (prev === filterKey ? "all" : filterKey));
-    }
-  };
-
-  // ── 4. Persist Mutation: updateRoomStatus with row-level pending & rollback
-  const handleRoomStatusChange = async (roomId: string, newStatus: OperationalStatus) => {
-    setErrorMessage(null);
-    setPendingRoomId(roomId);
-    const previousRooms = rooms;
-
-    // Optimistic UI update
-    setRooms((prev) =>
-      prev.map((r) =>
-        r.room_id === roomId
-          ? {
-              ...r,
-              operational_status: newStatus,
-              updated_at: new Date().toISOString(),
-            }
-          : r
-      )
-    );
-
-    try {
-      await updateRoomStatus(roomId, newStatus as RoomOperationalStatus);
-      const now = new Date();
-      setLastRefreshed(
-        new Intl.DateTimeFormat("vi-VN", {
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-          hour12: false,
-          timeZone: "Asia/Ho_Chi_Minh",
-        }).format(now)
-      );
-    } catch (err) {
-      console.error("[OperationsDashboardClient] Lỗi cập nhật trạng thái phòng:", err);
-      // Revert to snapshot
-      setRooms(previousRooms);
-      setErrorMessage(
-        err instanceof Error
-          ? err.message
-          : "Không thể cập nhật trạng thái buồng phòng. Vui lòng thử lại."
-      );
-    } finally {
-      setPendingRoomId(null);
-    }
-  };
-
-  // ── 5. Persist Mutation: updateTicketStatusAdmin with row-level pending & rollback
-  const handleTicketStatusChange = async (ticketId: string, newStatus: TicketStatus) => {
-    setErrorMessage(null);
-    setPendingTicketId(ticketId);
-    const previousTickets = tickets;
-
-    // Optimistic UI update
-    setTickets((prev) =>
-      prev.map((t) => (t.id === ticketId ? { ...t, status: newStatus } : t))
-    );
-
-    try {
-      await updateTicketStatusAdmin(ticketId, newStatus);
-      const now = new Date();
-      setLastRefreshed(
-        new Intl.DateTimeFormat("vi-VN", {
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-          hour12: false,
-          timeZone: "Asia/Ho_Chi_Minh",
-        }).format(now)
-      );
-    } catch (err) {
-      console.error("[OperationsDashboardClient] Lỗi cập nhật trạng thái ticket:", err);
-      // Revert to snapshot
-      setTickets(previousTickets);
-      setErrorMessage(
-        err instanceof Error
-          ? err.message
-          : "Không thể cập nhật trạng thái yêu cầu hỗ trợ. Vui lòng thử lại."
-      );
-    } finally {
-      setPendingTicketId(null);
-    }
-  };
-
-  const handleRefresh = () => {
-    setIsRefreshing(true);
-    window.location.reload();
-  };
-
-  // ── 6. Read-only Schedule Items constructed from today_bookings ───────────
-  const scheduleItems = React.useMemo(() => {
-    const items: Array<{
-      id: string;
-      roomName: string;
-      guestName: string;
-      guestPhone: string;
-      guestCount: number;
-      type: "checkin" | "checkout";
-      time: string;
-      bookingStatus: string;
-      paymentStatus: string;
-    }> = [];
-
-    const timeFormatter = new Intl.DateTimeFormat("vi-VN", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-      timeZone: "Asia/Ho_Chi_Minh",
-    });
-
-    for (const b of todayBookings) {
-      if (b.is_checkin_today) {
-        items.push({
-          id: `checkin-${b.id}`,
-          roomName: b.room_name ?? "Phòng không xác định",
-          guestName: b.guest_name ?? "Khách không xác định",
-          guestPhone: b.guest_phone ?? "Chưa có SĐT",
-          guestCount: b.guest_count ?? 1,
-          type: "checkin",
-          time: timeFormatter.format(new Date(b.check_in)),
-          bookingStatus: b.booking_status,
-          paymentStatus: b.payment_status,
-        });
-      }
-
-      if (b.is_checkout_today) {
-        items.push({
-          id: `checkout-${b.id}`,
-          roomName: b.room_name ?? "Phòng không xác định",
-          guestName: b.guest_name ?? "Khách không xác định",
-          guestPhone: b.guest_phone ?? "Chưa có SĐT",
-          guestCount: b.guest_count ?? 1,
-          type: "checkout",
-          time: timeFormatter.format(new Date(b.check_out)),
-          bookingStatus: b.booking_status,
-          paymentStatus: b.payment_status,
-        });
-      }
-    }
-
-    return items;
-  }, [todayBookings]);
-
-  return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
-      {/* Top Breadcrumb & Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-medium text-dark/60 mb-2">
-            <Link
-              href="/"
-              className="inline-flex items-center gap-1 hover:text-primary transition-colors"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Trang chủ</span>
-            </Link>
-            <span>/</span>
-            <span className="text-dark/80 font-semibold">Operations</span>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-              <Building2 className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-dark tracking-tight">
-                Bảng Điều Khiển Vận Hành Homestay
-              </h1>
-              <p className="text-xs sm:text-sm text-dark/60 mt-0.5">
-                Kapi Stay Concierge — Quản trị trạng thái buồng phòng, tiếp nhận sự cố và lịch đón trả khách 24/7.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Header Badges & Actions */}
-        <div className="flex items-center gap-2.5 self-start md:self-auto flex-wrap">
-          {/* Canonical live data indicator */}
-          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 font-medium">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Dữ liệu thật</span>
-          </div>
-
-          {staffEmail && (
-            <div className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-dark/5 text-xs text-dark/60 font-medium truncate max-w-[200px]">
-              <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-              <span className="truncate">{staffEmail}</span>
-            </div>
-          )}
-
-          {/* Refresh Action */}
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-            leftIcon={
-              <RefreshCw
-                className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`}
-              />
-            }
-            className="text-dark/60 hover:text-dark text-xs"
+  // B2: Render Error Banner nếu fetch fail (Không hiện empty dashboard + badge Dữ liệu thật)
+  if (loadError || !initialData || !initialData.success) {
+    return (
+      <div className="p-6 max-w-7xl mx-auto">
+        <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg p-6 text-center shadow-sm">
+          <h2 className="text-xl font-semibold mb-2">Không thể tải dữ liệu vận hành</h2>
+          <p className="text-sm text-red-600 mb-4">
+            Đã có lỗi xảy ra khi kết nối tới máy chủ. Vui lòng kiểm tra lại kết nối hoặc thử lại.
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-sm font-medium"
           >
-            {isRefreshing ? "Đang tải lại..." : `Làm mới (${lastRefreshed})`}
-          </Button>
-
-          <Link href="/rooms" target="_blank">
-            <Button size="sm" variant="outline">
-              Xem trang khách
-            </Button>
-          </Link>
+            Thử lại
+          </button>
         </div>
       </div>
+    );
+  }
 
-      {/* Clear Error Notification Banner */}
+  // State dữ liệu thật từ Server
+  const [rooms, setRooms] = useState(initialData.room_operations || []);
+  const [tickets, setTickets] = useState(initialData.tickets || []);
+  const [bookings] = useState(initialData.today_bookings || []);
+
+  const [activeTab, setActiveTab] = useState<"rooms" | "tickets" | "schedule">("rooms");
+  const [selectedRoomStatusFilter, setSelectedRoomStatusFilter] = useState<string>("all");
+
+  // B5: State Schedule Filter riêng
+  const [scheduleFilter, setScheduleFilter] = useState<"all" | "checkin" | "checkout">("all");
+
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // B5: Xử lý click KPI
+  const handleKpiClick = (type: string) => {
+    setErrorMessage(null);
+    if (["ready", "occupied", "cleaning", "maintenance"].includes(type)) {
+      setActiveTab("rooms");
+      setSelectedRoomStatusFilter(type);
+    } else if (type === "tickets") {
+      setActiveTab("tickets");
+    } else if (type === "checkins") {
+      setActiveTab("schedule");
+      setScheduleFilter("checkin");
+    } else if (type === "checkouts") {
+      setActiveTab("schedule");
+      setScheduleFilter("checkout");
+    }
+  };
+
+  // B3 & B4: Mutation Phòng có Reconcile + Error Sanitize
+  const handleRoomStatusChange = async (roomId: string, newStatus: string) => {
+    setErrorMessage(null);
+    startTransition(async () => {
+      try {
+        const updatedRoom = await updateRoomStatus(roomId, newStatus);
+        if (updatedRoom) {
+          setRooms((prev: any[]) =>
+            prev.map((r) =>
+              r.room_id === roomId
+                ? {
+                  ...r,
+                  operational_status: updatedRoom.operational_status,
+                  updated_at: updatedRoom.updated_at,
+                  updated_by: updatedRoom.updated_by,
+                }
+                : r
+            )
+          );
+        }
+      } catch (err) {
+        // B3: Alert thông báo lỗi domain-safe, không lộ raw DB error
+        setErrorMessage("Không thể cập nhật trạng thái phòng. Vui lòng thử lại.");
+      }
+    });
+  };
+
+  // B3 & B4: Mutation Ticket có Reconcile + Error Sanitize
+  const handleTicketStatusChange = async (ticketId: string, newStatus: string) => {
+    setErrorMessage(null);
+    startTransition(async () => {
+      try {
+        const updatedTicket = await updateTicketStatusAdmin(ticketId, newStatus);
+        if (updatedTicket) {
+          setTickets((prev: any[]) =>
+            prev.map((t) =>
+              t.id === ticketId
+                ? {
+                  ...t,
+                  status: updatedTicket.status,
+                  updated_at: updatedTicket.updated_at,
+                }
+                : t
+            )
+          );
+        }
+      } catch (err) {
+        // B3: Alert thông báo lỗi domain-safe
+        setErrorMessage("Không thể cập nhật trạng thái yêu cầu. Vui lòng thử lại.");
+      }
+    });
+  };
+
+  // Filter danh sách phòng
+  const filteredRooms = rooms.filter((r: any) =>
+    selectedRoomStatusFilter === "all"
+      ? true
+      : r.operational_status === selectedRoomStatusFilter
+  );
+
+  // Filter danh sách Schedule theo B5
+  const filteredSchedule = bookings.filter((b: any) => {
+    if (scheduleFilter === "checkin") return b.type === "checkin" || b.event_type === "checkin";
+    if (scheduleFilter === "checkout") return b.type === "checkout" || b.event_type === "checkout";
+    return true;
+  });
+
+  return (
+    <div className="p-6 max-w-7xl mx-auto space-y-6">
+      {/* Header + Badge Dữ liệu thật */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Operations Dashboard</h1>
+          <p className="text-sm text-gray-500">Quản lý vận hành phòng & dịch vụ thực tế</p>
+        </div>
+        <span className="px-3 py-1 bg-green-100 text-green-800 text-xs font-semibold rounded-full border border-green-300">
+          ● Dữ liệu thật
+        </span>
+      </div>
+
+      {/* Alert Error Sanitize */}
       {errorMessage && (
-        <div className="mb-6 p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 flex items-start justify-between gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="flex items-center gap-2.5">
-            <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5 sm:mt-0" />
-            <div>
-              <p className="text-xs sm:text-sm font-semibold text-rose-900">
-                Thao tác không thành công
-              </p>
-              <p className="text-xs text-rose-700 mt-0.5">{errorMessage}</p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setErrorMessage(null)}
-            className="p-1 rounded-lg text-rose-500 hover:text-rose-800 hover:bg-rose-100 transition-colors"
-            aria-label="Đóng thông báo"
-          >
-            <X className="w-4 h-4" />
-          </button>
+        <div className="p-3 bg-red-100 border border-red-300 text-red-700 text-sm rounded-md flex justify-between items-center">
+          <span>{errorMessage}</span>
+          <button onClick={() => setErrorMessage(null)} className="font-bold ml-4">✕</button>
         </div>
       )}
 
-      {/* Real-time KPI Metrics Summary */}
-      <div className="mb-8">
-        <MetricsSummary
-          metrics={metrics}
-          selectedFilter={selectedRoomStatusFilter}
-          onFilterSelect={handleMetricCardClick}
-        />
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        <button
+          onClick={() => handleKpiClick("ready")}
+          className={`p-4 rounded-lg border text-left transition-all ${activeTab === "rooms" && selectedRoomStatusFilter === "ready"
+              ? "ring-2 ring-blue-500 border-blue-500 bg-blue-50"
+              : "bg-white hover:bg-gray-50"
+            }`}
+        >
+          <p className="text-xs text-gray-500 font-medium">Sẵn sàng</p>
+          <p className="text-xl font-bold text-gray-800">
+            {rooms.filter((r: any) => r.operational_status === "ready").length}
+          </p>
+        </button>
+
+        <button
+          onClick={() => handleKpiClick("occupied")}
+          className={`p-4 rounded-lg border text-left transition-all ${activeTab === "rooms" && selectedRoomStatusFilter === "occupied"
+              ? "ring-2 ring-blue-500 border-blue-500 bg-blue-50"
+              : "bg-white hover:bg-gray-50"
+            }`}
+        >
+          <p className="text-xs text-gray-500 font-medium">Đang ở</p>
+          <p className="text-xl font-bold text-gray-800">
+            {rooms.filter((r: any) => r.operational_status === "occupied").length}
+          </p>
+        </button>
+
+        <button
+          onClick={() => handleKpiClick("cleaning")}
+          className={`p-4 rounded-lg border text-left transition-all ${activeTab === "rooms" && selectedRoomStatusFilter === "cleaning"
+              ? "ring-2 ring-blue-500 border-blue-500 bg-blue-50"
+              : "bg-white hover:bg-gray-50"
+            }`}
+        >
+          <p className="text-xs text-gray-500 font-medium">Cần dọn</p>
+          <p className="text-xl font-bold text-gray-800">
+            {rooms.filter((r: any) => r.operational_status === "cleaning").length}
+          </p>
+        </button>
+
+        <button
+          onClick={() => handleKpiClick("maintenance")}
+          className={`p-4 rounded-lg border text-left transition-all ${activeTab === "rooms" && selectedRoomStatusFilter === "maintenance"
+              ? "ring-2 ring-blue-500 border-blue-500 bg-blue-50"
+              : "bg-white hover:bg-gray-50"
+            }`}
+        >
+          <p className="text-xs text-gray-500 font-medium">Bảo trì</p>
+          <p className="text-xl font-bold text-gray-800">
+            {rooms.filter((r: any) => r.operational_status === "maintenance").length}
+          </p>
+        </button>
+
+        <button
+          onClick={() => handleKpiClick("checkins")}
+          className={`p-4 rounded-lg border text-left transition-all ${activeTab === "schedule" && scheduleFilter === "checkin"
+              ? "ring-2 ring-blue-500 border-blue-500 bg-blue-50"
+              : "bg-white hover:bg-gray-50"
+            }`}
+        >
+          <p className="text-xs text-gray-500 font-medium">Check-in hôm nay</p>
+          <p className="text-xl font-bold text-gray-800">
+            {bookings.filter((b: any) => b.type === "checkin" || b.event_type === "checkin").length}
+          </p>
+        </button>
+
+        <button
+          onClick={() => handleKpiClick("checkouts")}
+          className={`p-4 rounded-lg border text-left transition-all ${activeTab === "schedule" && scheduleFilter === "checkout"
+              ? "ring-2 ring-blue-500 border-blue-500 bg-blue-50"
+              : "bg-white hover:bg-gray-50"
+            }`}
+        >
+          <p className="text-xs text-gray-500 font-medium">Check-out hôm nay</p>
+          <p className="text-xl font-bold text-gray-800">
+            {bookings.filter((b: any) => b.type === "checkout" || b.event_type === "checkout").length}
+          </p>
+        </button>
       </div>
 
-      {/* Main Tab Switcher Navigation */}
-      <div className="flex items-center justify-between border-b border-dark/10 mb-6 overflow-x-auto gap-2">
-        <div className="flex items-center gap-2 sm:gap-4">
-          <button
-            type="button"
-            onClick={() => setActiveTab("rooms")}
-            className={`pb-3 px-1 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
-              activeTab === "rooms"
-                ? "border-primary text-primary"
-                : "border-transparent text-dark/60 hover:text-dark"
-            }`}
-          >
-            <DoorOpen className="w-4 h-4" />
-            <span>Buồng phòng ({rooms.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab("tickets")}
-            className={`pb-3 px-1 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
-              activeTab === "tickets"
-                ? "border-primary text-primary"
-                : "border-transparent text-dark/60 hover:text-dark"
-            }`}
-          >
-            <LifeBuoy className="w-4 h-4" />
-            <span>Sự cố & Yêu cầu ({tickets.filter((t) => t.status !== "resolved").length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab("schedule")}
-            className={`pb-3 px-1 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
-              activeTab === "schedule"
-                ? "border-primary text-primary"
-                : "border-transparent text-dark/60 hover:text-dark"
-            }`}
-          >
-            <Calendar className="w-4 h-4" />
-            <span>Đón / Trả khách hôm nay ({scheduleItems.length})</span>
-          </button>
-        </div>
+      {/* Tabs Switcher */}
+      <div className="border-b flex gap-6 text-sm font-medium">
+        <button
+          onClick={() => { setActiveTab("rooms"); setSelectedRoomStatusFilter("all"); }}
+          className={`pb-3 ${activeTab === "rooms" ? "border-b-2 border-blue-600 text-blue-600" : "text-gray-500"}`}
+        >
+          Trạng thái phòng ({rooms.length})
+        </button>
+        <button
+          onClick={() => setActiveTab("tickets")}
+          className={`pb-3 ${activeTab === "tickets" ? "border-b-2 border-blue-600 text-blue-600" : "text-gray-500"}`}
+        >
+          Yêu cầu hỗ trợ ({tickets.length})
+        </button>
+        <button
+          onClick={() => { setActiveTab("schedule"); setScheduleFilter("all"); }}
+          className={`pb-3 ${activeTab === "schedule" ? "border-b-2 border-blue-600 text-blue-600" : "text-gray-500"}`}
+        >
+          Lịch Check-in/out ({bookings.length})
+        </button>
       </div>
 
-      {/* Tab Panels */}
+      {/* Tab Contents */}
       {activeTab === "rooms" && (
-        <RoomOperationsTable
-          rooms={rooms}
-          statusFilter={selectedRoomStatusFilter}
-          onStatusFilterChange={setSelectedRoomStatusFilter}
-          onStatusChange={handleRoomStatusChange}
-          pendingRoomId={pendingRoomId}
-        />
+        <div className="bg-white rounded-lg border overflow-hidden">
+          <div className="p-4 bg-gray-50 border-b flex justify-between items-center">
+            <span className="text-sm font-semibold text-gray-700">Danh sách phòng</span>
+            <select
+              value={selectedRoomStatusFilter}
+              onChange={(e) => setSelectedRoomStatusFilter(e.target.value)}
+              className="text-sm border rounded-md px-2 py-1 bg-white"
+            >
+              <option value="all">Tất cả trạng thái</option>
+              <option value="ready">Sẵn sàng</option>
+              <option value="occupied">Đang ở</option>
+              <option value="cleaning">Cần dọn</option>
+              <option value="maintenance">Bảo trì</option>
+            </select>
+          </div>
+          <table className="w-full text-left text-sm">
+            <thead className="bg-gray-100 border-b text-gray-600">
+              <tr>
+                <th className="p-3">Số phòng</th>
+                <th className="p-3">Trạng thái</th>
+                <th className="p-3">Cập nhật lúc</th>
+                <th className="p-3">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {filteredRooms.map((room: any) => (
+                <tr key={room.room_id}>
+                  <td className="p-3 font-semibold">{room.room_name || room.room_id}</td>
+                  <td className="p-3">
+                    <span className="capitalize px-2 py-1 text-xs rounded bg-gray-100 text-gray-800 border">
+                      {room.operational_status}
+                    </span>
+                  </td>
+                  <td className="p-3 text-xs text-gray-500">
+                    {room.updated_at ? new Date(room.updated_at).toLocaleString("vi-VN") : "---"}
+                  </td>
+                  <td className="p-3">
+                    <select
+                      disabled={isPending}
+                      value={room.operational_status}
+                      onChange={(e) => handleRoomStatusChange(room.room_id, e.target.value)}
+                      className="text-xs border rounded p-1 bg-white"
+                    >
+                      <option value="ready">Sẵn sàng</option>
+                      <option value="occupied">Đang ở</option>
+                      <option value="cleaning">Cần dọn</option>
+                      <option value="maintenance">Bảo trì</option>
+                    </select>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {activeTab === "tickets" && (
-        <TicketOperationsList
-          tickets={tickets}
-          onStatusChange={handleTicketStatusChange}
-          pendingTicketId={pendingTicketId}
-        />
+        <div className="bg-white rounded-lg border overflow-hidden">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-gray-100 border-b text-gray-600">
+              <tr>
+                <th className="p-3">Tiêu đề</th>
+                <th className="p-3">Danh mục</th>
+                <th className="p-3">Trạng thái</th>
+                <th className="p-3">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {tickets.map((t: any) => (
+                <tr key={t.id}>
+                  <td className="p-3 font-medium">{t.title || "Yêu cầu hỗ trợ"}</td>
+                  <td className="p-3 text-xs text-gray-500">{t.category || "Dịch vụ"}</td>
+                  <td className="p-3">
+                    <span className="capitalize px-2 py-1 text-xs rounded bg-blue-50 text-blue-700">
+                      {t.status}
+                    </span>
+                  </td>
+                  <td className="p-3">
+                    <select
+                      disabled={isPending}
+                      value={t.status}
+                      onChange={(e) => handleTicketStatusChange(t.id, e.target.value)}
+                      className="text-xs border rounded p-1 bg-white"
+                    >
+                      <option value="pending">Pending</option>
+                      <option value="in_progress">In Progress</option>
+                      <option value="resolved">Resolved</option>
+                    </select>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {activeTab === "schedule" && (
-        <div className="bg-white rounded-2xl border border-dark/10 shadow-2xs overflow-hidden">
-          <div className="p-4 sm:p-6 border-b border-dark/10 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-bold text-dark flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-primary" />
-                <span>Lịch Đón khách & Trả phòng trong ngày (Chế độ xem)</span>
-              </h2>
-              <p className="text-xs text-dark/60 mt-0.5">
-                Đồng bộ tự động từ danh sách đơn đặt phòng của hệ thống Kapi Stay Concierge.
-              </p>
-            </div>
-            <div className="text-xs text-dark/50 self-start sm:self-auto font-medium">
-              Tổng số lượt: {scheduleItems.length}
+        <div className="bg-white rounded-lg border overflow-hidden p-4 space-y-3">
+          <div className="flex justify-between items-center border-b pb-2">
+            <span className="text-sm font-semibold text-gray-700">
+              Lịch Check-in/out ({scheduleFilter === "all" ? "Tất cả" : scheduleFilter})
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setScheduleFilter("all")}
+                className={`px-3 py-1 text-xs rounded ${scheduleFilter === "all" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700"
+                  }`}
+              >
+                Tất cả
+              </button>
+              <button
+                onClick={() => setScheduleFilter("checkin")}
+                className={`px-3 py-1 text-xs rounded ${scheduleFilter === "checkin" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700"
+                  }`}
+              >
+                Check-in
+              </button>
+              <button
+                onClick={() => setScheduleFilter("checkout")}
+                className={`px-3 py-1 text-xs rounded ${scheduleFilter === "checkout" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700"
+                  }`}
+              >
+                Check-out
+              </button>
             </div>
           </div>
-
-          <div className="divide-y divide-dark/10">
-            {scheduleItems.length === 0 ? (
-              <div className="py-12 px-4 text-center">
-                <div className="w-12 h-12 rounded-xl bg-dark/5 text-dark/40 flex items-center justify-center mx-auto mb-3">
-                  <Calendar className="w-6 h-6" />
+          <div className="divide-y text-sm">
+            {filteredSchedule.map((item: any, idx: number) => (
+              <div key={idx} className="py-2 flex justify-between items-center">
+                <div>
+                  <p className="font-medium text-gray-800">{item.guest_name || "Khách hàng"}</p>
+                  <p className="text-xs text-gray-500">Phòng: {item.room_name || item.room_id}</p>
                 </div>
-                <p className="text-sm font-semibold text-dark">
-                  Hôm nay không có lịch đón hoặc trả khách
-                </p>
-                <p className="text-xs text-dark/50 mt-1">
-                  Mọi lịch trình mới sẽ tự động cập nhật khi có booking phát sinh.
-                </p>
+                <span className="px-2 py-1 text-xs rounded bg-gray-100 font-semibold uppercase">
+                  {item.type || item.event_type}
+                </span>
               </div>
-            ) : (
-              scheduleItems.map((item) => (
-                <div
-                  key={item.id}
-                  className="p-4 sm:p-6 hover:bg-light/30 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-                >
-                  <div className="flex items-start sm:items-center gap-3">
-                    <div
-                      className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                        item.type === "checkin"
-                          ? "bg-blue-100 text-blue-700"
-                          : "bg-purple-100 text-purple-700"
-                      }`}
-                    >
-                      {item.type === "checkin" ? (
-                        <LogIn className="w-5 h-5" />
-                      ) : (
-                        <LogOut className="w-5 h-5" />
-                      )}
-                    </div>
-
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-dark text-sm sm:text-base">
-                          {item.roomName}
-                        </span>
-                        <Badge
-                          variant={item.type === "checkin" ? "primary" : "secondary"}
-                          size="sm"
-                        >
-                          {item.type === "checkin" ? "Nhận phòng" : "Trả phòng"}
-                        </Badge>
-                        <Badge
-                          variant={item.paymentStatus === "completed" ? "success" : "neutral"}
-                          size="sm"
-                        >
-                          {item.paymentStatus === "completed" ? "Đã thanh toán" : "Chờ thanh toán"}
-                        </Badge>
-                      </div>
-
-                      <div className="text-xs text-dark/60 mt-1.5 flex flex-wrap items-center gap-3">
-                        <span>
-                          Khách: <strong className="text-dark/80">{item.guestName}</strong>
-                        </span>
-                        <span>•</span>
-                        <span className="inline-flex items-center gap-1">
-                          <Phone className="w-3 h-3 text-dark/40" />
-                          <span>{item.guestPhone}</span>
-                        </span>
-                        <span>•</span>
-                        <span className="inline-flex items-center gap-1">
-                          <Users className="w-3 h-3 text-dark/40" />
-                          <span>{item.guestCount} khách</span>
-                        </span>
-                        <span>•</span>
-                        <span>Thời gian: <strong className="text-dark/80">{item.time}</strong></span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Read-only indicator */}
-                  <div className="self-end sm:self-center">
-                    <span className="text-xs text-dark/50 italic">Chế độ xem</span>
-                  </div>
-                </div>
-              ))
-            )}
+            ))}
           </div>
         </div>
       )}
     </div>
   );
 }
-
-export default OperationsDashboardClient;
