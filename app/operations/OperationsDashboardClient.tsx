@@ -3,54 +3,10 @@
 import React, { useState } from "react";
 import { updateRoomStatus, updateTicketStatusAdmin } from "@/lib/data/admin";
 
-export interface RoomOperationItem {
-  room_id: string;
-  room_name?: string;
-  operational_status: "ready" | "occupied" | "cleaning" | "maintenance";
-  updated_at?: string;
-  updated_by?: string;
-}
-
-export interface TicketItem {
-  id: string;
-  booking_id?: string;
-  room_id?: string;
-  room_name?: string;
-  user_id?: string;
-  guest_name?: string;
-  guest_phone?: string;
-  category?: string;
-  description?: string;
-  status: "pending" | "in_progress" | "resolved";
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface TodayBookingItem {
-  booking_id?: string;
-  id?: string;
-  check_in?: string;
-  check_out?: string;
-  is_checkin_today?: boolean;
-  is_checkout_today?: boolean;
-  booking_status?: string;
-  payment_status?: string;
-}
-
-export interface StaffDashboardDataPayload {
-  room_operations?: RoomOperationItem[];
-  tickets?: TicketItem[];
-  today_bookings?: TodayBookingItem[];
-}
-
 interface OperationsDashboardClientProps {
-  initialData: StaffDashboardDataPayload | null;
+  initialData: any;
   loadError: boolean;
   staffEmail?: string;
-}
-
-interface ScheduleItem extends TodayBookingItem {
-  eventType: "checkin" | "checkout";
 }
 
 export default function OperationsDashboardClient({
@@ -58,7 +14,7 @@ export default function OperationsDashboardClient({
   loadError: initialLoadError,
   staffEmail,
 }: OperationsDashboardClientProps) {
-  const [dashboardData, setDashboardData] = useState<StaffDashboardDataPayload | null>(initialData);
+  const [dashboardData, setDashboardData] = useState<any>(initialData);
   const [loadError] = useState<boolean>(initialLoadError);
   const [isUpdating, setIsUpdating] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
@@ -74,9 +30,9 @@ export default function OperationsDashboardClient({
   };
 
   // Canonical Mappings
-  const roomOperations = dashboardData?.room_operations || [];
-  const tickets = dashboardData?.tickets || [];
-  const todayBookings = dashboardData?.today_bookings || [];
+  const roomOperations: any[] = dashboardData?.room_operations || [];
+  const tickets: any[] = dashboardData?.tickets || [];
+  const todayBookings: any[] = dashboardData?.today_bookings || [];
 
   // KPI Calculations
   const roomKPIs = {
@@ -95,12 +51,12 @@ export default function OperationsDashboardClient({
     try {
       const updatedRecord = await updateRoomStatus(roomId, newStatus);
       if (updatedRecord) {
-        setDashboardData((prev) => {
+        setDashboardData((prev: any) => {
           if (!prev) return prev;
           const currentRooms = prev.room_operations || [];
           return {
             ...prev,
-            room_operations: currentRooms.map((r) =>
+            room_operations: currentRooms.map((r: any) =>
               r.room_id === roomId ? { ...r, operational_status: newStatus, updated_at: new Date().toISOString() } : r
             ),
           };
@@ -121,12 +77,12 @@ export default function OperationsDashboardClient({
     try {
       const res = await updateTicketStatusAdmin(ticketId, newStatus);
       if (res) {
-        setDashboardData((prev) => {
+        setDashboardData((prev: any) => {
           if (!prev) return prev;
           const currentTickets = prev.tickets || [];
           return {
             ...prev,
-            tickets: currentTickets.map((t) =>
+            tickets: currentTickets.map((t: any) =>
               t.id === ticketId ? { ...t, status: newStatus, updated_at: new Date().toISOString() } : t
             ),
           };
@@ -164,7 +120,7 @@ export default function OperationsDashboardClient({
     roomFilter === "all" ? true : r.operational_status === roomFilter
   );
 
-  const scheduleItems: ScheduleItem[] = [];
+  const scheduleItems: any[] = [];
   todayBookings.forEach((b) => {
     if (b.is_checkin_today) scheduleItems.push({ ...b, eventType: "checkin" });
     if (b.is_checkout_today) scheduleItems.push({ ...b, eventType: "checkout" });
