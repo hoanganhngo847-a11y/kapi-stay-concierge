@@ -10,20 +10,20 @@ export const metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function OperationsDashboardPage() {
-  const authRes: any = await verifyStaffRole();
+  let staffRoleInfo: { id: string; email?: string; role: "staff" | "admin" } | null = null;
 
-  const isAuthorized = Boolean(
-    authRes?.authorized || authRes?.role === "staff" || authRes?.role === "admin"
-  );
-  const errorCode = authRes?.code || "";
-  const staffEmail = authRes?.email || authRes?.staff?.email || "";
-
-  if (!isAuthorized) {
-    if (errorCode === "UNAUTHENTICATED") {
+  try {
+    staffRoleInfo = await verifyStaffRole();
+  } catch (error: any) {
+    const errMsg = error?.message || "";
+    
+    // Unauthenticated -> Redirect Login
+    if (errMsg.includes("UNAUTHENTICATED") || errMsg.includes("chưa đăng nhập") || errMsg.includes("Auth session missing")) {
       redirect("/login?next=/operations");
     }
 
-    if (errorCode === "FORBIDDEN") {
+    // Forbidden / Non-staff -> 403
+    if (errMsg.includes("FORBIDDEN") || errMsg.includes("không có quyền") || errMsg.includes("Unauthorized")) {
       return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center">
           <h1 className="text-4xl font-bold text-red-600 mb-2">403 - Cấm truy cập</h1>
@@ -34,6 +34,7 @@ export default async function OperationsDashboardPage() {
       );
     }
 
+    // Backend/Database Failure -> System Error
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center">
         <h1 className="text-2xl font-bold text-gray-800 mb-2">Lỗi xác thực hệ thống</h1>
@@ -48,8 +49,8 @@ export default async function OperationsDashboardPage() {
   let loadError = false;
 
   try {
-    const res: any = await getStaffDashboardData();
-    if (res && res.success !== false) {
+    const res = await getStaffDashboardData();
+    if (res) {
       dashboardData = res;
     } else {
       loadError = true;
@@ -62,7 +63,7 @@ export default async function OperationsDashboardPage() {
     <OperationsDashboardClient
       initialData={dashboardData}
       loadError={loadError}
-      staffEmail={staffEmail}
+      staffEmail={staffRoleInfo?.email || ""}
     />
   );
 }

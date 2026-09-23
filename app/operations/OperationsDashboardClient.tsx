@@ -1,41 +1,104 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useState } from "react";
 import { updateRoomStatus, updateTicketStatusAdmin } from "@/lib/data/admin";
 
 interface OperationsDashboardClientProps {
   initialData: any;
-  loadError?: boolean;
+  loadError: boolean;
   staffEmail?: string;
 }
 
 export default function OperationsDashboardClient({
   initialData,
-  loadError,
+  loadError: initialLoadError,
   staffEmail,
 }: OperationsDashboardClientProps) {
-  const [isPending, startTransition] = useTransition();
-  const [dashboardData, setDashboardData] = useState<any>(initialData?.data || initialData || {});
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [dashboardData, setDashboardData] = useState<any>(initialData);
+  const [loadError, setLoadError] = useState<boolean>(initialLoadError);
+  const [isUpdating, setIsUpdating] = useState<boolean>(false);
+  const [toastMessage, setToastMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
+
+  // Filters
   const [activeTab, setActiveTab] = useState<"rooms" | "tickets" | "schedule">("rooms");
+  const [roomFilter, setRoomFilter] = useState<string>("all");
   const [scheduleFilter, setScheduleFilter] = useState<"all" | "checkin" | "checkout">("all");
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
+  const showToast = (text: string, type: "success" | "error") => {
+    setToastMessage({ text, type });
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  if (loadError || !initialData || initialData.success === false) {
+  // Canonical Mappings
+  const roomOperations = dashboardData?.room_operations || [];
+  const tickets = dashboardData?.tickets || [];
+  const todayBookings = dashboardData?.today_bookings || [];
+
+  // KPI Calculations
+  const roomKPIs = {
+    ready: roomOperations.filter((r: any) => r.operational_status === "ready").length,
+    occupied: roomOperations.filter((r: any) => r.operational_status === "occupied").length,
+    cleaning: roomOperations.filter((r: any) => r.operational_status === "cleaning").length,
+    maintenance: roomOperations.filter((r: any) => r.operational_status === "maintenance").length,
+  };
+
+  const checkinCount = todayBookings.filter((b: any) => b.is_checkin_today).length;
+  const checkoutCount = todayBookings.filter((b: any) => b.is_checkout_today).length;
+
+  // Handlers
+  const handleRoomStatusChange = async (roomId: string, newStatus: "ready" | "occupied" | "cleaning" | "maintenance") => {
+    setIsUpdating(true);
+    try {
+      const updatedRecord = await updateRoomStatus(roomId, newStatus);
+      if (updatedRecord) {
+        setDashboardData((prev: any) => ({
+          ...prev,
+          room_operations: prev.room_operations.map((r: any) =>
+            r.room_id === roomId ? { ...r, operational_status: newStatus, updated_at: new Date().toISOString() } : r
+          ),
+        }));
+        showToast("Cập nhật trạng thái phòng thành công!", "success");
+      } else {
+        showToast("Không thể cập nhật trạng thái phòng. Vui lòng thử lại.", "error");
+      }
+    } catch (err) {
+      showToast("Đã xảy ra lỗi khi cập nhật phòng.", "error");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleTicketStatusChange = async (ticketId: string, newStatus: "pending" | "in_progress" | "resolved") => {
+    setIsUpdating(true);
+    try {
+      const res = await updateTicketStatusAdmin(ticketId, newStatus);
+      if (res) {
+        setDashboardData((prev: any) => ({
+          ...prev,
+          tickets: prev.tickets.map((t: any) =>
+            t.id === ticketId ? { ...t, status: newStatus, updated_at: new Date().toISOString() } : t
+          ),
+        }));
+        showToast("Cập nhật trạng thái sự cố thành công!", "success");
+      } else {
+        showToast("Không thể cập nhật sự cố. Vui lòng thử lại.", "error");
+      }
+    } catch (err) {
+      showToast("Đã xảy ra lỗi khi cập nhật sự cố.", "error");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  if (loadError || !dashboardData) {
     return (
       <div className="p-6 max-w-7xl mx-auto">
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-          <h2 className="text-xl font-semibold text-red-700 mb-2">Không thể tải dữ liệu vận hành</h2>
-          <p className="text-sm text-red-600 mb-4">
-            Đã có lỗi xảy ra khi kết nối tới máy chủ. Vui lòng thử lại sau.
-          </p>
+          <h2 className="text-xl font-bold text-red-700 mb-2">Không thể tải dữ liệu vận hành</h2>
+          <p className="text-red-600 mb-4">Đã xảy ra lỗi kết nối với máy chủ backend.</p>
           <button
             onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 transition"
+            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 font-medium"
           >
             Thử lại
           </button>
@@ -44,292 +107,324 @@ export default function OperationsDashboardClient({
     );
   }
 
-  const handleRoomStatusChange = (roomId: string, newStatus: any) => {
-    startTransition(async () => {
-      try {
-        const res: any = await updateRoomStatus(roomId, newStatus);
-        if (res && (res.success || res.id)) {
-          const updatedData = res.data || res;
-          setDashboardData((prev: any) => ({
-            ...prev,
-            rooms: prev.rooms?.map((r: any) =>
-              r.id === roomId ? { ...r, ...updatedData } : r
-            ),
-          }));
-          showToast("Cập nhật trạng thái phòng thành công.");
-        } else {
-          showToast("Không thể cập nhật trạng thái phòng. Vui lòng thử lại.");
-        }
-      } catch (err) {
-        showToast("Đã xảy ra lỗi khi cập nhật phòng.");
-      }
-    });
-  };
+  // Filtered Lists
+  const filteredRooms = roomOperations.filter((r: any) =>
+    roomFilter === "all" ? true : r.operational_status === roomFilter
+  );
 
-  const handleTicketStatusChange = (ticketId: string, newStatus: any) => {
-    startTransition(async () => {
-      try {
-        const res: any = await updateTicketStatusAdmin(ticketId, newStatus);
-        if (res && (res.success || res.id)) {
-          const updatedData = res.data || res;
-          setDashboardData((prev: any) => ({
-            ...prev,
-            tickets: prev.tickets?.map((t: any) =>
-              t.id === ticketId ? { ...t, ...updatedData } : t
-            ),
-          }));
-          showToast("Cập nhật trạng thái sự cố thành công.");
-        } else {
-          showToast("Không thể cập nhật sự cố. Vui lòng thử lại.");
-        }
-      } catch (err) {
-        showToast("Đã xảy ra lỗi khi cập nhật sự cố.");
-      }
-    });
-  };
-
-  const handleKpiFilter = (filter: "checkin" | "checkout") => {
-    setScheduleFilter(filter);
-    setActiveTab("schedule");
-  };
-
-  const rooms = dashboardData?.rooms || [];
-  const tickets = dashboardData?.tickets || [];
-  const todayBookings = dashboardData?.today_bookings || dashboardData?.todayBookings || [];
-
-  const filteredBookings = todayBookings.filter((b: any) => {
-    if (scheduleFilter === "checkin") return b.type === "checkin";
-    if (scheduleFilter === "checkout") return b.type === "checkout";
-    return true;
+  const scheduleItems: any[] = [];
+  todayBookings.forEach((b: any) => {
+    if (b.is_checkin_today) scheduleItems.push({ ...b, eventType: "checkin" });
+    if (b.is_checkout_today) scheduleItems.push({ ...b, eventType: "checkout" });
   });
+
+  const filteredSchedule = scheduleItems.filter((item: any) =>
+    scheduleFilter === "all" ? true : item.eventType === scheduleFilter
+  );
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
+      {/* Toast */}
       {toastMessage && (
-        <div className="fixed bottom-5 right-5 bg-gray-900 text-white px-4 py-2 rounded-md shadow-lg z-50 text-sm">
-          {toastMessage}
+        <div
+          className={`fixed bottom-4 right-4 px-4 py-2 rounded-md text-white font-medium shadow-lg z-50 ${
+            toastMessage.type === "success" ? "bg-green-600" : "bg-red-600"
+          }`}
+        >
+          {toastMessage.text}
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b pb-4">
+      {/* Header */}
+      <div className="flex justify-between items-center border-b pb-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Bảng Điều Khiển Vận Hành</h1>
-          {staffEmail && (
-            <p className="text-sm text-gray-500">
-              Nhân viên đang trực: <span className="font-medium text-gray-700">{staffEmail}</span>
-            </p>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-            Dữ liệu thật
-          </span>
+          <p className="text-sm text-gray-500">
+            Xin chào {staffEmail ? <span className="font-semibold text-gray-700">{staffEmail}</span> : "Nhân viên"}
+          </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div
-          onClick={() => handleKpiFilter("checkin")}
-          className="p-4 bg-white border rounded-lg shadow-sm cursor-pointer hover:border-blue-500 transition"
+      {/* KPIs Room & Schedule */}
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+        <button
+          onClick={() => { setActiveTab("rooms"); setRoomFilter("ready"); }}
+          className={`p-4 rounded-lg border text-left transition ${
+            roomFilter === "ready" && activeTab === "rooms" ? "ring-2 ring-green-500 bg-green-50" : "bg-white"
+          }`}
         >
-          <p className="text-sm font-medium text-gray-500">Check-in Hôm Nay</p>
-          <p className="text-2xl font-bold text-blue-600">
-            {todayBookings.filter((b: any) => b.type === "checkin").length}
-          </p>
-          <p className="text-xs text-gray-400 mt-1">Bấm để lọc danh sách Check-in</p>
-        </div>
+          <p className="text-xs text-gray-500 font-medium">Sẵn sàng (Ready)</p>
+          <p className="text-2xl font-bold text-green-600">{roomKPIs.ready}</p>
+        </button>
 
-        <div
-          onClick={() => handleKpiFilter("checkout")}
-          className="p-4 bg-white border rounded-lg shadow-sm cursor-pointer hover:border-orange-500 transition"
+        <button
+          onClick={() => { setActiveTab("rooms"); setRoomFilter("occupied"); }}
+          className={`p-4 rounded-lg border text-left transition ${
+            roomFilter === "occupied" && activeTab === "rooms" ? "ring-2 ring-blue-500 bg-blue-50" : "bg-white"
+          }`}
         >
-          <p className="text-sm font-medium text-gray-500">Check-out Hôm Nay</p>
-          <p className="text-2xl font-bold text-orange-600">
-            {todayBookings.filter((b: any) => b.type === "checkout").length}
-          </p>
-          <p className="text-xs text-gray-400 mt-1">Bấm để lọc danh sách Check-out</p>
-        </div>
+          <p className="text-xs text-gray-500 font-medium">Đang ở (Occupied)</p>
+          <p className="text-2xl font-bold text-blue-600">{roomKPIs.occupied}</p>
+        </button>
 
-        <div
-          onClick={() => {
-            setScheduleFilter("all");
-            setActiveTab("tickets");
-          }}
-          className="p-4 bg-white border rounded-lg shadow-sm cursor-pointer hover:border-red-500 transition"
+        <button
+          onClick={() => { setActiveTab("rooms"); setRoomFilter("cleaning"); }}
+          className={`p-4 rounded-lg border text-left transition ${
+            roomFilter === "cleaning" && activeTab === "rooms" ? "ring-2 ring-yellow-500 bg-yellow-50" : "bg-white"
+          }`}
         >
-          <p className="text-sm font-medium text-gray-500">Sự Cố Cần Xử Lý</p>
-          <p className="text-2xl font-bold text-red-600">
-            {tickets.filter((t: any) => t.status !== "resolved").length}
-          </p>
-          <p className="text-xs text-gray-400 mt-1">Bấm để xem danh sách sự cố</p>
-        </div>
+          <p className="text-xs text-gray-500 font-medium">Đang dọn (Cleaning)</p>
+          <p className="text-2xl font-bold text-yellow-600">{roomKPIs.cleaning}</p>
+        </button>
+
+        <button
+          onClick={() => { setActiveTab("rooms"); setRoomFilter("maintenance"); }}
+          className={`p-4 rounded-lg border text-left transition ${
+            roomFilter === "maintenance" && activeTab === "rooms" ? "ring-2 ring-red-500 bg-red-50" : "bg-white"
+          }`}
+        >
+          <p className="text-xs text-gray-500 font-medium">Bảo trì (Maintenance)</p>
+          <p className="text-2xl font-bold text-red-600">{roomKPIs.maintenance}</p>
+        </button>
+
+        <button
+          onClick={() => { setActiveTab("schedule"); setScheduleFilter("checkin"); }}
+          className={`p-4 rounded-lg border text-left transition ${
+            scheduleFilter === "checkin" && activeTab === "schedule" ? "ring-2 ring-indigo-500 bg-indigo-50" : "bg-white"
+          }`}
+        >
+          <p className="text-xs text-gray-500 font-medium">Check-in Hôm nay</p>
+          <p className="text-2xl font-bold text-indigo-600">{checkinCount}</p>
+        </button>
+
+        <button
+          onClick={() => { setActiveTab("schedule"); setScheduleFilter("checkout"); }}
+          className={`p-4 rounded-lg border text-left transition ${
+            scheduleFilter === "checkout" && activeTab === "schedule" ? "ring-2 ring-purple-500 bg-purple-50" : "bg-white"
+          }`}
+        >
+          <p className="text-xs text-gray-500 font-medium">Check-out Hôm nay</p>
+          <p className="text-2xl font-bold text-purple-600">{checkoutCount}</p>
+        </button>
       </div>
 
-      <div className="flex border-b space-x-4">
+      {/* Navigation Tabs */}
+      <div className="flex space-x-4 border-b">
         <button
           onClick={() => setActiveTab("rooms")}
-          className={`py-2 px-4 text-sm font-medium border-b-2 transition ${activeTab === "rooms"
-            ? "border-blue-600 text-blue-600"
-            : "border-transparent text-gray-500 hover:text-gray-700"
-            }`}
+          className={`pb-2 text-sm font-semibold border-b-2 ${
+            activeTab === "rooms" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500"
+          }`}
         >
-          Trạng Thái Phòng ({rooms.length})
+          Trạng Thái Phòng ({roomOperations.length})
         </button>
         <button
           onClick={() => setActiveTab("tickets")}
-          className={`py-2 px-4 text-sm font-medium border-b-2 transition ${activeTab === "tickets"
-            ? "border-blue-600 text-blue-600"
-            : "border-transparent text-gray-500 hover:text-gray-700"
-            }`}
+          className={`pb-2 text-sm font-semibold border-b-2 ${
+            activeTab === "tickets" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500"
+          }`}
         >
-          Sự Cố Phản Hồi ({tickets.length})
+          Sự Cố Tiếp Nhận ({tickets.length})
         </button>
         <button
           onClick={() => setActiveTab("schedule")}
-          className={`py-2 px-4 text-sm font-medium border-b-2 transition ${activeTab === "schedule"
-            ? "border-blue-600 text-blue-600"
-            : "border-transparent text-gray-500 hover:text-gray-700"
-            }`}
+          className={`pb-2 text-sm font-semibold border-b-2 ${
+            activeTab === "schedule" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500"
+          }`}
         >
-          Lịch Đón Trả Khách ({filteredBookings.length})
+          Lịch Đón Trả Khách ({scheduleItems.length})
         </button>
       </div>
 
+      {/* Tab 1: Rooms Table */}
       {activeTab === "rooms" && (
-        <div className="bg-white border rounded-lg overflow-hidden">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-gray-50 border-b">
-              <tr>
-                <th className="p-3">Số Phòng</th>
-                <th className="p-3">Loại Phòng</th>
-                <th className="p-3">Trạng Thái</th>
-                <th className="p-3 text-right">Hành Động</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {rooms.map((room: any) => (
-                <tr key={room.id} className="hover:bg-gray-50">
-                  <td className="p-3 font-medium">{room.room_number || room.name}</td>
-                  <td className="p-3 text-gray-600">{room.type || "Tiêu chuẩn"}</td>
-                  <td className="p-3">
-                    <span className="px-2 py-1 text-xs rounded-full bg-gray-100 font-medium">
-                      {room.status}
-                    </span>
-                  </td>
-                  <td className="p-3 text-right space-x-2">
-                    <button
-                      disabled={isPending}
-                      onClick={() => handleRoomStatusChange(room.id, "clean")}
-                      className="px-2 py-1 text-xs bg-green-50 text-green-700 rounded hover:bg-green-100 disabled:opacity-50"
-                    >
-                      Đã dọn
-                    </button>
-                    <button
-                      disabled={isPending}
-                      onClick={() => handleRoomStatusChange(room.id, "maintenance")}
-                      className="px-2 py-1 text-xs bg-yellow-50 text-yellow-700 rounded hover:bg-yellow-100 disabled:opacity-50"
-                    >
-                      Bảo trì
-                    </button>
-                  </td>
-                </tr>
+        <div className="bg-white rounded-lg border p-4 space-y-4">
+          <div className="flex justify-between items-center">
+            <span className="text-sm font-medium text-gray-600">Lọc trạng thái:</span>
+            <div className="space-x-2">
+              {["all", "ready", "occupied", "cleaning", "maintenance"].map((st) => (
+                <button
+                  key={st}
+                  onClick={() => setRoomFilter(st)}
+                  className={`px-3 py-1 rounded-md text-xs font-medium capitalize ${
+                    roomFilter === st ? "bg-gray-800 text-white" : "bg-gray-100 text-gray-600"
+                  }`}
+                >
+                  {st === "all" ? "Tất cả" : st}
+                </button>
               ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {activeTab === "tickets" && (
-        <div className="bg-white border rounded-lg overflow-hidden">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-gray-50 border-b">
-              <tr>
-                <th className="p-3">Tiêu Đề</th>
-                <th className="p-3">Mức Độ</th>
-                <th className="p-3">Trạng Thái</th>
-                <th className="p-3 text-right">Hành Động</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {tickets.map((ticket: any) => (
-                <tr key={ticket.id} className="hover:bg-gray-50">
-                  <td className="p-3 font-medium">{ticket.title}</td>
-                  <td className="p-3">
-                    <span className="px-2 py-1 text-xs rounded bg-red-100 text-red-700">
-                      {ticket.priority || "Bình thường"}
-                    </span>
-                  </td>
-                  <td className="p-3 text-gray-600">{ticket.status}</td>
-                  <td className="p-3 text-right space-x-2">
-                    <button
-                      disabled={isPending}
-                      onClick={() => handleTicketStatusChange(ticket.id, "in_progress")}
-                      className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100 disabled:opacity-50"
-                    >
-                      Đang xử lý
-                    </button>
-                    <button
-                      disabled={isPending}
-                      onClick={() => handleTicketStatusChange(ticket.id, "resolved")}
-                      className="px-2 py-1 text-xs bg-green-50 text-green-700 rounded hover:bg-green-100 disabled:opacity-50"
-                    >
-                      Xong
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {activeTab === "schedule" && (
-        <div className="bg-white border rounded-lg overflow-hidden">
-          <div className="p-3 bg-gray-50 border-b flex items-center justify-between">
-            <span className="text-xs font-medium text-gray-500">
-              Đang lọc: {scheduleFilter === "all" ? "Tất cả" : scheduleFilter.toUpperCase()}
-            </span>
-            {scheduleFilter !== "all" && (
-              <button
-                onClick={() => setScheduleFilter("all")}
-                className="text-xs text-blue-600 hover:underline"
-              >
-                Xóa bộ lọc
-              </button>
-            )}
+            </div>
           </div>
+
           <table className="w-full text-left text-sm">
-            <thead className="bg-gray-50 border-b">
+            <thead className="bg-gray-50 text-gray-600 uppercase text-xs border-b">
               <tr>
-                <th className="p-3">Mã Đặt Phòng</th>
-                <th className="p-3">Khách Hàng</th>
-                <th className="p-3">Loại</th>
-                <th className="p-3">Thời Gian</th>
+                <th className="p-3">Tên Phòng</th>
+                <th className="p-3">Trạng Thái Hiện Tại</th>
+                <th className="p-3">Cập Nhật Cuối</th>
+                <th className="p-3 text-right">Thao Tác</th>
               </tr>
             </thead>
             <tbody className="divide-y">
-              {filteredBookings.length === 0 ? (
+              {filteredRooms.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="p-4 text-center text-gray-500">
-                    Không có lịch đón/trả nào phù hợp.
+                    Không có phòng nào phù hợp.
                   </td>
                 </tr>
               ) : (
-                filteredBookings.map((b: any, idx: number) => (
-                  <tr key={b.id || idx} className="hover:bg-gray-50">
-                    <td className="p-3 font-medium">{b.booking_code || b.id}</td>
-                    <td className="p-3 text-gray-700">{b.guest_name || "Khách ẩn danh"}</td>
+                filteredRooms.map((room: any) => (
+                  <tr key={room.room_id}>
+                    <td className="p-3 font-medium text-gray-900">{room.room_name || room.room_id}</td>
                     <td className="p-3">
                       <span
-                        className={`px-2 py-1 text-xs rounded font-medium ${b.type === "checkin"
-                          ? "bg-blue-100 text-blue-700"
-                          : "bg-orange-100 text-orange-700"
-                          }`}
+                        className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                          room.operational_status === "ready"
+                            ? "bg-green-100 text-green-800"
+                            : room.operational_status === "occupied"
+                            ? "bg-blue-100 text-blue-800"
+                            : room.operational_status === "cleaning"
+                            ? "bg-yellow-100 text-yellow-800"
+                            : "bg-red-100 text-red-800"
+                        }`}
                       >
-                        {b.type === "checkin" ? "Check-in" : "Check-out"}
+                        {room.operational_status}
                       </span>
                     </td>
-                    <td className="p-3 text-gray-500">{b.time || "Hôm nay"}</td>
+                    <td className="p-3 text-gray-500 text-xs">
+                      {room.updated_at ? new Date(room.updated_at).toLocaleString("vi-VN") : "---"}
+                    </td>
+                    <td className="p-3 text-right space-x-2">
+                      <button
+                        disabled={isUpdating}
+                        onClick={() => handleRoomStatusChange(room.room_id, "ready")}
+                        className="px-2 py-1 text-xs bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 rounded"
+                      >
+                        Sẵn sàng
+                      </button>
+                      <button
+                        disabled={isUpdating}
+                        onClick={() => handleRoomStatusChange(room.room_id, "cleaning")}
+                        className="px-2 py-1 text-xs bg-yellow-50 text-yellow-700 hover:bg-yellow-100 border border-yellow-200 rounded"
+                      >
+                        Đang dọn
+                      </button>
+                      <button
+                        disabled={isUpdating}
+                        onClick={() => handleRoomStatusChange(room.room_id, "maintenance")}
+                        className="px-2 py-1 text-xs bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 rounded"
+                      >
+                        Bảo trì
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Tab 2: Tickets List */}
+      {activeTab === "tickets" && (
+        <div className="bg-white rounded-lg border p-4 space-y-4">
+          <div className="divide-y">
+            {tickets.length === 0 ? (
+              <p className="p-4 text-center text-gray-500">Chưa có sự cố nào ghi nhận.</p>
+            ) : (
+              tickets.map((t: any) => (
+                <div key={t.id} className="py-3 flex justify-between items-center">
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <span className="font-semibold text-gray-900">{t.category || "Sự cố"}</span>
+                      <span className="text-xs text-gray-500">({t.room_name || "Chưa rõ phòng"})</span>
+                    </div>
+                    <p className="text-sm text-gray-600 mt-1">{t.description}</p>
+                    <p className="text-xs text-gray-400 mt-1">Khách: {t.guest_name || "N/A"} - SĐT: {t.guest_phone || "N/A"}</p>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs px-2 py-1 rounded bg-gray-100 font-medium uppercase">{t.status}</span>
+                    <button
+                      disabled={isUpdating}
+                      onClick={() => handleTicketStatusChange(t.id, t.status === "resolved" ? "in_progress" : "resolved")}
+                      className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                    >
+                      {t.status === "resolved" ? "Mở lại" : "Giải quyết"}
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Tab 3: Schedule Table */}
+      {activeTab === "schedule" && (
+        <div className="bg-white rounded-lg border p-4 space-y-4">
+          <div className="flex justify-between items-center">
+            <span className="text-sm font-medium text-gray-600">Lọc sự kiện:</span>
+            <div className="space-x-2">
+              <button
+                onClick={() => setScheduleFilter("all")}
+                className={`px-3 py-1 rounded-md text-xs font-medium ${
+                  scheduleFilter === "all" ? "bg-gray-800 text-white" : "bg-gray-100 text-gray-600"
+                }`}
+              >
+                Tất cả
+              </button>
+              <button
+                onClick={() => setScheduleFilter("checkin")}
+                className={`px-3 py-1 rounded-md text-xs font-medium ${
+                  scheduleFilter === "checkin" ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600"
+                }`}
+              >
+                Check-in
+              </button>
+              <button
+                onClick={() => setScheduleFilter("checkout")}
+                className={`px-3 py-1 rounded-md text-xs font-medium ${
+                  scheduleFilter === "checkout" ? "bg-purple-600 text-white" : "bg-gray-100 text-gray-600"
+                }`}
+              >
+                Check-out
+              </button>
+            </div>
+          </div>
+
+          <table className="w-full text-left text-sm">
+            <thead className="bg-gray-50 text-gray-600 uppercase text-xs border-b">
+              <tr>
+                <th className="p-3">Loại Sự Kiện</th>
+                <th className="p-3">Mã Booking</th>
+                <th className="p-3">Giờ Check-in / Out</th>
+                <th className="p-3">Trạng Thái Booking</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {filteredSchedule.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="p-4 text-center text-gray-500">
+                    Không có lịch đón trả nào hôm nay.
+                  </td>
+                </tr>
+              ) : (
+                filteredSchedule.map((item: any, idx: number) => (
+                  <tr key={`${item.booking_id || idx}-${item.eventType}`}>
+                    <td className="p-3">
+                      <span
+                        className={`px-2 py-1 rounded text-xs font-semibold uppercase ${
+                          item.eventType === "checkin" ? "bg-indigo-100 text-indigo-800" : "bg-purple-100 text-purple-800"
+                        }`}
+                      >
+                        {item.eventType}
+                      </span>
+                    </td>
+                    <td className="p-3 font-medium text-gray-900">{item.booking_id || item.id || "N/A"}</td>
+                    <td className="p-3 text-gray-600 text-xs">
+                      {item.eventType === "checkin" ? item.check_in : item.check_out}
+                    </td>
+                    <td className="p-3 text-gray-500 text-xs">{item.booking_status || "N/A"}</td>
                   </tr>
                 ))
               )}
