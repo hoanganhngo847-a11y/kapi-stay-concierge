@@ -10,15 +10,20 @@ export const metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function OperationsDashboardPage() {
-  // 1. Phân loại Auth Error chuẩn xác (Xử lý B1)
-  const authResult = await verifyStaffRole();
+  const authRes: any = await verifyStaffRole();
 
-  if (!authResult.authorized) {
-    if (authResult.code === "UNAUTHENTICATED") {
+  const isAuthorized = Boolean(
+    authRes?.authorized || authRes?.role === "staff" || authRes?.role === "admin"
+  );
+  const errorCode = authRes?.code || "";
+  const staffEmail = authRes?.email || authRes?.staff?.email || "";
+
+  if (!isAuthorized) {
+    if (errorCode === "UNAUTHENTICATED") {
       redirect("/login?next=/operations");
     }
 
-    if (authResult.code === "FORBIDDEN") {
+    if (errorCode === "FORBIDDEN") {
       return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center">
           <h1 className="text-4xl font-bold text-red-600 mb-2">403 - Cấm truy cập</h1>
@@ -29,7 +34,6 @@ export default async function OperationsDashboardPage() {
       );
     }
 
-    // Backend/Database failure khi xác thực role
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center">
         <h1 className="text-2xl font-bold text-gray-800 mb-2">Lỗi xác thực hệ thống</h1>
@@ -40,13 +44,12 @@ export default async function OperationsDashboardPage() {
     );
   }
 
-  // 2. Tải dữ liệu vận hành từ Backend (Xử lý B2)
   let dashboardData = null;
   let loadError = false;
 
   try {
-    const res = await getStaffDashboardData();
-    if (res && res.success) {
+    const res: any = await getStaffDashboardData();
+    if (res && res.success !== false) {
       dashboardData = res;
     } else {
       loadError = true;
@@ -55,12 +58,11 @@ export default async function OperationsDashboardPage() {
     loadError = true;
   }
 
-  // 3. Render Client Component
   return (
     <OperationsDashboardClient
       initialData={dashboardData}
       loadError={loadError}
-      staffEmail={authResult.staff?.email}
+      staffEmail={staffEmail}
     />
   );
 }
