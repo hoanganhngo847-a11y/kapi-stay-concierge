@@ -3,10 +3,54 @@
 import React, { useState } from "react";
 import { updateRoomStatus, updateTicketStatusAdmin } from "@/lib/data/admin";
 
+export interface RoomOperationItem {
+  room_id: string;
+  room_name?: string;
+  operational_status: "ready" | "occupied" | "cleaning" | "maintenance";
+  updated_at?: string;
+  updated_by?: string;
+}
+
+export interface TicketItem {
+  id: string;
+  booking_id?: string;
+  room_id?: string;
+  room_name?: string;
+  user_id?: string;
+  guest_name?: string;
+  guest_phone?: string;
+  category?: string;
+  description?: string;
+  status: "pending" | "in_progress" | "resolved";
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface TodayBookingItem {
+  booking_id?: string;
+  id?: string;
+  check_in?: string;
+  check_out?: string;
+  is_checkin_today?: boolean;
+  is_checkout_today?: boolean;
+  booking_status?: string;
+  payment_status?: string;
+}
+
+export interface StaffDashboardDataPayload {
+  room_operations?: RoomOperationItem[];
+  tickets?: TicketItem[];
+  today_bookings?: TodayBookingItem[];
+}
+
 interface OperationsDashboardClientProps {
-  initialData: any;
+  initialData: StaffDashboardDataPayload | null;
   loadError: boolean;
   staffEmail?: string;
+}
+
+interface ScheduleItem extends TodayBookingItem {
+  eventType: "checkin" | "checkout";
 }
 
 export default function OperationsDashboardClient({
@@ -14,8 +58,8 @@ export default function OperationsDashboardClient({
   loadError: initialLoadError,
   staffEmail,
 }: OperationsDashboardClientProps) {
-  const [dashboardData, setDashboardData] = useState<any>(initialData);
-  const [loadError, setLoadError] = useState<boolean>(initialLoadError);
+  const [dashboardData, setDashboardData] = useState<StaffDashboardDataPayload | null>(initialData);
+  const [loadError] = useState<boolean>(initialLoadError);
   const [isUpdating, setIsUpdating] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
@@ -36,14 +80,14 @@ export default function OperationsDashboardClient({
 
   // KPI Calculations
   const roomKPIs = {
-    ready: roomOperations.filter((r: any) => r.operational_status === "ready").length,
-    occupied: roomOperations.filter((r: any) => r.operational_status === "occupied").length,
-    cleaning: roomOperations.filter((r: any) => r.operational_status === "cleaning").length,
-    maintenance: roomOperations.filter((r: any) => r.operational_status === "maintenance").length,
+    ready: roomOperations.filter((r) => r.operational_status === "ready").length,
+    occupied: roomOperations.filter((r) => r.operational_status === "occupied").length,
+    cleaning: roomOperations.filter((r) => r.operational_status === "cleaning").length,
+    maintenance: roomOperations.filter((r) => r.operational_status === "maintenance").length,
   };
 
-  const checkinCount = todayBookings.filter((b: any) => b.is_checkin_today).length;
-  const checkoutCount = todayBookings.filter((b: any) => b.is_checkout_today).length;
+  const checkinCount = todayBookings.filter((b) => b.is_checkin_today).length;
+  const checkoutCount = todayBookings.filter((b) => b.is_checkout_today).length;
 
   // Handlers
   const handleRoomStatusChange = async (roomId: string, newStatus: "ready" | "occupied" | "cleaning" | "maintenance") => {
@@ -51,17 +95,21 @@ export default function OperationsDashboardClient({
     try {
       const updatedRecord = await updateRoomStatus(roomId, newStatus);
       if (updatedRecord) {
-        setDashboardData((prev: any) => ({
-          ...prev,
-          room_operations: prev.room_operations.map((r: any) =>
-            r.room_id === roomId ? { ...r, operational_status: newStatus, updated_at: new Date().toISOString() } : r
-          ),
-        }));
+        setDashboardData((prev) => {
+          if (!prev) return prev;
+          const currentRooms = prev.room_operations || [];
+          return {
+            ...prev,
+            room_operations: currentRooms.map((r) =>
+              r.room_id === roomId ? { ...r, operational_status: newStatus, updated_at: new Date().toISOString() } : r
+            ),
+          };
+        });
         showToast("Cập nhật trạng thái phòng thành công!", "success");
       } else {
         showToast("Không thể cập nhật trạng thái phòng. Vui lòng thử lại.", "error");
       }
-    } catch (err) {
+    } catch {
       showToast("Đã xảy ra lỗi khi cập nhật phòng.", "error");
     } finally {
       setIsUpdating(false);
@@ -73,17 +121,21 @@ export default function OperationsDashboardClient({
     try {
       const res = await updateTicketStatusAdmin(ticketId, newStatus);
       if (res) {
-        setDashboardData((prev: any) => ({
-          ...prev,
-          tickets: prev.tickets.map((t: any) =>
-            t.id === ticketId ? { ...t, status: newStatus, updated_at: new Date().toISOString() } : t
-          ),
-        }));
+        setDashboardData((prev) => {
+          if (!prev) return prev;
+          const currentTickets = prev.tickets || [];
+          return {
+            ...prev,
+            tickets: currentTickets.map((t) =>
+              t.id === ticketId ? { ...t, status: newStatus, updated_at: new Date().toISOString() } : t
+            ),
+          };
+        });
         showToast("Cập nhật trạng thái sự cố thành công!", "success");
       } else {
         showToast("Không thể cập nhật sự cố. Vui lòng thử lại.", "error");
       }
-    } catch (err) {
+    } catch {
       showToast("Đã xảy ra lỗi khi cập nhật sự cố.", "error");
     } finally {
       setIsUpdating(false);
@@ -108,17 +160,17 @@ export default function OperationsDashboardClient({
   }
 
   // Filtered Lists
-  const filteredRooms = roomOperations.filter((r: any) =>
+  const filteredRooms = roomOperations.filter((r) =>
     roomFilter === "all" ? true : r.operational_status === roomFilter
   );
 
-  const scheduleItems: any[] = [];
-  todayBookings.forEach((b: any) => {
+  const scheduleItems: ScheduleItem[] = [];
+  todayBookings.forEach((b) => {
     if (b.is_checkin_today) scheduleItems.push({ ...b, eventType: "checkin" });
     if (b.is_checkout_today) scheduleItems.push({ ...b, eventType: "checkout" });
   });
 
-  const filteredSchedule = scheduleItems.filter((item: any) =>
+  const filteredSchedule = scheduleItems.filter((item) =>
     scheduleFilter === "all" ? true : item.eventType === scheduleFilter
   );
 
@@ -273,7 +325,7 @@ export default function OperationsDashboardClient({
                   </td>
                 </tr>
               ) : (
-                filteredRooms.map((room: any) => (
+                filteredRooms.map((room) => (
                   <tr key={room.room_id}>
                     <td className="p-3 font-medium text-gray-900">{room.room_name || room.room_id}</td>
                     <td className="p-3">
@@ -332,7 +384,7 @@ export default function OperationsDashboardClient({
             {tickets.length === 0 ? (
               <p className="p-4 text-center text-gray-500">Chưa có sự cố nào ghi nhận.</p>
             ) : (
-              tickets.map((t: any) => (
+              tickets.map((t) => (
                 <div key={t.id} className="py-3 flex justify-between items-center">
                   <div>
                     <div className="flex items-center space-x-2">
@@ -409,8 +461,8 @@ export default function OperationsDashboardClient({
                   </td>
                 </tr>
               ) : (
-                filteredSchedule.map((item: any, idx: number) => (
-                  <tr key={`${item.booking_id || idx}-${item.eventType}`}>
+                filteredSchedule.map((item, idx) => (
+                  <tr key={`${item.booking_id || item.id || idx}-${item.eventType}`}>
                     <td className="p-3">
                       <span
                         className={`px-2 py-1 rounded text-xs font-semibold uppercase ${

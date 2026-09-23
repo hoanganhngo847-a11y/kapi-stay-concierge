@@ -14,9 +14,9 @@ export default async function OperationsDashboardPage() {
 
   try {
     staffRoleInfo = await verifyStaffRole();
-  } catch (error: any) {
-    const errMsg = error?.message || "";
-    
+  } catch (error: unknown) {
+    const errMsg = error instanceof Error ? error.message : String(error);
+
     // Unauthenticated -> Redirect Login
     if (errMsg.includes("UNAUTHENTICATED") || errMsg.includes("chưa đăng nhập") || errMsg.includes("Auth session missing")) {
       redirect("/login?next=/operations");
@@ -55,7 +55,7 @@ export default async function OperationsDashboardPage() {
     } else {
       loadError = true;
     }
-  } catch (err) {
+  } catch {
     loadError = true;
   }
 
