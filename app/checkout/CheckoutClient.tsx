@@ -11,11 +11,10 @@
  *   1. Nhận session + vouchers + userId từ page.tsx (props)
  *   2. Quản lý form thông tin khách, voucher picker, trạng thái QRModal
  *   3. Khi user bấm "Thanh toán" → mở QRModal
- *   4. Khi xác nhận thanh toán thành công → điều hướng sang /my-stay
+ *   4. Sau khi chuyển khoản, QRModal hiển thị thông báo chờ đối soát ngân hàng
  */
 
 import React, { useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { AlertCircle, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { BookingSummary } from "@/components/checkout/BookingSummary";
@@ -27,7 +26,6 @@ import {
   releaseVoucherAction,
   refreshAvailableVouchersAction,
 } from "./actions";
-// type-only imports are allowed in client components (no runtime server code)
 import type {
   CheckoutSessionWithRoom,
   VoucherRedemption,
@@ -85,7 +83,6 @@ export function CheckoutClient({
   initialVouchers,
   userId: _userId, // eslint-disable-line @typescript-eslint/no-unused-vars
 }: CheckoutClientProps) {
-  const router = useRouter();
 
   // ── State: thông tin khách ────────────────────────────────────────────────
   const [guestInfo, setGuestInfo] = useState<GuestInfo>({
@@ -163,8 +160,7 @@ export function CheckoutClient({
       // Gọi Server Action — userId được xác minh lại ở server
       const result = await applyVoucherAction(
         redemptionId,
-        session.id,
-        session.gross_amount_vnd
+        session.id
       );
 
       setIsVoucherLoading(false);
@@ -182,7 +178,7 @@ export function CheckoutClient({
       setVoucherError(null);
     },
     // handleReleaseVoucher included correctly — declared above, stable reference
-    [selectedRedemptionId, session.id, session.gross_amount_vnd, handleReleaseVoucher]
+    [selectedRedemptionId, session.id, handleReleaseVoucher]
   );
 
   // ── Handler: bấm "Tiến hành thanh toán" ──────────────────────────────────
@@ -210,14 +206,6 @@ export function CheckoutClient({
     setIsQRModalOpen(false);
   }
 
-  // ── Handler: thanh toán thành công ──────────────────────────────────────
-  function handlePaymentSuccess(bookingId: string) {
-    // Delay nhẹ để user đọc màn hình success trong QRModal trước khi redirect
-    setTimeout(() => {
-      router.push(`/my-stay?welcome=1&booking=${bookingId.slice(0, 8).toUpperCase()}`);
-    }, 3000);
-  }
-
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <>
@@ -243,7 +231,6 @@ export function CheckoutClient({
         sessionId={session.id}
         amountVnd={finalAmountVnd}
         paymentReference={paymentReference}
-        onPaymentSuccess={handlePaymentSuccess}
       />
     </>
   );

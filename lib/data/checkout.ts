@@ -269,7 +269,7 @@ export async function getCheckoutSession(
 
     if (error) {
       console.error("[checkout] getCheckoutSession error:", error.message);
-      return { data: null, error: error.message };
+      return { data: null, error: "Không thể tải thông tin phiên đặt phòng. Vui lòng thử lại." };
     }
 
     if (!data) {
@@ -354,22 +354,13 @@ export async function getCheckoutSession(
  * - Discount được tính server-side: min(gross, 1,000,000) × 40%, max 400,000 VND
  * - Cập nhật voucher_redemptions.status = "RESERVED" và checkout_sessions.discount/final_payable
  *
- * @param redemptionId   - UUID của voucher_redemptions record
- * @param userId         - UUID của user (dùng để audit log; RPC tự xác minh qua auth.uid())
- * @param sessionId      - UUID của checkout_sessions record
- * @param grossAmountVnd - Không dùng trong RPC (server tự biết), giữ lại để tương thích caller
+ * @param redemptionId - UUID của voucher_redemptions record
+ * @param sessionId    - UUID của checkout_sessions record
  */
 export async function validateAndApplyVoucher(
   redemptionId: string,
-  userId: string,
-  sessionId: string,
-  grossAmountVnd: number
+  sessionId: string
 ): Promise<VoucherValidationResult> {
-  // grossAmountVnd và userId không được truyền vào RPC —
-  // server tự lấy từ checkout_sessions và auth.uid().
-  // Tham số giữ lại để không phá vỡ signature của caller (actions.ts).
-  void userId;
-  void grossAmountVnd;
 
   try {
     const supabase = await createClient();
@@ -469,17 +460,10 @@ export async function validateAndApplyVoucher(
  * rõ ràng thay vì bị RLS block âm thầm như trước.
  *
  * @param sessionId - UUID của checkout_sessions
- * @param userId    - UUID của user đang xác nhận (audit; RPC không nhận tham số này)
  */
 export async function confirmBookingAndPayment(
-  sessionId: string,
-  userId: string
+  sessionId: string
 ): Promise<{ bookingId: string | null; error: string | null }> {
-  // userId không được truyền vào RPC — RPC là SECURITY DEFINER và
-  // xác minh quyền thông qua so khớp session record (không dùng auth.uid()).
-  // Tham số giữ lại để không phá vỡ signature của caller (actions.ts).
-  void userId;
-
   const uuidRegex =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -503,7 +487,7 @@ export async function confirmBookingAndPayment(
         "[checkout] confirmBookingAndPayment — fetch session error:",
         sessionFetchError.message
       );
-      return { bookingId: null, error: sessionFetchError.message };
+      return { bookingId: null, error: "Không thể tải thông tin phiên đặt phòng. Vui lòng thử lại." };
     }
 
     if (!sessionData) {
@@ -572,7 +556,7 @@ export async function confirmBookingAndPayment(
             "Vui lòng liên hệ hỗ trợ để xác nhận thủ công.",
         };
       }
-      return { bookingId: null, error: error.message };
+      return { bookingId: null, error: "Xác nhận đặt phòng thất bại. Vui lòng liên hệ hỗ trợ." };
     }
 
     const result = data as {
@@ -638,15 +622,10 @@ export async function confirmBookingAndPayment(
  * - 500 điểm KHÔNG được hoàn lại vì voucher vẫn còn hiệu lực đến expires_at.
  *
  * @param sessionId - UUID của checkout_sessions
- * @param userId    - UUID của user (audit; RPC tự xác minh qua ownership check)
  */
 export async function releaseVoucherFromSession(
-  sessionId: string,
-  userId: string
+  sessionId: string
 ): Promise<{ success: boolean; error: string | null }> {
-  // userId không được truyền vào RPC — RPC xác minh qua auth.uid().
-  // Tham số giữ lại để không phá vỡ signature của caller (actions.ts).
-  void userId;
 
   try {
     const supabase = await createClient();
@@ -663,7 +642,7 @@ export async function releaseVoucherFromSession(
         "[checkout] releaseVoucherFromSession RPC error:",
         error.message
       );
-      return { success: false, error: error.message };
+      return { success: false, error: "Không thể hủy voucher. Vui lòng thử lại." };
     }
 
     const result = data as {
@@ -753,7 +732,7 @@ export async function getUserAvailableVouchers(
 
     if (error) {
       console.error("[checkout] getUserAvailableVouchers error:", error.message);
-      return { data: [], error: error.message };
+      return { data: [], error: "Không thể tải danh sách voucher. Vui lòng thử lại." };
     }
 
     if (!data) {

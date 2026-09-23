@@ -185,6 +185,28 @@ export default async function CheckoutPage({
       );
     }
 
+    // [RE-REVIEW #2 — Điểm 2] Kiểm tra expires_at ngay cả khi status vẫn ACTIVE/PAYMENT_PROCESSING.
+    // Có thể xảy ra khi session hết hạn nhưng DB chưa cập nhật status (race condition hoặc
+    // cleanup job chưa chạy). Chặn ở đây để tránh user tương tác với phiên đã hết hiệu lực.
+    if (existingSession.expires_at) {
+      const expiresAt = new Date(existingSession.expires_at);
+      if (expiresAt <= new Date()) {
+        const roomHref = existingSession.room_id
+          ? `/rooms/${existingSession.room_id}`
+          : "/rooms";
+        return (
+          <CheckoutPageLayout>
+            <CheckoutError
+              title="Phiên thanh toán đã hết hạn"
+              message="Phiên đặt phòng đã hết hiệu lực. Vui lòng quay lại trang phòng và bắt đầu lại."
+              backHref={roomHref}
+              backLabel="Quay lại trang phòng"
+            />
+          </CheckoutPageLayout>
+        );
+      }
+    }
+
     // Session hợp lệ — tải voucher và render
     const { data: vouchers } = await getUserAvailableVouchers(user.id);
 
@@ -228,7 +250,12 @@ export default async function CheckoutPage({
   }
 
   // Validate logic ngày
-  const today = new Date().toISOString().split("T")[0];
+  // [RE-REVIEW #2 — Điểm 5] Tính ngày hôm nay theo múi giờ Asia/Ho_Chi_Minh.
+  // Dùng Intl.DateTimeFormat để tránh lỗi lệch ngày ở khung giờ 00:00–06:59 VN
+  // khi server chạy UTC (new Date().toISOString().split("T")[0] sẽ trả ngày hôm qua).
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Ho_Chi_Minh",
+  }).format(new Date()); // → "YYYY-MM-DD"
   if (checkIn < today) {
     return (
       <CheckoutPageLayout>

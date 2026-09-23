@@ -15,6 +15,12 @@
  * TUÂN THỦ QUY TẮC DỰ ÁN:
  * - KHÔNG sửa file nào ngoài app/checkout/**
  * - KHÔNG import từ lib/supabase/client (chỉ dùng server client)
+ *
+ * RE-REVIEW #2 — Điểm 1 (BLOCKER):
+ * confirmPaymentAction đã bị XOÁ. User bấm nút không phải payment verifier
+ * ngân hàng — không được phép kích hoạt finalize_verified_checkout_atomic
+ * (service_role-only RPC). Flow finalize sẽ được thực hiện qua payment
+ * webhook do TV1+TV8 phụ trách riêng.
  */
 
 import { createClient } from "@/lib/supabase/server";
@@ -22,7 +28,6 @@ import {
   validateAndApplyVoucher,
   releaseVoucherFromSession,
   getUserAvailableVouchers,
-  confirmBookingAndPayment,
 } from "@/lib/data/checkout";
 import type { VoucherValidationResult } from "@/lib/data/checkout";
 
@@ -43,8 +48,7 @@ async function getAuthenticatedUserId(): Promise<string | null> {
 
 export async function applyVoucherAction(
   redemptionId: string,
-  sessionId: string,
-  grossAmountVnd: number
+  sessionId: string
 ): Promise<VoucherValidationResult> {
   const userId = await getAuthenticatedUserId();
   if (!userId) {
@@ -56,7 +60,8 @@ export async function applyVoucherAction(
     };
   }
 
-  return validateAndApplyVoucher(redemptionId, userId, sessionId, grossAmountVnd);
+  // userId không truyền vào data layer — RPC tự xác minh qua auth.uid().
+  return validateAndApplyVoucher(redemptionId, sessionId);
 }
 
 // ---------------------------------------------------------------------------
@@ -71,7 +76,8 @@ export async function releaseVoucherAction(
     return { success: false, error: "Phiên đăng nhập đã hết hạn." };
   }
 
-  return releaseVoucherFromSession(sessionId, userId);
+  // userId không truyền vào data layer — RPC tự xác minh qua auth.uid().
+  return releaseVoucherFromSession(sessionId);
 }
 
 // ---------------------------------------------------------------------------
@@ -88,22 +94,4 @@ export async function refreshAvailableVouchersAction(): Promise<{
   }
 
   return getUserAvailableVouchers(userId);
-}
-
-// ---------------------------------------------------------------------------
-// Action: Xác nhận booking sau khi thanh toán VietQR
-// ---------------------------------------------------------------------------
-
-export async function confirmPaymentAction(
-  sessionId: string
-): Promise<{ bookingId: string | null; error: string | null }> {
-  const userId = await getAuthenticatedUserId();
-  if (!userId) {
-    return {
-      bookingId: null,
-      error: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
-    };
-  }
-
-  return confirmBookingAndPayment(sessionId, userId);
 }

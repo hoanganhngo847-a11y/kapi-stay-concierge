@@ -5,10 +5,25 @@
  * @owner TV4 — Linh (feat/booking-checkout)
  *
  * Modal hiển thị mã VietQR để thanh toán chuyển khoản.
- * Tích hợp nút copy STK, copy nội dung, và xác nhận thanh toán.
+ * Tích hợp nút copy STK, copy nội dung, và thông báo trạng thái chờ đối soát.
  *
- * Chỉ sử dụng: @/components/ui, @/lib/data/checkout, @/lib/utils/format
+ * Chỉ sử dụng: @/components/ui, @/lib/utils/format
  * KHÔNG sửa bất kỳ file nào ngoài components/checkout/**
+ *
+ * RE-REVIEW #2 — Điểm 1 (BLOCKER):
+ * Đã XOÁ handleConfirmPayment / confirmPaymentAction / onPaymentSuccess.
+ * User bấm nút xác nhận KHÔNG được phép kích hoạt finalize_verified_checkout_atomic
+ * (service_role-only RPC). Sau khi quét QR và chuyển khoản, UI hiển thị trạng thái
+ * "Đang chờ hệ thống xác nhận" — việc finalize booking sẽ do payment webhook xử lý
+ * (TV1 + TV8 phụ trách riêng).
+ *
+ * RE-REVIEW #2 — Điểm 3 (HIGH):
+ * Đã XOÁ fallback tài khoản giả (MB / 0000000000 / KAPI STAY).
+ * Ba biến môi trường là BẮT BUỘC:
+ *   NEXT_PUBLIC_VIETQR_BANK_ID
+ *   NEXT_PUBLIC_VIETQR_ACCOUNT_NO
+ *   NEXT_PUBLIC_VIETQR_ACCOUNT_NAME
+ * Nếu bất kỳ biến nào thiếu/rỗng → hiển thị "chưa khả dụng" thay vì render QR.
  */
 
 import React, { useState, useCallback } from "react";
@@ -17,34 +32,36 @@ import {
   CheckCheck,
   ExternalLink,
   AlertCircle,
-  CheckCircle2,
   Clock,
   Smartphone,
-  ArrowRight,
+  Hourglass,
 } from "lucide-react";
 import { Modal, Button, Badge } from "@/components/ui";
 import { formatVND } from "@/lib/utils/format";
-import { confirmPaymentAction } from "@/app/checkout/actions";
 
 // ---------------------------------------------------------------------------
-// Cấu hình ngân hàng VietQR
+// Cấu hình ngân hàng VietQR — bắt buộc từ biến môi trường
 // ---------------------------------------------------------------------------
 
 /**
- * Đọc từ biến môi trường nếu có; dùng giá trị mặc định khi phát triển.
- * KHÔNG commit giá trị thật lên Git — khai báo trong .env.local
- *
- * Biến môi trường cần thêm vào .env.local (TV4 phối hợp TV1 để thiết lập):
+ * Đọc từ biến môi trường — KHÔNG có fallback.
+ * Khai báo trong .env.local (TV4 phối hợp TV1 để thiết lập):
  *   NEXT_PUBLIC_VIETQR_BANK_ID=<mã ngân hàng, ví dụ: MB, TCB, VCB...>
  *   NEXT_PUBLIC_VIETQR_ACCOUNT_NO=<số tài khoản>
  *   NEXT_PUBLIC_VIETQR_ACCOUNT_NAME=<tên chủ TK>
  */
-const BANK_ID =
-  process.env.NEXT_PUBLIC_VIETQR_BANK_ID ?? "MB";
-const ACCOUNT_NO =
-  process.env.NEXT_PUBLIC_VIETQR_ACCOUNT_NO ?? "0000000000";
-const ACCOUNT_NAME =
-  process.env.NEXT_PUBLIC_VIETQR_ACCOUNT_NAME ?? "KAPI STAY";
+const BANK_ID = process.env.NEXT_PUBLIC_VIETQR_BANK_ID ?? "";
+const ACCOUNT_NO = process.env.NEXT_PUBLIC_VIETQR_ACCOUNT_NO ?? "";
+const ACCOUNT_NAME = process.env.NEXT_PUBLIC_VIETQR_ACCOUNT_NAME ?? "";
+
+/**
+ * Kiểm tra tất cả biến môi trường bắt buộc có giá trị hợp lệ.
+ * Nếu bất kỳ biến nào thiếu/rỗng → không render QR.
+ */
+const VIETQR_CONFIG_VALID =
+  BANK_ID.trim().length > 0 &&
+  ACCOUNT_NO.trim().length > 0 &&
+  ACCOUNT_NAME.trim().length > 0;
 
 // ---------------------------------------------------------------------------
 // Kiểu dữ liệu
@@ -61,8 +78,6 @@ export interface QRModalProps {
   amountVnd: number;
   /** Nội dung chuyển khoản (payment reference) */
   paymentReference: string;
-  /** Callback sau khi booking được xác nhận thành công */
-  onPaymentSuccess: (bookingId: string) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -72,11 +87,12 @@ export interface QRModalProps {
 function buildVietQRUrl(
   bankId: string,
   accountNo: string,
+  accountName: string,
   amount: number,
   addInfo: string
 ): string {
   const encoded = encodeURIComponent(addInfo);
-  return `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.png?amount=${amount}&addInfo=${encoded}&accountName=${encodeURIComponent(ACCOUNT_NAME)}`;
+  return `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.png?amount=${amount}&addInfo=${encoded}&accountName=${encodeURIComponent(accountName)}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -182,129 +198,77 @@ function InfoRow({ label, value, highlight = false, copyId }: InfoRowProps) {
 }
 
 // ---------------------------------------------------------------------------
+// Sub-component: VietQRUnavailable — hiển thị khi thiếu env vars
+// ---------------------------------------------------------------------------
+
+function VietQRUnavailable({ onClose }: { onClose: () => void }) {
+  return (
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      closeOnOverlayClick={true}
+      size="sm"
+      title="Thanh toán qua VietQR"
+      description="Phương thức thanh toán QR"
+      footer={
+        <Button
+          id="close-qr-unavailable-btn"
+          variant="outline"
+          size="md"
+          onClick={onClose}
+          className="w-full"
+        >
+          Đóng
+        </Button>
+      }
+    >
+      <div className="flex flex-col items-center text-center gap-4 py-4">
+        <div className="w-16 h-16 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center">
+          <AlertCircle className="w-8 h-8 text-amber-500" aria-hidden="true" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-dark mb-1">
+            Thanh toán qua VietQR hiện chưa khả dụng
+          </p>
+          <p className="text-xs text-dark/55 leading-relaxed">
+            Vui lòng liên hệ hỗ trợ để hoàn tất thanh toán hoặc thử lại sau.
+          </p>
+        </div>
+        <a
+          href="tel:+84000000000"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary-600 transition-colors"
+        >
+          Liên hệ hỗ trợ
+        </a>
+      </div>
+    </Modal>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main component: QRModal
 // ---------------------------------------------------------------------------
 
 export function QRModal({
   isOpen,
   onClose,
-  sessionId,
+  sessionId: _sessionId, // eslint-disable-line @typescript-eslint/no-unused-vars
   amountVnd,
   paymentReference,
-  onPaymentSuccess,
 }: QRModalProps) {
-  const [isConfirming, setIsConfirming] = useState(false);
-  const [confirmError, setConfirmError] = useState<string | null>(null);
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [successBookingId, setSuccessBookingId] = useState<string | null>(null);
   const [qrError, setQrError] = useState(false);
-
-  const qrUrl = buildVietQRUrl(BANK_ID, ACCOUNT_NO, amountVnd, paymentReference);
 
   // Đặt lại trạng thái khi modal đóng
   function handleClose() {
-    if (isConfirming) return; // Không cho đóng khi đang xử lý
     onClose();
   }
 
-  // Xác nhận đã chuyển khoản → gọi Server Action confirmPaymentAction
-  async function handleConfirmPayment() {
-    setIsConfirming(true);
-    setConfirmError(null);
-
-    // userId được xác minh lại ở server, không cần truyền từ client
-    const { bookingId, error } = await confirmPaymentAction(sessionId);
-
-    setIsConfirming(false);
-
-    if (error || !bookingId) {
-      setConfirmError(
-        error ??
-          "Có lỗi xảy ra khi xác nhận đặt phòng. Vui lòng liên hệ hỗ trợ."
-      );
-      return;
-    }
-
-    setIsSuccess(true);
-    setSuccessBookingId(bookingId);
-    onPaymentSuccess(bookingId);
+  // Nếu thiếu cấu hình VietQR — hiển thị thông báo chưa khả dụng
+  if (!VIETQR_CONFIG_VALID) {
+    return <VietQRUnavailable onClose={onClose} />;
   }
 
-  // ---------------------------------------------------------------------------
-  // Màn hình thành công (sau khi xác nhận)
-  // ---------------------------------------------------------------------------
-  if (isSuccess && successBookingId) {
-    return (
-      <Modal
-        isOpen={isOpen}
-        onClose={handleClose}
-        closeOnOverlayClick={false}
-        size="sm"
-        title="Đặt phòng thành công! 🎉"
-        description="Cảm ơn bạn đã tin tưởng Kapi Stay. Chúc bạn có kỳ nghỉ tuyệt vời!"
-        footer={
-          <a
-            href="/my-stay"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary-600 active:bg-primary-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2"
-            id="go-to-my-stay-link"
-          >
-            Xem kỳ nghỉ của tôi
-            <ArrowRight className="w-4 h-4" aria-hidden="true" />
-          </a>
-        }
-      >
-        <div className="flex flex-col items-center text-center gap-5 py-2">
-          {/* Icon thành công */}
-          <div className="w-20 h-20 rounded-full bg-secondary/20 flex items-center justify-center">
-            <CheckCircle2
-              className="w-10 h-10 text-secondary-700"
-              aria-hidden="true"
-            />
-          </div>
-
-          {/* Booking code */}
-          <div className="w-full bg-light rounded-xl p-4 border border-dark/10">
-            <p className="text-xs text-dark/50 uppercase tracking-wide font-medium mb-1">
-              Mã đặt phòng
-            </p>
-            <p
-              className="text-lg font-bold text-dark font-mono tracking-widest"
-              aria-label={`Mã đặt phòng: ${successBookingId.slice(0, 8).toUpperCase()}`}
-            >
-              {successBookingId.slice(0, 8).toUpperCase()}
-            </p>
-            <p className="text-xs text-dark/40 mt-2">
-              Lưu lại mã này để tra cứu đặt phòng nếu cần.
-            </p>
-          </div>
-
-          <div className="text-left w-full space-y-2 text-sm text-dark/70">
-            <div className="flex items-center gap-2">
-              <CheckCheck
-                className="w-4 h-4 text-secondary-600 shrink-0"
-                aria-hidden="true"
-              />
-              <span>Thanh toán đã được ghi nhận</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCheck
-                className="w-4 h-4 text-secondary-600 shrink-0"
-                aria-hidden="true"
-              />
-              <span>Phòng của bạn đã được xác nhận</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCheck
-                className="w-4 h-4 text-secondary-600 shrink-0"
-                aria-hidden="true"
-              />
-              <span>Điểm loyalty sẽ được cộng trong ít phút</span>
-            </div>
-          </div>
-        </div>
-      </Modal>
-    );
-  }
+  const qrUrl = buildVietQRUrl(BANK_ID, ACCOUNT_NO, ACCOUNT_NAME, amountVnd, paymentReference);
 
   // ---------------------------------------------------------------------------
   // Màn hình QR chính
@@ -313,50 +277,38 @@ export function QRModal({
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      closeOnOverlayClick={!isConfirming}
+      closeOnOverlayClick={true}
       size="md"
       title="Thanh toán qua VietQR"
       description="Quét mã QR hoặc chuyển khoản theo thông tin bên dưới. Giữ nguyên nội dung chuyển khoản để hệ thống tự đối soát."
       footer={
-        <div className="flex flex-col gap-2 w-full">
-          {/* Lỗi xác nhận */}
-          {confirmError && (
-            <div
-              role="alert"
-              className="flex items-start gap-2.5 bg-rose-50 border border-rose-200 rounded-xl p-3 w-full"
-            >
-              <AlertCircle
-                className="w-4 h-4 text-rose-500 shrink-0 mt-0.5"
-                aria-hidden="true"
-              />
-              <p className="text-xs text-rose-700">{confirmError}</p>
-            </div>
-          )}
-
-          <div className="flex gap-3 w-full">
-            <Button
-              variant="outline"
-              size="md"
-              onClick={handleClose}
-              disabled={isConfirming}
-              className="flex-1"
-              id="cancel-payment-btn"
-            >
-              Hủy
-            </Button>
-            <Button
-              id="confirm-payment-btn"
-              variant="primary"
-              size="md"
-              isLoading={isConfirming}
-              onClick={handleConfirmPayment}
-              className="flex-[2]"
-            >
-              {isConfirming
-                ? "Đang kiểm tra..."
-                : "Kiểm tra thanh toán"}
-            </Button>
+        <div className="flex flex-col gap-3 w-full">
+          {/* Trạng thái chờ đối soát — thay thế nút "Kiểm tra thanh toán" */}
+          <div
+            role="status"
+            aria-live="polite"
+            className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-xl p-3.5 w-full"
+          >
+            <Hourglass
+              className="w-4 h-4 text-blue-500 shrink-0 mt-0.5"
+              aria-hidden="true"
+            />
+            <p className="text-xs text-blue-800 leading-relaxed">
+              <span className="font-semibold">Đang chờ xác nhận từ ngân hàng.</span>{" "}
+              Sau khi chuyển khoản, hệ thống sẽ tự động đối soát và gửi thông
+              báo xác nhận đặt phòng. Bạn không cần làm thêm thao tác nào.
+            </p>
           </div>
+
+          <Button
+            variant="outline"
+            size="md"
+            onClick={handleClose}
+            className="w-full"
+            id="close-qr-modal-btn"
+          >
+            Đóng
+          </Button>
         </div>
       }
     >
@@ -455,7 +407,7 @@ export function QRModal({
             "Mở ứng dụng ngân hàng và chọn chuyển khoản",
             "Quét mã QR hoặc nhập số tài khoản thủ công",
             "Nhập đúng số tiền và nội dung chuyển khoản",
-            'Sau khi chuyển xong, bấm "Kiểm tra thanh toán" để hệ thống đối soát',
+            "Hệ thống sẽ tự động đối soát và xác nhận đặt phòng sau khi nhận được giao dịch",
           ].map((step, i) => (
             <div key={i} className="flex items-start gap-2.5">
               <span
