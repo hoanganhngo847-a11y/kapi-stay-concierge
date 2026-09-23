@@ -10,7 +10,7 @@ import {
   Sparkles,
   Wrench,
   PackageCheck,
-  ChevronRight,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -22,7 +22,8 @@ export interface OperationTicket {
   id: string;
   roomName: string;
   guestName: string;
-  category: "cleaning" | "amenity" | "maintenance" | "other";
+  guestPhone?: string | null;
+  category: string;
   description: string;
   status: TicketStatus;
   createdAt: string;
@@ -33,12 +34,40 @@ export interface OperationTicket {
 export interface TicketOperationsListProps {
   tickets: OperationTicket[];
   onStatusChange?: (ticketId: string, newStatus: TicketStatus) => void;
+  pendingTicketId?: string | null;
   className?: string;
+}
+
+export function getCategoryInfo(category: string) {
+  const normalized = (category || "").toLowerCase();
+  switch (normalized) {
+    case "cleaning":
+      return {
+        icon: <Sparkles className="w-3.5 h-3.5 text-amber-600" />,
+        label: "Yêu cầu dọn dẹp",
+      };
+    case "maintenance":
+      return {
+        icon: <Wrench className="w-3.5 h-3.5 text-rose-600" />,
+        label: "Sự cố kỹ thuật",
+      };
+    case "amenity":
+      return {
+        icon: <PackageCheck className="w-3.5 h-3.5 text-blue-600" />,
+        label: "Bổ sung đồ dùng",
+      };
+    default:
+      return {
+        icon: <MessageSquare className="w-3.5 h-3.5 text-dark/60" />,
+        label: category ? `Yêu cầu khác (${category})` : "Yêu cầu khác",
+      };
+  }
 }
 
 export function TicketOperationsList({
   tickets,
   onStatusChange,
+  pendingTicketId,
   className,
 }: TicketOperationsListProps) {
   const [activeTab, setActiveTab] = React.useState<string>("all");
@@ -47,32 +76,6 @@ export function TicketOperationsList({
     if (activeTab === "all") return tickets;
     return tickets.filter((t) => t.status === activeTab);
   }, [tickets, activeTab]);
-
-  const getCategoryIcon = (cat: OperationTicket["category"]) => {
-    switch (cat) {
-      case "cleaning":
-        return <Sparkles className="w-3.5 h-3.5 text-amber-600" />;
-      case "maintenance":
-        return <Wrench className="w-3.5 h-3.5 text-rose-600" />;
-      case "amenity":
-        return <PackageCheck className="w-3.5 h-3.5 text-blue-600" />;
-      default:
-        return <MessageSquare className="w-3.5 h-3.5 text-dark/60" />;
-    }
-  };
-
-  const getCategoryLabel = (cat: OperationTicket["category"]) => {
-    switch (cat) {
-      case "cleaning":
-        return "Yêu cầu dọn dẹp";
-      case "maintenance":
-        return "Sự cố kỹ thuật";
-      case "amenity":
-        return "Bổ sung đồ dùng";
-      default:
-        return "Yêu cầu khác";
-    }
-  };
 
   const getStatusBadge = (status: TicketStatus) => {
     switch (status) {
@@ -161,79 +164,104 @@ export function TicketOperationsList({
             </p>
           </div>
         ) : (
-          filteredTickets.map((ticket) => (
-            <div
-              key={ticket.id}
-              className="p-4 sm:p-6 hover:bg-light/30 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-            >
-              {/* Ticket details */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center flex-wrap gap-2 mb-2">
-                  <span className="font-bold text-dark text-base">
-                    {ticket.roomName}
-                  </span>
-                  <span className="text-xs text-dark/40">•</span>
-                  <span className="text-xs text-dark/70 font-medium">
-                    Khách: {ticket.guestName}
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md bg-dark/5 text-dark/70 font-medium">
-                    {getCategoryIcon(ticket.category)}
-                    <span>{getCategoryLabel(ticket.category)}</span>
-                  </span>
-                  {ticket.priority === "urgent" && (
-                    <Badge variant="danger" size="sm">
-                      Khẩn cấp
-                    </Badge>
+          filteredTickets.map((ticket) => {
+            const isPending = pendingTicketId === ticket.id;
+            const categoryMeta = getCategoryInfo(ticket.category);
+
+            return (
+              <div
+                key={ticket.id}
+                className={cn(
+                  "p-4 sm:p-6 hover:bg-light/30 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4",
+                  isPending && "opacity-60 pointer-events-none"
+                )}
+              >
+                {/* Ticket details */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center flex-wrap gap-2 mb-2">
+                    <span className="font-bold text-dark text-base">
+                      {ticket.roomName}
+                    </span>
+                    <span className="text-xs text-dark/40">•</span>
+                    <span className="text-xs text-dark/70 font-medium">
+                      Khách: {ticket.guestName}
+                    </span>
+                    {ticket.guestPhone && (
+                      <>
+                        <span className="text-xs text-dark/40">•</span>
+                        <span className="text-xs text-dark/60 font-medium">
+                          {ticket.guestPhone}
+                        </span>
+                      </>
+                    )}
+                    <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md bg-dark/5 text-dark/70 font-medium">
+                      {categoryMeta.icon}
+                      <span>{categoryMeta.label}</span>
+                    </span>
+                    {ticket.priority === "urgent" && (
+                      <Badge variant="danger" size="sm">
+                        Khẩn cấp
+                      </Badge>
+                    )}
+                    {getStatusBadge(ticket.status)}
+                  </div>
+
+                  <p className="text-xs sm:text-sm text-dark/80 leading-relaxed font-normal bg-light/50 p-3 rounded-xl border border-dark/5">
+                    &ldquo;{ticket.description}&rdquo;
+                  </p>
+
+                  <div className="flex items-center gap-2 text-xs text-dark/50 mt-2">
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>Gửi lúc: {ticket.createdAt}</span>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex items-center gap-2 sm:self-center shrink-0">
+                  {isPending ? (
+                    <Button size="sm" variant="ghost" disabled className="gap-1.5 text-xs text-dark/60">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Đang lưu...</span>
+                    </Button>
+                  ) : (
+                    <>
+                      {ticket.status === "pending" && (
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          onClick={() => onStatusChange?.(ticket.id, "in_progress")}
+                        >
+                          Tiếp nhận xử lý
+                        </Button>
+                      )}
+
+                      {ticket.status === "in_progress" && (
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          leftIcon={<CheckCircle2 className="w-3.5 h-3.5" />}
+                          onClick={() => onStatusChange?.(ticket.id, "resolved")}
+                        >
+                          Đánh dấu đã xử lý xong
+                        </Button>
+                      )}
+
+                      {ticket.status === "resolved" && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-dark/50 hover:text-dark"
+                          onClick={() => onStatusChange?.(ticket.id, "in_progress")}
+                        >
+                          Mở lại ticket
+                        </Button>
+                      )}
+                    </>
                   )}
-                  {getStatusBadge(ticket.status)}
-                </div>
-
-                <p className="text-xs sm:text-sm text-dark/80 leading-relaxed font-normal bg-light/50 p-3 rounded-xl border border-dark/5">
-                  &ldquo;{ticket.description}&rdquo;
-                </p>
-
-                <div className="flex items-center gap-2 text-xs text-dark/50 mt-2">
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>Gửi lúc: {ticket.createdAt}</span>
                 </div>
               </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center gap-2 sm:self-center shrink-0">
-                {ticket.status === "pending" && (
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    onClick={() => onStatusChange?.(ticket.id, "in_progress")}
-                  >
-                    Tiếp nhận xử lý
-                  </Button>
-                )}
-
-                {ticket.status === "in_progress" && (
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    leftIcon={<CheckCircle2 className="w-3.5 h-3.5" />}
-                    onClick={() => onStatusChange?.(ticket.id, "resolved")}
-                  >
-                    Đánh dấu đã xử lý xong
-                  </Button>
-                )}
-
-                {ticket.status === "resolved" && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-dark/50 hover:text-dark"
-                    onClick={() => onStatusChange?.(ticket.id, "in_progress")}
-                  >
-                    Mở lại ticket
-                  </Button>
-                )}
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>

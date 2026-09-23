@@ -7,9 +7,9 @@ import {
   LogIn,
   LogOut,
   AlertCircle,
-  Building2,
   CheckCircle2,
   Clock,
+  Wrench,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -39,12 +39,11 @@ export function MetricsSummary({
 }: MetricsSummaryProps) {
   const cards = [
     {
-      id: "available",
+      id: "ready",
       label: "Sẵn sàng đón khách",
       value: metrics.availableRooms,
       subtext: `${metrics.totalRooms} tổng số phòng`,
       icon: CheckCircle2,
-      color: "emerald",
       badgeText: "Sẵn sàng",
       bgClass: "bg-emerald-500/10 text-emerald-700 border-emerald-200",
       activeClass: "ring-2 ring-emerald-500 bg-emerald-50/50",
@@ -56,7 +55,6 @@ export function MetricsSummary({
       value: metrics.occupiedRooms,
       subtext: "Đang phục vụ",
       icon: DoorClosed,
-      color: "primary",
       badgeText: "Có khách",
       bgClass: "bg-primary/10 text-primary-700 border-primary/20",
       activeClass: "ring-2 ring-primary bg-primary/5",
@@ -68,11 +66,21 @@ export function MetricsSummary({
       value: metrics.cleaningRooms,
       subtext: "Chờ buồng phòng",
       icon: Sparkles,
-      color: "amber",
       badgeText: "Cần dọn",
       bgClass: "bg-amber-500/10 text-amber-800 border-amber-200",
       activeClass: "ring-2 ring-amber-500 bg-amber-50/50",
       iconBg: "bg-amber-100 text-amber-800",
+    },
+    {
+      id: "maintenance",
+      label: "Bảo trì / Sửa chữa",
+      value: metrics.maintenanceRooms ?? 0,
+      subtext: "Cần khắc phục",
+      icon: Wrench,
+      badgeText: "Bảo trì",
+      bgClass: "bg-rose-500/10 text-rose-800 border-rose-200",
+      activeClass: "ring-2 ring-rose-500 bg-rose-50/50",
+      iconBg: "bg-rose-100 text-rose-700",
     },
     {
       id: "checkins",
@@ -80,7 +88,6 @@ export function MetricsSummary({
       value: metrics.todayCheckIns,
       subtext: "Lượt đến dự kiến",
       icon: LogIn,
-      color: "blue",
       badgeText: "Check-in",
       bgClass: "bg-blue-500/10 text-blue-800 border-blue-200",
       activeClass: "ring-2 ring-blue-500 bg-blue-50/50",
@@ -92,7 +99,6 @@ export function MetricsSummary({
       value: metrics.todayCheckOuts,
       subtext: "Lượt đi dự kiến",
       icon: LogOut,
-      color: "purple",
       badgeText: "Check-out",
       bgClass: "bg-purple-500/10 text-purple-800 border-purple-200",
       activeClass: "ring-2 ring-purple-500 bg-purple-50/50",
@@ -104,7 +110,6 @@ export function MetricsSummary({
       value: metrics.activeTickets,
       subtext: metrics.activeTickets > 0 ? "Cần xử lý ngay" : "Không có tồn đọng",
       icon: AlertCircle,
-      color: "rose",
       badgeText: "Tickets",
       bgClass: "bg-rose-500/10 text-rose-800 border-rose-200",
       activeClass: "ring-2 ring-rose-500 bg-rose-50/50",
@@ -113,7 +118,7 @@ export function MetricsSummary({
   ];
 
   return (
-    <div className={cn("grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4", className)}>
+    <div className={cn("grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3.5", className)}>
       {cards.map((card) => {
         const IconComponent = card.icon;
         const isSelected = selectedFilter === card.id;
