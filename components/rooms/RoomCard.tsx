@@ -47,7 +47,8 @@ export function RoomCard(props: RoomCardProps) {
 
   const hasImage = Boolean(rawCover && rawCover.trim() !== "");
 
-  // Đọc các query params hiện tại (check_in, check_out, capacity) từ URL
+  // Đọc các query params hiện tại để giữ nguyên context khi đi sang Room Detail
+  const propertyId = searchParams?.get("property_id") ?? "";
   const checkIn =
     searchParams?.get("check_in") ??
     searchParams?.get("check-in") ??
@@ -66,6 +67,7 @@ export function RoomCard(props: RoomCardProps) {
 
   // Nối các tham số lọc vào đường dẫn detailHref để khách không bị mất dữ liệu lọc
   const queryParams = new URLSearchParams();
+  if (propertyId) queryParams.set("property_id", propertyId);
   if (checkIn) queryParams.set("check_in", checkIn);
   if (checkOut) queryParams.set("check_out", checkOut);
   if (capacityParam) queryParams.set("capacity", capacityParam);
