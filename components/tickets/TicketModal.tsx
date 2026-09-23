@@ -34,7 +34,7 @@ export interface TicketModalProps {
   bookingId?: string;
   roomId?: string;
   onSuccess?: (ticket: Ticket) => void;
-  onSubmit?: (data: TicketFormData) => Promise<Ticket | void> | Ticket | void;
+  onSubmit?: (data: TicketFormData) => Promise<Ticket> | Ticket;
 }
 
 export const TICKET_CATEGORIES: {
@@ -69,6 +69,138 @@ export const TICKET_CATEGORIES: {
   },
 ];
 
+export const INVALID_STAY_ERROR_MESSAGE =
+  "Không tìm thấy kỳ lưu trú đang hoạt động hoặc kỳ lưu trú đã kết thúc.";
+
+/**
+ * Kiểm tra xem thời điểm hiện tại có nằm trong khoảng thời gian lưu trú hay không.
+ * Check-in tính từ 00:00:00+07:00 ngày nhận phòng; Check-out tính đến 23:59:59.999+07:00 ngày trả phòng (UTC+7).
+ */
+export function checkIsWithinStayWindow(checkIn: string, checkOut: string): boolean {
+  try {
+    const checkInDateStr = checkIn.includes("T") ? checkIn.split("T")[0].trim() : checkIn.trim();
+    const checkOutDateStr = checkOut.includes("T") ? checkOut.split("T")[0].trim() : checkOut.trim();
+
+    let checkInStart = new Date(`${checkInDateStr}T00:00:00+07:00`).getTime();
+    let checkOutEnd = new Date(`${checkOutDateStr}T23:59:59.999+07:00`).getTime();
+
+    if (isNaN(checkInStart)) {
+      checkInStart = new Date(checkIn).getTime();
+    }
+    if (isNaN(checkOutEnd)) {
+      checkOutEnd = new Date(checkOut).getTime();
+    }
+
+    if (isNaN(checkInStart) || isNaN(checkOutEnd)) {
+      return false;
+    }
+
+    const now = Date.now();
+    return now >= checkInStart && now <= checkOutEnd;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Xác thực server-side với Supabase:
+ * 1. Người dùng đã đăng nhập (supabase.auth.getUser()).
+ * 2. Đơn đặt phòng thuộc quyền sở hữu của user (user_id === user.id).
+ * 3. room_id khớp với phòng của đơn đặt phòng.
+ * 4. Trạng thái booking hợp lệ ('confirmed', 'checked_in').
+ * 5. Thời điểm hiện tại nằm trong khung thời gian lưu trú (check_in <= now <= check_out).
+ */
+export async function verifyActiveStay(
+  bookingId?: string,
+  roomId?: string
+): Promise<{ valid: boolean; error?: string }> {
+  if (!bookingId || !roomId) {
+    return {
+      valid: false,
+      error: INVALID_STAY_ERROR_MESSAGE,
+    };
+  }
+
+  const cleanBookingId = bookingId.trim();
+  const cleanRoomId = roomId.trim();
+
+  if (!cleanBookingId || !cleanRoomId) {
+    return {
+      valid: false,
+      error: INVALID_STAY_ERROR_MESSAGE,
+    };
+  }
+
+  try {
+    const supabase = createClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return {
+        valid: false,
+        error: INVALID_STAY_ERROR_MESSAGE,
+      };
+    }
+
+    const { data: booking, error: bookingError } = await supabase
+      .from("bookings")
+      .select("id, user_id, room_id, booking_status, check_in, check_out")
+      .eq("id", cleanBookingId)
+      .maybeSingle();
+
+    if (bookingError || !booking) {
+      return {
+        valid: false,
+        error: INVALID_STAY_ERROR_MESSAGE,
+      };
+    }
+
+    // 1. Kiểm tra quyền sở hữu đơn đặt phòng
+    if (booking.user_id !== user.id) {
+      return {
+        valid: false,
+        error: INVALID_STAY_ERROR_MESSAGE,
+      };
+    }
+
+    // 2. Kiểm tra room_id có khớp với phòng hiện tại
+    if (booking.room_id !== cleanRoomId) {
+      return {
+        valid: false,
+        error: INVALID_STAY_ERROR_MESSAGE,
+      };
+    }
+
+    // 3. Kiểm tra trạng thái booking có hợp lệ ('confirmed', 'checked_in')
+    const normalizedStatus = (booking.booking_status || "").toLowerCase().trim();
+    const validStatuses = ["confirmed", "checked_in"];
+    if (!validStatuses.includes(normalizedStatus)) {
+      return {
+        valid: false,
+        error: INVALID_STAY_ERROR_MESSAGE,
+      };
+    }
+
+    // 4. Kiểm tra thời điểm hiện tại có nằm trong kỳ lưu trú (check_in <= now <= check_out)
+    if (!checkIsWithinStayWindow(booking.check_in, booking.check_out)) {
+      return {
+        valid: false,
+        error: INVALID_STAY_ERROR_MESSAGE,
+      };
+    }
+
+    return { valid: true };
+  } catch {
+    return {
+      valid: false,
+      error: INVALID_STAY_ERROR_MESSAGE,
+    };
+  }
+}
+
 export function TicketModal({
   isOpen,
   onClose,
@@ -90,7 +222,22 @@ export function TicketModal({
   const [isSuccess, setIsSuccess] = React.useState(false);
   const [submittedTicket, setSubmittedTicket] = React.useState<Ticket | null>(null);
 
-  const hasActiveStay = Boolean(bookingId && roomId);
+  // Khóa định danh kỳ lưu trú hiện tại dựa trên bookingId và roomId
+  const currentStayKey =
+    isOpen && bookingId && roomId ? `${bookingId.trim()}:${roomId.trim()}` : null;
+  const [verifiedKey, setVerifiedKey] = React.useState<string | null>(null);
+  const [serverError, setServerError] = React.useState<string | null>(null);
+
+  // Suy diễn trạng thái xác thực từ server
+  const isValidatingStay = Boolean(currentStayKey && verifiedKey !== currentStayKey);
+  const isStayValid = Boolean(currentStayKey && verifiedKey === currentStayKey && !serverError);
+  const stayValidationError = !isOpen
+    ? null
+    : !currentStayKey
+    ? INVALID_STAY_ERROR_MESSAGE
+    : verifiedKey === currentStayKey && serverError
+    ? serverError
+    : null;
 
   // Khôi phục trạng thái mặc định khi modal mở lại mà không gây cascading render trong effect
   if (isOpen !== prevIsOpen) {
@@ -102,8 +249,31 @@ export function TicketModal({
       setSubmitError(null);
       setIsSuccess(false);
       setSubmittedTicket(null);
+      setVerifiedKey(null);
+      setServerError(null);
     }
   }
+
+  // Xác thực server-side với Supabase khi modal mở hoặc thông tin booking thay đổi
+  React.useEffect(() => {
+    let isMounted = true;
+
+    if (!currentStayKey || !bookingId || !roomId) {
+      return;
+    }
+
+    verifyActiveStay(bookingId, roomId).then((result) => {
+      if (!isMounted) return;
+      setVerifiedKey(currentStayKey);
+      setServerError(
+        result.valid ? null : result.error || INVALID_STAY_ERROR_MESSAGE
+      );
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentStayKey, bookingId, roomId]);
 
   const handleResetForm = () => {
     setCategory("");
@@ -122,16 +292,12 @@ export function TicketModal({
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    // Kiểm tra điều kiện tiên quyết: Yêu cầu hỗ trợ phải gắn với kỳ lưu trú đang hoạt động
-    if (!bookingId || !roomId) {
-      setSubmitError(
-        "Yêu cầu hỗ trợ phải gắn với kỳ lưu trú đang hoạt động. Vui lòng mở lại từ trang My Stay."
-      );
+    // 1. Kiểm tra trạng thái hợp lệ đã được xác thực trước khi submit
+    if (!isStayValid || !bookingId || !roomId) {
+      setServerError(INVALID_STAY_ERROR_MESSAGE);
+      setSubmitError(INVALID_STAY_ERROR_MESSAGE);
       return;
     }
-
-    const activeBookingId = bookingId;
-    const activeRoomId = roomId;
 
     const validationErrors: typeof errors = {};
 
@@ -156,25 +322,51 @@ export function TicketModal({
     setIsSubmitting(true);
 
     try {
-      // 1. Trường hợp component nhận custom submit handler từ props
-      if (onSubmit) {
-        const result = await onSubmit({
-          category: category as TicketCategory,
-          description: trimmedDescription,
-        });
+      // 2. Server-side verification with Supabase before submitting
+      const verification = await verifyActiveStay(bookingId, roomId);
+      if (!verification.valid) {
+        const errorMsg = verification.error || INVALID_STAY_ERROR_MESSAGE;
+        setServerError(errorMsg);
+        setSubmitError(errorMsg);
+        return;
+      }
 
-        if (result) {
+      const activeBookingId = bookingId.trim();
+      const activeRoomId = roomId.trim();
+
+      // 3. Trường hợp component nhận custom submit handler từ props
+      if (onSubmit) {
+        let result: Ticket | null = null;
+        try {
+          result = (await onSubmit({
+            category: category as TicketCategory,
+            description: trimmedDescription,
+          })) as Ticket | null;
+        } catch {
+          setSubmittedTicket(null);
+          setIsSuccess(false);
+          setSubmitError("Không thể xác nhận lưu trữ yêu cầu hỗ trợ.");
+          return;
+        }
+
+        if (
+          result &&
+          typeof result === "object" &&
+          typeof result.id === "string" &&
+          result.id.trim().length > 0
+        ) {
           setSubmittedTicket(result);
           setIsSuccess(true);
           onSuccess?.(result);
         } else {
           setSubmittedTicket(null);
-          setIsSuccess(true);
+          setIsSuccess(false);
+          setSubmitError("Không thể xác nhận lưu trữ yêu cầu hỗ trợ.");
         }
         return;
       }
 
-      // 2. Mặc định: Gửi trực tiếp vào Supabase qua Browser Client
+      // 4. Mặc định: Gửi trực tiếp vào Supabase qua Browser Client
       const supabase = createClient();
       const {
         data: { user },
@@ -310,15 +502,23 @@ export function TicketModal({
       ) : (
         /* =================== FORM NHẬP YÊU CẦU HỖ TRỢ =================== */
         <form onSubmit={handleSubmit} className="space-y-4 pt-1" noValidate>
-          {!hasActiveStay ? (
+          {isValidatingStay ? (
+            <div
+              role="status"
+              className="p-3.5 rounded-xl bg-dark/5 border border-dark/10 text-dark/70 text-xs sm:text-sm flex items-center gap-2.5 animate-in fade-in"
+            >
+              <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin shrink-0" />
+              <div className="flex-1 leading-snug">
+                Đang xác thực thông tin kỳ lưu trú...
+              </div>
+            </div>
+          ) : stayValidationError ? (
             <div
               role="alert"
-              className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs sm:text-sm flex items-start gap-2.5 animate-in fade-in"
+              className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs sm:text-sm flex items-start gap-2.5 animate-in fade-in"
             >
-              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-              <div className="flex-1 leading-snug">
-                Yêu cầu hỗ trợ phải gắn với kỳ lưu trú đang hoạt động. Vui lòng mở lại từ trang My Stay.
-              </div>
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              <div className="flex-1 leading-snug">{stayValidationError}</div>
             </div>
           ) : submitError ? (
             <div
@@ -350,7 +550,7 @@ export function TicketModal({
               <select
                 id="ticket-category-select"
                 value={category}
-                disabled={isSubmitting}
+                disabled={!isStayValid || isValidatingStay || isSubmitting}
                 onChange={(e) => {
                   setCategory(e.target.value as TicketCategory);
                   if (errors.category) {
@@ -363,7 +563,8 @@ export function TicketModal({
                   errors.category
                     ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20 text-rose-950"
                     : "border-dark/20 focus:border-primary focus:ring-primary/20",
-                  isSubmitting && "bg-dark/5 text-dark/40 cursor-not-allowed",
+                  (!isStayValid || isValidatingStay || isSubmitting) &&
+                    "bg-dark/5 text-dark/40 cursor-not-allowed",
                   !category && "text-dark/40"
                 )}
               >
@@ -411,7 +612,7 @@ export function TicketModal({
               id="ticket-description-input"
               rows={3}
               value={description}
-              disabled={isSubmitting}
+              disabled={!isStayValid || isValidatingStay || isSubmitting}
               placeholder="Vui lòng mô tả cụ thể tình trạng sự cố (ví dụ: Khóa cửa phòng không nhận mã pin, điều hòa thổi gió yếu không mát...)"
               onChange={(e) => {
                 setDescription(e.target.value);
@@ -426,7 +627,8 @@ export function TicketModal({
                 errors.description
                   ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20 text-rose-950"
                   : "border-dark/20 focus:border-primary focus:ring-primary/20",
-                isSubmitting && "bg-dark/5 text-dark/40 cursor-not-allowed"
+                (!isStayValid || isValidatingStay || isSubmitting) &&
+                  "bg-dark/5 text-dark/40 cursor-not-allowed"
               )}
             />
 
@@ -456,7 +658,7 @@ export function TicketModal({
               type="submit"
               variant="primary"
               isLoading={isSubmitting}
-              disabled={!hasActiveStay || isSubmitting}
+              disabled={!isStayValid || isValidatingStay || isSubmitting}
               leftIcon={<Send className="w-4 h-4" />}
             >
               Gửi yêu cầu

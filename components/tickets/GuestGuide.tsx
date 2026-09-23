@@ -242,7 +242,7 @@ export function GuestGuide({
   propertyName,
   guideData,
   deviceInstructions,
-  localSpots = DEFAULT_LOCAL_SPOTS,
+  localSpots = [],
   defaultTab = "devices",
   onReportIssueClick,
 }: GuestGuideProps) {
@@ -251,7 +251,9 @@ export function GuestGuide({
   const [selectedSpotCategory, setSelectedSpotCategory] = React.useState<string>("all");
 
   const effectiveInstructions = React.useMemo(() => {
-    return guideData || deviceInstructions || DEFAULT_DEVICE_INSTRUCTIONS;
+    if (Array.isArray(guideData)) return guideData;
+    if (Array.isArray(deviceInstructions)) return deviceInstructions;
+    return [];
   }, [guideData, deviceInstructions]);
 
   // Lọc thiết bị theo category
@@ -262,8 +264,9 @@ export function GuestGuide({
 
   // Lọc địa điểm theo category
   const filteredSpots = React.useMemo(() => {
-    if (selectedSpotCategory === "all") return localSpots;
-    return localSpots.filter((s) => s.category === selectedSpotCategory);
+    const spots = Array.isArray(localSpots) ? localSpots : [];
+    if (selectedSpotCategory === "all") return spots;
+    return spots.filter((s) => s.category === selectedSpotCategory);
   }, [localSpots, selectedSpotCategory]);
 
   const getDeviceIcon = (category: DeviceCategory) => {
@@ -415,122 +418,135 @@ export function GuestGuide({
             ))}
           </div>
 
-          {/* Danh sách thẻ thiết bị */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {filteredDevices.map((device) => (
-              <div
-                key={device.id}
-                className="bg-white rounded-2xl border border-dark/10 shadow-sm overflow-hidden flex flex-col justify-between hover:border-primary/30 transition-all duration-200"
-              >
-                <div>
-                  {/* Media Placeholder dành riêng cho TV9 chèn Video / Ảnh nét cao */}
-                  <div className="relative w-full aspect-video bg-gradient-to-br from-dark-50 to-dark-100 border-b border-dark/10 flex flex-col items-center justify-center p-4 text-center overflow-hidden group">
-                    <div className="w-12 h-12 rounded-full bg-white/90 shadow-md text-primary flex items-center justify-center mb-2 group-hover:scale-105 transition-transform">
-                      {device.mediaType === "video" ? (
-                        <Play className="w-5 h-5 ml-0.5 text-primary" />
-                      ) : (
-                        getDeviceIcon(device.category)
-                      )}
-                    </div>
-
-                    <p className="text-xs font-medium text-dark/80">
-                      {device.mediaType === "video"
-                        ? `Video hướng dẫn thao tác (${device.duration || "15s"})`
-                        : "Ảnh trực quan vị trí & nút bấm"}
-                    </p>
-                    <span className="text-[10px] text-dark/50 mt-0.5">
-                      (Khu vực chuẩn bị đón tài nguyên media từ TV9)
-                    </span>
-
-                    {/* Badge loại media */}
-                    <div className="absolute top-3 left-3">
-                      <Badge variant="neutral" size="sm">
-                        {device.mediaType === "video" ? "Video HD" : "Ảnh hướng dẫn"}
-                      </Badge>
-                    </div>
-                  </div>
-
-                  {/* Chi tiết nội dung hướng dẫn */}
-                  <div className="p-5 sm:p-6 space-y-4">
-                    <div className="flex items-start gap-3">
-                      <div className="p-2.5 rounded-xl bg-dark/5 shrink-0 mt-0.5">
-                        {getDeviceIcon(device.category)}
+          {/* Danh sách thẻ thiết bị / Trạng thái trống */}
+          {filteredDevices.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-dark/10 p-8 sm:p-12 text-center flex flex-col items-center justify-center shadow-sm space-y-3">
+              <div className="w-12 h-12 rounded-full bg-dark/5 flex items-center justify-center text-dark/40 mb-1">
+                <Sliders className="w-6 h-6" />
+              </div>
+              <h4 className="text-base sm:text-lg font-bold text-dark max-w-lg leading-relaxed">
+                Hướng dẫn sử dụng thiết bị đang được cập nhật riêng cho căn hộ này. Vui lòng liên hệ quản gia nếu cần trợ giúp.
+              </h4>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {filteredDevices.map((device) => (
+                <div
+                  key={device.id}
+                  className="bg-white rounded-2xl border border-dark/10 shadow-sm overflow-hidden flex flex-col justify-between hover:border-primary/30 transition-all duration-200"
+                >
+                  <div>
+                    {/* Media Placeholder dành riêng cho TV9 chèn Video / Ảnh nét cao */}
+                    <div className="relative w-full aspect-video bg-gradient-to-br from-dark-50 to-dark-100 border-b border-dark/10 flex flex-col items-center justify-center p-4 text-center overflow-hidden group">
+                      <div className="w-12 h-12 rounded-full bg-white/90 shadow-md text-primary flex items-center justify-center mb-2 group-hover:scale-105 transition-transform">
+                        {device.mediaType === "video" ? (
+                          <Play className="w-5 h-5 ml-0.5 text-primary" />
+                        ) : (
+                          getDeviceIcon(device.category)
+                        )}
                       </div>
-                      <div>
-                        <h3 className="text-base sm:text-lg font-bold text-dark leading-snug">
-                          {device.title}
-                        </h3>
-                        <p className="text-xs sm:text-sm text-dark/60 mt-1 leading-relaxed">
-                          {device.summary}
-                        </p>
+
+                      <p className="text-xs font-medium text-dark/80">
+                        {device.mediaType === "video"
+                          ? `Video hướng dẫn thao tác (${device.duration || "15s"})`
+                          : "Ảnh trực quan vị trí & nút bấm"}
+                      </p>
+                      <span className="text-[10px] text-dark/50 mt-0.5">
+                        (Khu vực chuẩn bị đón tài nguyên media từ TV9)
+                      </span>
+
+                      {/* Badge loại media */}
+                      <div className="absolute top-3 left-3">
+                        <Badge variant="neutral" size="sm">
+                          {device.mediaType === "video" ? "Video HD" : "Ảnh hướng dẫn"}
+                        </Badge>
                       </div>
                     </div>
 
-                    {/* Các bước thao tác */}
-                    <div className="space-y-2.5 pt-2">
-                      <h4 className="text-xs font-semibold uppercase tracking-wider text-dark/50">
-                        Các bước thực hiện:
-                      </h4>
-                      <ol className="space-y-2">
-                        {device.steps.map((step, idx) => (
-                          <li
-                            key={idx}
-                            className="flex items-start gap-2.5 text-xs sm:text-sm text-dark/80"
-                          >
-                            <span className="w-5 h-5 rounded-full bg-primary/10 text-primary text-xs font-bold shrink-0 flex items-center justify-center mt-0.5">
-                              {idx + 1}
-                            </span>
-                            <span className="leading-relaxed">{step}</span>
-                          </li>
-                        ))}
-                      </ol>
-                    </div>
-
-                    {/* Mẹo / Lưu ý an toàn */}
-                    {device.tips && (
-                      <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200/80 flex items-start gap-2.5 text-xs text-amber-900">
-                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                        <div className="leading-relaxed">
-                          <strong className="font-semibold">Lưu ý: </strong>
-                          {device.tips}
+                    {/* Chi tiết nội dung hướng dẫn */}
+                    <div className="p-5 sm:p-6 space-y-4">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2.5 rounded-xl bg-dark/5 shrink-0 mt-0.5">
+                          {getDeviceIcon(device.category)}
+                        </div>
+                        <div>
+                          <h3 className="text-base sm:text-lg font-bold text-dark leading-snug">
+                            {device.title}
+                          </h3>
+                          <p className="text-xs sm:text-sm text-dark/60 mt-1 leading-relaxed">
+                            {device.summary}
+                          </p>
                         </div>
                       </div>
-                    )}
-                  </div>
-                </div>
 
-                {/* Footer chân thẻ có nút hỗ trợ sự cố */}
-                {onReportIssueClick && (
-                  <div className="px-5 sm:px-6 py-3.5 bg-dark/2 border-t border-dark/10 flex items-center justify-between text-xs">
-                    <span className="text-dark/50 flex items-center gap-1.5">
-                      <HelpCircle className="w-3.5 h-3.5" />
-                      Gặp khó khăn khi sử dụng?
-                    </span>
-                    <button
-                      type="button"
-                      onClick={onReportIssueClick}
-                      className="font-medium text-primary hover:underline hover:text-primary-700 transition-colors"
-                    >
-                      Báo lỗi thiết bị này &rarr;
-                    </button>
+                      {/* Các bước thao tác */}
+                      <div className="space-y-2.5 pt-2">
+                        <h4 className="text-xs font-semibold uppercase tracking-wider text-dark/50">
+                          Các bước thực hiện:
+                        </h4>
+                        <ol className="space-y-2">
+                          {device.steps.map((step, idx) => (
+                            <li
+                              key={idx}
+                              className="flex items-start gap-2.5 text-xs sm:text-sm text-dark/80"
+                            >
+                              <span className="w-5 h-5 rounded-full bg-primary/10 text-primary text-xs font-bold shrink-0 flex items-center justify-center mt-0.5">
+                                {idx + 1}
+                              </span>
+                              <span className="leading-relaxed">{step}</span>
+                            </li>
+                          ))}
+                        </ol>
+                      </div>
+
+                      {/* Mẹo / Lưu ý an toàn */}
+                      {device.tips && (
+                        <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200/80 flex items-start gap-2.5 text-xs text-amber-900">
+                          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                          <div className="leading-relaxed">
+                            <strong className="font-semibold">Lưu ý: </strong>
+                            {device.tips}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                )}
-              </div>
-            ))}
-          </div>
+
+                  {/* Footer chân thẻ có nút hỗ trợ sự cố */}
+                  {onReportIssueClick && (
+                    <div className="px-5 sm:px-6 py-3.5 bg-dark/2 border-t border-dark/10 flex items-center justify-between text-xs">
+                      <span className="text-dark/50 flex items-center gap-1.5">
+                        <HelpCircle className="w-3.5 h-3.5" />
+                        Gặp khó khăn khi sử dụng?
+                      </span>
+                      <button
+                        type="button"
+                        onClick={onReportIssueClick}
+                        className="font-medium text-primary hover:underline hover:text-primary-700 transition-colors"
+                      >
+                        Báo lỗi thiết bị này &rarr;
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {/* ================= NỘI DUNG TAB 2: CẨM NANG ĐỊA PHƯƠNG ================= */}
       {activeTab === "local" && (
         <div className="space-y-6 animate-in fade-in duration-200">
-          {/* Thông báo dữ liệu mẫu tham khảo */}
-          <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200/80 flex items-center gap-2.5 text-xs text-amber-900 shadow-sm">
-            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-            <span className="font-medium">
-              Dữ liệu mẫu tham khảo - Danh sách địa điểm đang được cập nhật riêng cho từng cơ sở lưu trú.
-            </span>
-          </div>
+          {/* Thông báo dữ liệu mẫu tham khảo nếu có địa điểm */}
+          {localSpots.length > 0 && (
+            <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200/80 flex items-center gap-2.5 text-xs text-amber-900 shadow-sm">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+              <span className="font-medium">
+                Dữ liệu mẫu tham khảo - Danh sách địa điểm đang được cập nhật riêng cho từng cơ sở lưu trú.
+              </span>
+            </div>
+          )}
 
           {/* Bộ lọc nhanh tiện ích xung quanh */}
           <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
@@ -556,97 +572,111 @@ export function GuestGuide({
             ))}
           </div>
 
-          {/* Lưới thẻ cẩm nang ẩm thực & tiện ích */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filteredSpots.map((spot) => (
-              <div
-                key={spot.id}
-                className="bg-white rounded-2xl border border-dark/10 shadow-sm p-5 flex flex-col justify-between hover:shadow-md hover:border-dark/20 transition-all duration-200"
-              >
-                <div className="space-y-3.5">
-                  {/* Tag phân loại và khoảng cách */}
-                  <div className="flex items-center justify-between gap-2">
-                    <Badge
-                      variant={
-                        spot.category === "food"
-                          ? "primary"
-                          : spot.category === "cafe"
-                          ? "secondary"
-                          : "success"
-                      }
-                      size="sm"
-                      icon={getSpotIcon(spot.category)}
-                    >
-                      {getSpotCategoryLabel(spot.category)}
-                    </Badge>
+          {/* Lưới thẻ cẩm nang ẩm thực & tiện ích / Trạng thái trống */}
+          {filteredSpots.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-dark/10 p-8 sm:p-12 text-center flex flex-col items-center justify-center shadow-sm space-y-3">
+              <div className="w-12 h-12 rounded-full bg-dark/5 flex items-center justify-center text-dark/40 mb-1">
+                <MapPin className="w-6 h-6" />
+              </div>
+              <h4 className="text-base sm:text-lg font-bold text-dark">
+                Chưa có địa điểm khám phá được cập nhật cho cơ sở này.
+              </h4>
+              <p className="text-xs sm:text-sm text-dark/60 max-w-md leading-relaxed">
+                Danh sách ẩm thực và điểm tham quan lân cận đang được đồng bộ theo cơ sở lưu trú.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {filteredSpots.map((spot) => (
+                <div
+                  key={spot.id}
+                  className="bg-white rounded-2xl border border-dark/10 shadow-sm p-5 flex flex-col justify-between hover:shadow-md hover:border-dark/20 transition-all duration-200"
+                >
+                  <div className="space-y-3.5">
+                    {/* Tag phân loại và khoảng cách */}
+                    <div className="flex items-center justify-between gap-2">
+                      <Badge
+                        variant={
+                          spot.category === "food"
+                            ? "primary"
+                            : spot.category === "cafe"
+                            ? "secondary"
+                            : "success"
+                        }
+                        size="sm"
+                        icon={getSpotIcon(spot.category)}
+                      >
+                        {getSpotCategoryLabel(spot.category)}
+                      </Badge>
 
-                    <div className="flex items-center gap-1 text-xs text-dark/60 font-medium">
-                      <Navigation className="w-3 h-3 text-primary" />
-                      <span>{spot.distanceText}</span>
-                      <span className="text-dark/30">•</span>
-                      <span>{spot.estimatedTime}</span>
+                      <div className="flex items-center gap-1 text-xs text-dark/60 font-medium">
+                        <Navigation className="w-3 h-3 text-primary" />
+                        <span>{spot.distanceText}</span>
+                        <span className="text-dark/30">•</span>
+                        <span>{spot.estimatedTime}</span>
+                      </div>
+                    </div>
+
+                    {/* Tên & Địa chỉ */}
+                    <div>
+                      <h3 className="text-base font-bold text-dark leading-snug">
+                        {spot.name}
+                      </h3>
+                      <p className="text-xs text-dark/60 mt-1 flex items-start gap-1 leading-normal">
+                        <MapPin className="w-3.5 h-3.5 text-dark/40 shrink-0 mt-0.5" />
+                        <span>{spot.address}</span>
+                      </p>
+                    </div>
+
+                    {/* Giờ mở cửa & Mức giá nếu có */}
+                    <div className="flex flex-wrap items-center gap-y-1 gap-x-3 text-xs text-dark/70 pt-1 border-t border-dark/10">
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5 text-dark/40" />
+                        {spot.openingHours}
+                      </span>
+                      {spot.priceRange && (
+                        <span className="text-dark/50">Khoảng: {spot.priceRange}</span>
+                      )}
+                    </div>
+
+                    {/* Điểm nổi bật / Món nên thử */}
+                    <div className="p-3 rounded-xl bg-dark/2 border border-dark/10 text-xs text-dark/80 leading-relaxed">
+                      <strong className="text-dark font-medium block mb-0.5">
+                        Gợi ý trải nghiệm:
+                      </strong>
+                      {spot.highlight}
                     </div>
                   </div>
 
-                  {/* Tên & Địa chỉ */}
-                  <div>
-                    <h3 className="text-base font-bold text-dark leading-snug">
-                      {spot.name}
-                    </h3>
-                    <p className="text-xs text-dark/60 mt-1 flex items-start gap-1 leading-normal">
-                      <MapPin className="w-3.5 h-3.5 text-dark/40 shrink-0 mt-0.5" />
-                      <span>{spot.address}</span>
-                    </p>
-                  </div>
+                  {/* Các nút tương tác: Chỉ đường & Gọi điện */}
+                  <div className="pt-4 mt-4 border-t border-dark/10 flex items-center gap-2">
+                    {spot.mapsUrl && (
+                      <a
+                        href={spot.mapsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                      >
+                        <span>Chỉ đường</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
 
-                  {/* Giờ mở cửa & Mức giá nếu có */}
-                  <div className="flex flex-wrap items-center gap-y-1 gap-x-3 text-xs text-dark/70 pt-1 border-t border-dark/10">
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5 text-dark/40" />
-                      {spot.openingHours}
-                    </span>
-                    {spot.priceRange && (
-                      <span className="text-dark/50">Khoảng: {spot.priceRange}</span>
+                    {spot.phoneNumber && (
+                      <a
+                        href={`tel:${spot.phoneNumber.replace(/\s+/g, "")}`}
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium border border-dark/20 text-dark hover:bg-dark/5 transition-colors"
+                        title={`Gọi ${spot.phoneNumber}`}
+                      >
+                        <Phone className="w-3.5 h-3.5 text-secondary" />
+                        <span className="hidden sm:inline">Gọi quán</span>
+                      </a>
                     )}
                   </div>
-
-                  {/* Điểm nổi bật / Món nên thử */}
-                  <div className="p-3 rounded-xl bg-dark/2 border border-dark/10 text-xs text-dark/80 leading-relaxed">
-                    <strong className="text-dark font-medium block mb-0.5">
-                      Gợi ý trải nghiệm:
-                    </strong>
-                    {spot.highlight}
-                  </div>
                 </div>
-
-                {/* Các nút tương tác: Chỉ đường & Gọi điện */}
-                <div className="pt-4 mt-4 border-t border-dark/10 flex items-center gap-2">
-                  {spot.mapsUrl && (
-                    <a
-                      href={spot.mapsUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-                    >
-                      <span>Chỉ đường</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-                  )}
-
-                  {spot.phoneNumber && (
-                    <a
-                      href={`tel:${spot.phoneNumber.replace(/\s+/g, "")}`}
-                      className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium border border-dark/20 text-dark hover:bg-dark/5 transition-colors"
-                      title={`Gọi ${spot.phoneNumber}`}
-                    >
-                      <Phone className="w-3.5 h-3.5 text-secondary" />
-                      <span className="hidden sm:inline">Gọi quán</span>
-                    </a>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
 
           {/* Banner hỗ trợ thêm địa điểm */}
           <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 sm:p-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
