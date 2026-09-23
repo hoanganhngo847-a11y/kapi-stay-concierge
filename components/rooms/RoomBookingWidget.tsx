@@ -35,16 +35,27 @@ export type AvailabilityState =
 
 export interface RoomBookingWidgetProps {
   room: PublicRoom;
+  initialCheckIn?: string;
+  initialCheckOut?: string;
+  initialGuests?: number;
 }
 
 /**
- * Returns today's date in local YYYY-MM-DD format.
+ * Returns today's calendar date in Asia/Ho_Chi_Minh as YYYY-MM-DD.
+ * This must match the catalog/server date semantics.
  */
-function getLocalTodayStr(): string {
-  const d = new Date();
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
+function getTodayInVietnam(): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const year = parts.find((p) => p.type === "year")?.value;
+  const month = parts.find((p) => p.type === "month")?.value;
+  const day = parts.find((p) => p.type === "day")?.value;
+
   return `${year}-${month}-${day}`;
 }
 
@@ -81,21 +92,41 @@ function calcCalendarNights(inDate: string, outDate: string): number {
   return diffDays > 0 ? diffDays : 0;
 }
 
-export function RoomBookingWidget({ room }: RoomBookingWidgetProps) {
-  const todayStr = React.useMemo(() => getLocalTodayStr(), []);
+export function RoomBookingWidget({
+  room,
+  initialCheckIn,
+  initialCheckOut,
+  initialGuests,
+}: RoomBookingWidgetProps) {
+  const todayStr = React.useMemo(() => getTodayInVietnam(), []);
   const maxCapacity = Math.max(1, Number(room.capacity) || 1);
 
+  const normalizedInitialCheckIn =
+    initialCheckIn && initialCheckIn >= todayStr ? initialCheckIn : "";
+  const normalizedInitialCheckOut =
+    normalizedInitialCheckIn &&
+    initialCheckOut &&
+    initialCheckOut > normalizedInitialCheckIn
+      ? initialCheckOut
+      : "";
+  const normalizedInitialGuests =
+    Number.isInteger(initialGuests) && Number(initialGuests) > 0
+      ? Math.min(Number(initialGuests), maxCapacity)
+      : 1;
+
   // Form State
-  const [checkIn, setCheckIn] = React.useState("");
-  const [checkOut, setCheckOut] = React.useState("");
-  const [guests, setGuests] = React.useState(1);
+  const [checkIn, setCheckIn] = React.useState(normalizedInitialCheckIn);
+  const [checkOut, setCheckOut] = React.useState(normalizedInitialCheckOut);
+  const [guests, setGuests] = React.useState(normalizedInitialGuests);
   const [validationError, setValidationError] = React.useState<string | null>(null);
   const [handoffMessage, setHandoffMessage] = React.useState<string | null>(null);
 
-  // Availability State Machine (Initialized to IDLE)
-  const [availability, setAvailability] = React.useState<AvailabilityState>({
-    status: "IDLE",
-  });
+  // If the catalog handed us a complete valid date range, immediately verify it.
+  const [availability, setAvailability] = React.useState<AvailabilityState>(
+    normalizedInitialCheckIn && normalizedInitialCheckOut
+      ? { status: "CHECKING" }
+      : { status: "IDLE" }
+  );
 
   // Request counter ref for stale response / race condition protection
   const requestIdRef = React.useRef(0);
