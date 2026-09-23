@@ -1,4 +1,58 @@
 import { createClient } from "@/lib/supabase/server";
+import { checkRoomAvailability } from "@/lib/data/bookings";
+
+export const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isValidUUID(val: unknown): val is string {
+  return typeof val === "string" && UUID_REGEX.test(val.trim());
+}
+
+export const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Validates whether a value is a valid calendar date in YYYY-MM-DD format.
+ */
+export function isValidCalendarDate(val: unknown): val is string {
+  if (typeof val !== "string" || !DATE_REGEX.test(val.trim())) {
+    return false;
+  }
+  const [yearStr, monthStr, dayStr] = val.trim().split("-");
+  const year = parseInt(yearStr, 10);
+  const month = parseInt(monthStr, 10);
+  const day = parseInt(dayStr, 10);
+
+  if (month < 1 || month > 12 || day < 1 || day > 31) {
+    return false;
+  }
+
+  const d = new Date(Date.UTC(year, month - 1, day));
+  return (
+    d.getUTCFullYear() === year &&
+    d.getUTCMonth() === month - 1 &&
+    d.getUTCDate() === day
+  );
+}
+
+/**
+ * Lấy ngày hiện tại (YYYY-MM-DD) theo múi giờ Asia/Ho_Chi_Minh (đưa giờ về 00:00:00).
+ */
+export function getTodayInVietnam(): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const year = parts.find((p) => p.type === "year")?.value;
+  const month = parts.find((p) => p.type === "month")?.value;
+  const day = parts.find((p) => p.type === "day")?.value;
+
+  return `${year}-${month}-${day}`;
+}
+
+
 
 export interface PublicProperty {
   id: string;
@@ -22,7 +76,7 @@ export interface PublicRoom {
 }
 
 /**
- * Defensively extracts an array of amenity strings from unknown database values.
+ * Defensively extracts array of amenity strings from unknown database values.
  */
 export function parseAmenities(raw: unknown): string[] {
   if (Array.isArray(raw)) {
@@ -30,7 +84,7 @@ export function parseAmenities(raw: unknown): string[] {
       (item): item is string => typeof item === "string" && item.trim().length > 0
     );
   }
-  if (typeof raw === "string") {
+  if (typeof raw === "string" && raw.trim().length > 0) {
     try {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
@@ -57,18 +111,136 @@ export function parseImagePaths(raw: unknown): string[] {
   return [];
 }
 
+export interface RoomCatalogFilters {
+  property_id?: string | string[];
+  capacity?: number | string | string[];
+  check_in?: string | string[];
+  check_out?: string | string[];
+  "check-in"?: string | string[];
+  "check-out"?: string | string[];
+  checkIn?: string | string[];
+  checkOut?: string | string[];
+  [key: string]: unknown;
+}
+
 /**
  * Fetches all listed rooms from public catalog joined with their property details.
- * Strictly uses public RLS via standard server client (no service_role).
+ * Queries strictly the Supabase rooms table.
+ * Returns empty array [] if no records exist; never uses fallback/seed data.
  */
-export async function getPublicRooms(): Promise<{
-  data: PublicRoom[] | null;
+export async function getPublicRooms(filters?: RoomCatalogFilters): Promise<{
+  data: PublicRoom[];
   error: string | null;
 }> {
   try {
+    // =========================================================================
+    // 1. VALIDATE TOÀN BỘ DỮ LIỆU ĐẦU VÀO TRƯỚC KHI TRUY VẤN DATABASE
+    // Phải chặn đứng và return error ngay lập tức nếu URL sai, KHÔNG query DB.
+    // =========================================================================
+
+    // (A) Validate property_id:
+    // Chuẩn hóa ID: Bỏ mọi fallback location hoặc location_code gán cho property_id. Chỉ đọc property_id.
+    const rawProp = filters?.property_id;
+    const propertyId =
+      typeof rawProp === "string"
+        ? rawProp.trim()
+        : Array.isArray(rawProp) && typeof rawProp[0] === "string"
+          ? rawProp[0].trim()
+          : "";
+
+    // BẮT BUỘC: Nếu có param property_id nhưng không phải UUID hợp lệ, BẮT BUỘC return ngay { data: [], error: 'Invalid property_id' }. Tuyệt đối KHÔNG silently ignore để query toàn bộ phòng (fail-open).
+    if (filters?.property_id !== undefined && filters?.property_id !== null && filters?.property_id !== "") {
+      if (!propertyId || !isValidUUID(propertyId)) {
+        return { data: [], error: "Invalid property_id" };
+      }
+    }
+
+    // (B) Validate capacity (kiểm tra nghiêm ngặt regex số nguyên dương):
+    const rawCapacity =
+      filters?.capacity ?? filters?.max_guests ?? filters?.guests;
+    const capacityStr =
+      typeof rawCapacity === "string"
+        ? rawCapacity.trim()
+        : Array.isArray(rawCapacity) && typeof rawCapacity[0] === "string"
+          ? rawCapacity[0].trim()
+          : "";
+
+    let capacityNum = 0;
+    if (rawCapacity !== undefined && rawCapacity !== null && rawCapacity !== "") {
+      if (typeof rawCapacity === "number") {
+        if (!Number.isInteger(rawCapacity) || rawCapacity <= 0) {
+          return { data: [], error: "Số lượng khách không hợp lệ" };
+        }
+        capacityNum = rawCapacity;
+      } else if (capacityStr) {
+        if (!/^\d+$/.test(capacityStr) || parseInt(capacityStr, 10) <= 0) {
+          return { data: [], error: "Số lượng khách không hợp lệ" };
+        }
+        capacityNum = parseInt(capacityStr, 10);
+      } else {
+        return { data: [], error: "Số lượng khách không hợp lệ" };
+      }
+    }
+
+    // (C) Validate check-in / check-out:
+    // Ưu tiên cao nhất key chuẩn (canonical) check_in và check_out. Chỉ fallback sang alias khi undefined.
+    const rawCheckIn =
+      filters?.check_in ??
+      filters?.["check-in"] ??
+      filters?.checkIn;
+    const rawCheckOut =
+      filters?.check_out ??
+      filters?.["check-out"] ??
+      filters?.checkOut;
+
+    const checkIn =
+      typeof rawCheckIn === "string"
+        ? rawCheckIn.trim()
+        : Array.isArray(rawCheckIn) && typeof rawCheckIn[0] === "string"
+          ? rawCheckIn[0].trim()
+          : "";
+    const checkOut =
+      typeof rawCheckOut === "string"
+        ? rawCheckOut.trim()
+        : Array.isArray(rawCheckOut) && typeof rawCheckOut[0] === "string"
+          ? rawCheckOut[0].trim()
+          : "";
+
+    // Partial Date: Nếu URL chỉ có checkIn hoặc chỉ có checkOut (có 1 mà thiếu 1), return ngay { data: [], error: 'Vui lòng chọn đầy đủ ngày nhận và trả phòng' }. Không được bỏ qua filter.
+    if ((checkIn && !checkOut) || (!checkIn && checkOut)) {
+      return {
+        data: [],
+        error: "Vui lòng chọn đầy đủ ngày nhận và trả phòng",
+      };
+    }
+
+    if (checkIn && checkOut) {
+      // 1. Kiểm tra phải đúng định dạng YYYY-MM-DD và là ngày hợp lệ theo lịch
+      if (!isValidCalendarDate(checkIn) || !isValidCalendarDate(checkOut)) {
+        return { data: [], error: "Ngày check-in/check-out không hợp lệ" };
+      }
+
+      // 2. Quá khứ: Nếu có đủ 2 ngày hợp lệ, phải lấy ngày hiện tại (today) ép theo múi giờ Asia/Ho_Chi_Minh (đưa giờ về 00:00:00). Nếu checkIn nhỏ hơn ngày hiện tại, return ngay { data: [], error: 'Ngày nhận phòng không được nằm trong quá khứ' }.
+      const todayVNStr = getTodayInVietnam();
+      if (checkIn < todayVNStr) {
+        return {
+          data: [],
+          error: "Ngày nhận phòng không được nằm trong quá khứ",
+        };
+      }
+
+      // 3. Kiểm tra checkOut phải lớn hơn checkIn
+      if (checkOut <= checkIn) {
+        return { data: [], error: "Ngày check-in/check-out không hợp lệ" };
+      }
+    }
+
+    // =========================================================================
+    // 2. CHỈ KHI TẤT CẢ FILTER ĐỀU HỢP LỆ MỚI ĐƯỢC PHÉP QUERY DATABASE
+    // =========================================================================
     const supabase = await createClient();
 
-    const { data, error } = await supabase
+    let query = supabase
       .from("rooms")
       .select(
         `
@@ -90,15 +262,27 @@ export async function getPublicRooms(): Promise<{
         )
       `
       )
-      .eq("is_listed", true)
-      .order("nightly_price_vnd", { ascending: true });
+      .eq("is_listed", true);
+
+    if (propertyId) {
+      query = query.eq("property_id", propertyId);
+    }
+
+    // Đảm bảo biến capacity nếu được truyền vào DB query phải luôn là số nguyên dương hợp lệ
+    if (Number.isInteger(capacityNum) && capacityNum > 0) {
+      query = query.gte("capacity", capacityNum);
+    }
+
+    query = query.order("nightly_price_vnd", { ascending: true });
+
+    const { data, error } = await query;
 
     if (error) {
       console.error("Error querying public rooms:", error.message);
-      return { data: null, error: error.message };
+      return { data: [], error: error.message };
     }
 
-    if (!data) {
+    if (!data || data.length === 0) {
       return { data: [], error: null };
     }
 
@@ -114,7 +298,7 @@ export async function getPublicRooms(): Promise<{
         name: item.name,
         description: item.description,
         nightly_price_vnd: Number(item.nightly_price_vnd) || 0,
-        capacity: Number(item.capacity) || 2,
+        capacity: Number(item.capacity) || 0,
         amenities: parseAmenities(item.amenities),
         image_paths: parseImagePaths(item.image_paths),
         is_listed: item.is_listed,
@@ -122,25 +306,93 @@ export async function getPublicRooms(): Promise<{
       };
     });
 
+    // =========================================================================
+    // 3. TÍNH TOÁN AVAILABILITY CHO KHOẢNG NGÀY ĐÃ ĐƯỢC VALIDATE HỢP LỆ
+    // =========================================================================
+    if (checkIn && checkOut) {
+      try {
+        // KHÔNG ĐƯỢC catch lỗi hệ thống/RPC rồi return null bên trong mapper để tránh UI hiểu nhầm là hết phòng.
+        // Để exception văng ra ngoài cho catch block xử lý và trả về error rõ ràng.
+        const availabilityResults = await Promise.all(
+          rooms.map(async (room) => {
+            const isAvailable = await checkRoomAvailability(
+              room.id,
+              checkIn,
+              checkOut
+            );
+            return isAvailable ? room : null;
+          })
+        );
+
+        const availableRooms = availabilityResults.filter(
+          (room): room is PublicRoom => room !== null
+        );
+
+        return { data: availableRooms, error: null };
+      } catch (err) {
+        console.error(
+          "[getPublicRooms] Lỗi hệ thống khi gọi RPC check availability:",
+          err
+        );
+        return {
+          data: [],
+          error:
+            err instanceof Error
+              ? err.message
+              : "Không thể kiểm tra tình trạng phòng lúc này. Vui lòng thử lại.",
+        };
+      }
+    }
+
     return { data: rooms, error: null };
   } catch (err) {
     console.error("Unexpected error in getPublicRooms:", err);
-    return { data: null, error: "Lỗi kết nối cơ sở dữ liệu" };
+    return { data: [], error: "Lỗi kết nối cơ sở dữ liệu" };
+  }
+}
+
+/**
+ * Fetches all active properties for filter dropdowns.
+ * Returns empty array [] if no records exist; never uses fallback/seed data.
+ */
+export async function getActiveProperties(): Promise<{
+  data: PublicProperty[];
+  error: string | null;
+}> {
+  try {
+    const supabase = await createClient();
+
+    const { data, error } = await supabase
+      .from("properties")
+      .select("id, name, slug, address, maps_url")
+      .eq("is_active", true)
+      .order("name", { ascending: true });
+
+    if (error) {
+      console.error("Error querying properties:", error.message);
+      return { data: [], error: error.message };
+    }
+
+    if (data && data.length > 0) {
+      return { data: data as PublicProperty[], error: null };
+    }
+
+    return { data: [], error: null };
+  } catch (err) {
+    console.error("Unexpected error in getActiveProperties:", err);
+    return { data: [], error: "Lỗi kết nối cơ sở dữ liệu" };
   }
 }
 
 /**
  * Fetches a single public listed room by its UUID.
- * Returns null if room does not exist or is not listed.
+ * Returns null if room does not exist or is not listed; never uses fallback/seed data.
  */
 export async function getPublicRoomById(id: string): Promise<{
   data: PublicRoom | null;
   error: string | null;
 }> {
-  // Defensive UUID check
-  const uuidRegex =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  if (!uuidRegex.test(id)) {
+  if (!id || !isValidUUID(id)) {
     return { data: null, error: "ID phòng không hợp lệ" };
   }
 
@@ -178,29 +430,29 @@ export async function getPublicRoomById(id: string): Promise<{
       return { data: null, error: error.message };
     }
 
-    if (!data) {
-      return { data: null, error: null };
+    if (data) {
+      const propRaw = data.properties as unknown;
+      const property = Array.isArray(propRaw)
+        ? (propRaw[0] as PublicProperty | null)
+        : (propRaw as PublicProperty | null);
+
+      const room: PublicRoom = {
+        id: data.id,
+        property_id: data.property_id,
+        name: data.name,
+        description: data.description,
+        nightly_price_vnd: Number(data.nightly_price_vnd) || 0,
+        capacity: Number(data.capacity) || 0,
+        amenities: parseAmenities(data.amenities),
+        image_paths: parseImagePaths(data.image_paths),
+        is_listed: data.is_listed,
+        property,
+      };
+
+      return { data: room, error: null };
     }
 
-    const propRaw = data.properties as unknown;
-    const property = Array.isArray(propRaw)
-      ? (propRaw[0] as PublicProperty | null)
-      : (propRaw as PublicProperty | null);
-
-    const room: PublicRoom = {
-      id: data.id,
-      property_id: data.property_id,
-      name: data.name,
-      description: data.description,
-      nightly_price_vnd: Number(data.nightly_price_vnd) || 0,
-      capacity: Number(data.capacity) || 2,
-      amenities: parseAmenities(data.amenities),
-      image_paths: parseImagePaths(data.image_paths),
-      is_listed: data.is_listed,
-      property,
-    };
-
-    return { data: room, error: null };
+    return { data: null, error: null };
   } catch (err) {
     console.error(`Unexpected error in getPublicRoomById (${id}):`, err);
     return { data: null, error: "Lỗi kết nối cơ sở dữ liệu" };
