@@ -18,10 +18,23 @@
  * - checkout_sessions là trạng thái tạm thời; bookings là kết quả bền vững đã thanh toán.
  * - Tối đa 1 voucher / booking. Điểm loyalty = final_paid_amount_vnd × 0.00025.
  * - voucher_redemptions.checkout_session_id là nguồn chân lý cho voucher tạm giữ.
+ *
+ * CẬP NHẬT (feat/booking-checkout — sau khi merge main từ TV8):
+ * Tất cả thao tác ghi (INSERT / UPDATE) đã được chuyển sang gọi RPC
+ * SECURITY DEFINER do TV8 (Quỳnh) cung cấp qua migration
+ * 20260920120000_trusted_checkout_flow.sql, giải quyết [Blocker 1]:
+ * Direct insert/update bị RLS chặn.
+ *
+ * Các RPC được sử dụng:
+ *   - create_checkout_session_atomic   → createCheckoutSession
+ *   - reserve_checkout_voucher_atomic  → validateAndApplyVoucher
+ *   - release_checkout_voucher_atomic  → releaseVoucherFromSession
+ *   - finalize_verified_checkout_atomic → confirmBookingAndPayment
+ *     (service_role only — xem ghi chú trong hàm)
  */
 
 import { createClient } from "@/lib/supabase/server";
-import type { Tables, TablesInsert } from "@/lib/database.types";
+import type { Tables } from "@/lib/database.types";
 
 // ---------------------------------------------------------------------------
 // Re-export kiểu tiện dụng để component có thể import từ một nơi duy nhất
@@ -53,15 +66,14 @@ export interface CheckoutSessionWithRoom extends CheckoutSession {
 
 /**
  * Dữ liệu đầu vào để tạo checkout session.
- * Không bao gồm id / created_at / updated_at (DB tự sinh).
+ * gross_amount_vnd KHÔNG được truyền vào — RPC tự tính server-side
+ * từ nightly_price_vnd × số đêm để đảm bảo giá trị không bị giả mạo.
  */
 export interface CreateCheckoutSessionInput {
-  userId: string;
   roomId: string;
   checkIn: string;   // ISO date string: "YYYY-MM-DD"
   checkOut: string;  // ISO date string: "YYYY-MM-DD"
   guestCount: number;
-  grossAmountVnd: number;
 }
 
 /**
@@ -75,17 +87,71 @@ export interface VoucherValidationResult {
 }
 
 // ---------------------------------------------------------------------------
+// Helper: ánh xạ mã lỗi RPC → thông báo tiếng Việt thân thiện
+// ---------------------------------------------------------------------------
+
+const RPC_ERROR_MESSAGES: Record<string, string> = {
+  // create_checkout_session_atomic
+  UNAUTHORIZED: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
+  INVALID_DATE_RANGE: "Ngày nhận / trả phòng không hợp lệ.",
+  INVALID_GUEST_COUNT: "Số khách không hợp lệ.",
+  ROOM_NOT_FOUND_OR_UNLISTED:
+    "Phòng không tồn tại hoặc hiện không còn nhận đặt phòng.",
+  GUEST_COUNT_EXCEEDS_CAPACITY: "Số khách vượt quá sức chứa của phòng.",
+  ROOM_NOT_AVAILABLE:
+    "Phòng đã được đặt trong khoảng thời gian này. Vui lòng chọn ngày khác.",
+
+  // reserve_checkout_voucher_atomic
+  CHECKOUT_SESSION_NOT_FOUND: "Không tìm thấy phiên đặt phòng.",
+  FORBIDDEN: "Bạn không có quyền thực hiện thao tác này.",
+  INVALID_CHECKOUT_SESSION_STATUS:
+    "Phiên đặt phòng không ở trạng thái hợp lệ để áp voucher.",
+  CHECKOUT_SESSION_EXPIRED:
+    "Phiên đặt phòng đã hết hạn. Vui lòng bắt đầu lại.",
+  VOUCHER_ALREADY_RESERVED:
+    "Phiên này đã có voucher được áp dụng. Vui lòng hủy trước.",
+  VOUCHER_NOT_FOUND: "Không tìm thấy voucher.",
+  VOUCHER_NOT_AVAILABLE: "Voucher không ở trạng thái khả dụng.",
+  VOUCHER_EXPIRED: "Voucher đã hết hạn sử dụng.",
+  VOUCHER_DEFINITION_INVALID: "Loại voucher này hiện không còn hiệu lực.",
+
+  // release_checkout_voucher_atomic
+  NO_RESERVED_VOUCHER_ATTACHED:
+    "Không có voucher nào đang được gắn vào phiên này.",
+
+  // finalize_verified_checkout_atomic
+  PAYMENT_REFERENCE_MISMATCH:
+    "Nội dung chuyển khoản không khớp. Vui lòng kiểm tra lại.",
+  VERIFIED_AMOUNT_MISMATCH:
+    "Số tiền xác nhận không khớp với số tiền cần thanh toán.",
+  VOUCHER_STATE_INVALID:
+    "Trạng thái voucher không hợp lệ tại thời điểm xác nhận.",
+  COMPLETED_SESSION_WITHOUT_BOOKING:
+    "Phiên đặt phòng đã hoàn tất nhưng không tìm thấy đặt phòng liên kết.",
+  VERIFIED_AMOUNT_OR_REFERENCE_MISMATCH_ON_COMPLETED:
+    "Số tiền hoặc mã tham chiếu không khớp với đơn đặt phòng đã xác nhận.",
+};
+
+function mapRpcError(errorCode: string | undefined | null, fallback: string): string {
+  if (!errorCode) return fallback;
+  return RPC_ERROR_MESSAGES[errorCode] ?? fallback;
+}
+
+// ---------------------------------------------------------------------------
 // Hàm 1 — Tạo phiên checkout tạm thời
 // ---------------------------------------------------------------------------
 
 /**
- * Tạo một bản ghi mới trong bảng `checkout_sessions`.
+ * Tạo một bản ghi mới trong bảng `checkout_sessions` thông qua RPC
+ * `create_checkout_session_atomic` (SECURITY DEFINER, authenticated).
  *
- * - Status mặc định: "ACTIVE" (theo schema: ACTIVE → PAYMENT_PROCESSING → COMPLETED | EXPIRED | FAILED)
- * - Phiên hết hạn sau 30 phút (expires_at)
- * - discount_amount_vnd = 0 (chưa áp voucher)
- * - final_payable_amount_vnd = gross_amount_vnd (chưa giảm)
- * - payment_reference được sinh bởi server từ session ID và lưu vào DB
+ * RPC đảm bảo:
+ * - gross_amount_vnd được tính server-side: nightly_price_vnd × số đêm
+ * - payment_reference được sinh server-side từ session ID
+ * - Dọn dẹp opportunistic các ACTIVE sessions đã hết hạn của caller
+ * - Kiểm tra sơ bộ availability (final check xảy ra tại finalize)
+ *
+ * THAY ĐỔI SO VỚI TRƯỚC: không truyền grossAmountVnd nữa — RPC tự tính.
  *
  * @returns ID của checkout session vừa tạo, hoặc error string nếu thất bại.
  */
@@ -95,56 +161,41 @@ export async function createCheckoutSession(
   try {
     const supabase = await createClient();
 
-    const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
-
-    const insertData: TablesInsert<"checkout_sessions"> = {
-      user_id: input.userId,
-      room_id: input.roomId,
-      check_in: input.checkIn,
-      check_out: input.checkOut,
-      guest_count: input.guestCount,
-      gross_amount_vnd: input.grossAmountVnd,
-      discount_amount_vnd: 0,
-      final_payable_amount_vnd: input.grossAmountVnd,
-      // ACTIVE là trạng thái khởi tạo đúng theo schema.
-      // PENDING không tồn tại trong checkout_sessions.status.
-      status: "ACTIVE",
-      expires_at: expiresAt,
-      // payment_reference sẽ được gán sau khi có session ID (bên dưới)
-      payment_reference: null,
-    };
-
-    const { data, error } = await supabase
-      .from("checkout_sessions")
-      .insert(insertData)
-      .select("id")
-      .single();
+    const { data, error } = await supabase.rpc(
+      "create_checkout_session_atomic",
+      {
+        p_room_id: input.roomId,
+        p_check_in: input.checkIn,
+        p_check_out: input.checkOut,
+        p_guest_count: input.guestCount,
+      }
+    );
 
     if (error) {
-      console.error("[checkout] createCheckoutSession error:", error.message);
+      console.error("[checkout] createCheckoutSession RPC error:", error.message);
       return { sessionId: null, error: error.message };
     }
 
-    const sessionId = data.id;
+    // RPC trả về JSONB: { success: bool, checkout_session?: {...}, error?: string }
+    const result = data as {
+      success: boolean;
+      checkout_session?: { id: string };
+      error?: string;
+    };
 
-    // Sinh payment_reference từ session ID (server-side) và ghi vào DB.
-    // Format: KAPI + 8 ký tự hex đầu UUID (không dấu gạch ngang), viết hoa.
-    // Việc này đảm bảo payment_reference không bao giờ được client tự tạo.
-    const paymentReference =
-      "KAPI" + sessionId.replace(/-/g, "").slice(0, 8).toUpperCase();
-
-    const { error: refError } = await supabase
-      .from("checkout_sessions")
-      .update({ payment_reference: paymentReference })
-      .eq("id", sessionId);
-
-    if (refError) {
-      // Không block việc tạo session — log để team xử lý, session vẫn dùng được.
-      // payment_reference sẽ là null, QRModal sẽ hiển thị fallback.
-      console.error(
-        "[checkout] createCheckoutSession — update payment_reference error:",
-        refError.message
+    if (!result.success) {
+      const msg = mapRpcError(
+        result.error,
+        "Không thể tạo phiên đặt phòng. Vui lòng thử lại."
       );
+      console.error("[checkout] createCheckoutSession RPC returned failure:", result.error);
+      return { sessionId: null, error: msg };
+    }
+
+    const sessionId = result.checkout_session?.id ?? null;
+    if (!sessionId) {
+      console.error("[checkout] createCheckoutSession: RPC succeeded but no session id returned");
+      return { sessionId: null, error: "Không thể lấy ID phiên đặt phòng." };
     }
 
     return { sessionId, error: null };
@@ -163,6 +214,7 @@ export async function createCheckoutSession(
  *
  * Trả về null nếu session không tồn tại.
  * Không kiểm tra quyền ở đây — caller phải đảm bảo user_id khớp.
+ * Đây là thao tác READ-ONLY — không thay đổi theo RPC migration.
  *
  * @param id - UUID của checkout session
  */
@@ -291,22 +343,21 @@ export async function getCheckoutSession(
 // ---------------------------------------------------------------------------
 
 /**
- * Kiểm tra voucher redemption còn hiệu lực của user và tính số tiền được giảm,
- * sau đó gắn voucher đó vào checkout session bằng cách cập nhật
- * `voucher_redemptions.checkout_session_id` và status = "RESERVED".
+ * Gắn voucher redemption vào checkout session thông qua RPC
+ * `reserve_checkout_voucher_atomic` (SECURITY DEFINER, authenticated).
  *
- * NGHIỆP VỤ (AGENTS.md / SUPABASE_SCHEMA_DESIGN.md):
- * - Voucher phải ở trạng thái "AVAILABLE" và chưa hết hạn (expires_at > now).
- * - Chỉ 1 voucher được áp vào 1 checkout session.
- * - Discount = min(grossAmountVnd, max_eligible_base_vnd) × (discount_percentage / 100)
- *   Tối đa 400.000 VND (= 1.000.000 × 40%).
- * - Sau khi gắn: cập nhật discount_amount_vnd và final_payable_amount_vnd trên
- *   checkout_sessions.
+ * RPC đảm bảo (atomic, với row-level locking):
+ * - Session tồn tại, thuộc caller, ở trạng thái ACTIVE, chưa hết hạn
+ * - Chưa có voucher nào được gắn (tối đa 1 voucher / session)
+ * - Voucher tồn tại, thuộc caller, ở trạng thái AVAILABLE, chưa hết hạn
+ * - Loại voucher hợp lệ (percentage_discount, 40%, max_eligible 1,000,000 VND)
+ * - Discount được tính server-side: min(gross, 1,000,000) × 40%, max 400,000 VND
+ * - Cập nhật voucher_redemptions.status = "RESERVED" và checkout_sessions.discount/final_payable
  *
- * @param redemptionId   - UUID của voucher_redemptions record (user đã đổi trước đó)
- * @param userId         - UUID của user đang thực hiện checkout
- * @param sessionId      - UUID của checkout_sessions record đang xử lý
- * @param grossAmountVnd - Tổng tiền trước giảm giá (VND)
+ * @param redemptionId   - UUID của voucher_redemptions record
+ * @param userId         - UUID của user (dùng để audit log; RPC tự xác minh qua auth.uid())
+ * @param sessionId      - UUID của checkout_sessions record
+ * @param grossAmountVnd - Không dùng trong RPC (server tự biết), giữ lại để tương thích caller
  */
 export async function validateAndApplyVoucher(
   redemptionId: string,
@@ -314,167 +365,59 @@ export async function validateAndApplyVoucher(
   sessionId: string,
   grossAmountVnd: number
 ): Promise<VoucherValidationResult> {
+  // grossAmountVnd và userId không được truyền vào RPC —
+  // server tự lấy từ checkout_sessions và auth.uid().
+  // Tham số giữ lại để không phá vỡ signature của caller (actions.ts).
+  void userId;
+  void grossAmountVnd;
+
   try {
     const supabase = await createClient();
-    const now = new Date().toISOString();
 
-    // 1. Lấy thông tin redemption kèm voucher gốc
-    const { data: redemption, error: redemptionError } = await supabase
-      .from("voucher_redemptions")
-      .select(
-        `
-        id,
-        user_id,
-        voucher_id,
-        checkout_session_id,
-        booking_id,
-        discount_amount_vnd,
-        status,
-        expires_at,
-        issued_at,
-        used_at,
-        vouchers (
-          id,
-          name,
-          discount_percentage,
-          max_eligible_base_vnd,
-          points_cost,
-          is_active,
-          voucher_type
-        )
-      `
-      )
-      .eq("id", redemptionId)
-      .eq("user_id", userId)
-      .maybeSingle();
+    const { data, error } = await supabase.rpc(
+      "reserve_checkout_voucher_atomic",
+      {
+        p_checkout_session_id: sessionId,
+        p_voucher_redemption_id: redemptionId,
+      }
+    );
 
-    if (redemptionError) {
-      console.error("[checkout] validateAndApplyVoucher query error:", redemptionError.message);
+    if (error) {
+      console.error("[checkout] validateAndApplyVoucher RPC error:", error.message);
       return {
         valid: false,
         redemption: null,
         discountAmountVnd: 0,
-        errorMessage: "Không thể kiểm tra voucher. Vui lòng thử lại.",
+        errorMessage: "Không thể áp voucher. Vui lòng thử lại.",
       };
     }
 
-    if (!redemption) {
-      return {
-        valid: false,
-        redemption: null,
-        discountAmountVnd: 0,
-        errorMessage: "Voucher không tồn tại hoặc không thuộc tài khoản của bạn.",
+    const result = data as {
+      success: boolean;
+      error?: string;
+      voucher_redemption_id?: string;
+      checkout_session?: {
+        discount_amount_vnd: number;
       };
-    }
-
-    // 2. Kiểm tra trạng thái voucher
-    if (redemption.status !== "AVAILABLE") {
-      const statusMsg: Record<string, string> = {
-        RESERVED: "Voucher này đang được sử dụng trong một phiên khác.",
-        USED: "Voucher này đã được sử dụng.",
-        EXPIRED: "Voucher này đã hết hạn.",
-        REVOKED: "Voucher không hợp lệ.",
-      };
-      return {
-        valid: false,
-        redemption: null,
-        discountAmountVnd: 0,
-        errorMessage: statusMsg[redemption.status] ?? "Voucher không hợp lệ.",
-      };
-    }
-
-    // 3. Kiểm tra voucher còn hạn (expires_at > now)
-    if (redemption.expires_at <= now) {
-      return {
-        valid: false,
-        redemption: null,
-        discountAmountVnd: 0,
-        errorMessage: "Voucher đã hết hạn sử dụng (hết hạn sau 24 giờ kể từ khi đổi).",
-      };
-    }
-
-    // 4. Lấy thông tin voucher gốc
-    const voucherRaw = redemption.vouchers as unknown;
-    const voucherObj = Array.isArray(voucherRaw) ? voucherRaw[0] : voucherRaw;
-
-    if (!voucherObj || typeof voucherObj !== "object") {
-      return {
-        valid: false,
-        redemption: null,
-        discountAmountVnd: 0,
-        errorMessage: "Không tìm thấy thông tin voucher.",
-      };
-    }
-
-    const voucher = voucherObj as {
-      id: string;
-      discount_percentage: number;
-      max_eligible_base_vnd: number;
-      is_active: boolean;
     };
 
-    if (!voucher.is_active) {
-      return {
-        valid: false,
-        redemption: null,
-        discountAmountVnd: 0,
-        errorMessage: "Loại voucher này hiện không còn hiệu lực.",
-      };
-    }
-
-    // 5. Tính số tiền giảm giá
-    // Discount = min(grossAmountVnd, max_eligible_base_vnd) × (discount_percentage / 100)
-    const eligibleBase = Math.min(grossAmountVnd, voucher.max_eligible_base_vnd);
-    const discountAmountVnd = Math.floor(
-      (eligibleBase * voucher.discount_percentage) / 100
-    );
-    const finalPayableAmountVnd = Math.max(0, grossAmountVnd - discountAmountVnd);
-
-    // 6. Gắn voucher vào session: cập nhật voucher_redemptions
-    const { error: reserveError } = await supabase
-      .from("voucher_redemptions")
-      .update({
-        status: "RESERVED",
-        checkout_session_id: sessionId,
-        discount_amount_vnd: discountAmountVnd,
-      })
-      .eq("id", redemptionId)
-      .eq("status", "AVAILABLE"); // Guard race-condition: chỉ update nếu vẫn AVAILABLE
-
-    if (reserveError) {
-      console.error("[checkout] reserveVoucher update error:", reserveError.message);
-      return {
-        valid: false,
-        redemption: null,
-        discountAmountVnd: 0,
-        errorMessage: "Không thể giữ chỗ voucher. Voucher có thể đã được sử dụng ở nơi khác.",
-      };
-    }
-
-    // 7. Cập nhật discount và final_payable trên checkout_sessions
-    const { error: sessionUpdateError } = await supabase
-      .from("checkout_sessions")
-      .update({
-        discount_amount_vnd: discountAmountVnd,
-        final_payable_amount_vnd: finalPayableAmountVnd,
-      })
-      .eq("id", sessionId)
-      .eq("user_id", userId);
-
-    if (sessionUpdateError) {
-      console.error(
-        "[checkout] updateCheckoutSessionDiscount error:",
-        sessionUpdateError.message
+    if (!result.success) {
+      const msg = mapRpcError(
+        result.error,
+        "Không thể áp voucher. Vui lòng thử lại."
       );
+      console.error("[checkout] validateAndApplyVoucher RPC returned failure:", result.error);
       return {
         valid: false,
         redemption: null,
         discountAmountVnd: 0,
-        errorMessage: "Lỗi cập nhật phiên thanh toán. Vui lòng thử lại.",
+        errorMessage: msg,
       };
     }
 
-    // 8. Đọc lại redemption record để trả về dữ liệu mới nhất
+    const discountAmountVnd = result.checkout_session?.discount_amount_vnd ?? 0;
+
+    // Đọc lại redemption record đầy đủ để trả về cho caller
     const { data: updatedRedemption } = await supabase
       .from("voucher_redemptions")
       .select("*")
@@ -503,171 +446,171 @@ export async function validateAndApplyVoucher(
 // ---------------------------------------------------------------------------
 
 /**
- * Hoàn tất quá trình đặt phòng sau khi thanh toán VietQR được xác nhận:
+ * Hoàn tất quá trình đặt phòng sau khi thanh toán VietQR được xác nhận
+ * thông qua RPC `finalize_verified_checkout_atomic`.
  *
- * 1. Kiểm tra phiên checkout (status là ACTIVE hoặc PAYMENT_PROCESSING, chưa hết hạn, thuộc đúng user).
- * 2. Tạo bản ghi `bookings` với booking_status = "CONFIRMED", payment_status = "PAID".
- * 3. Cập nhật `checkout_sessions` status = "COMPLETED".
- * 4. Cập nhật `voucher_redemptions` status = "USED", booking_id, used_at (nếu có voucher).
+ * RPC thực hiện atomic (với row-level locking):
+ * 1. Kiểm tra idempotency (session đã COMPLETED → trả về booking cũ)
+ * 2. Validate session (status, expiry, payment_reference, amount)
+ * 3. Lock room row, re-check inventory
+ * 4. Validate voucher state (nếu có)
+ * 5. INSERT bookings với checkout_session_id (durable link, ngăn duplicate)
+ * 6. UPDATE voucher_redemptions → USED (nếu có)
+ * 7. INSERT loyalty_transactions (booking_earn = final_paid × 0.00025)
+ * 8. UPDATE checkout_sessions → COMPLETED
  *
- * QUAN TRỌNG (AGENTS.md):
- * - Điểm loyalty (BOOKING_EARN) KHÔNG được tính trong hàm này.
- *   Việc ghi loyalty_transactions là nghiệp vụ backend (RPC / trigger / server action
- *   được TV8 thiết kế và TV1 phê duyệt), không thuộc scope của data layer client.
- * - Hàm này chỉ tạo booking record và cập nhật trạng thái liên quan.
- *   Không xử lý thêm logic thanh toán ngân hàng hay webhook.
+ * QUAN TRỌNG — GIỚI HẠN KIẾN TRÚC:
+ * `finalize_verified_checkout_atomic` yêu cầu `service_role` (theo migration
+ * 20260920120000_trusted_checkout_flow.sql, line 686–687). Khi gọi từ
+ * server component với JWT user, Supabase sẽ từ chối với lỗi permission.
+ * Đây là giới hạn thiết kế — hàm này đóng vai trò STUB cho đến khi TV1+TV8
+ * quyết định cơ chế payment webhook (service_role callback).
+ * Flow hiện tại (user tự bấm "xác nhận đã chuyển khoản") sẽ nhận lỗi permission
+ * rõ ràng thay vì bị RLS block âm thầm như trước.
  *
  * @param sessionId - UUID của checkout_sessions
- * @param userId    - UUID của user đang xác nhận (dùng để bảo vệ RLS)
- * @returns bookingId nếu thành công, error string nếu thất bại
+ * @param userId    - UUID của user đang xác nhận (audit; RPC không nhận tham số này)
  */
 export async function confirmBookingAndPayment(
   sessionId: string,
   userId: string
 ): Promise<{ bookingId: string | null; error: string | null }> {
+  // userId không được truyền vào RPC — RPC là SECURITY DEFINER và
+  // xác minh quyền thông qua so khớp session record (không dùng auth.uid()).
+  // Tham số giữ lại để không phá vỡ signature của caller (actions.ts).
+  void userId;
+
   const uuidRegex =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-  if (!uuidRegex.test(sessionId) || !uuidRegex.test(userId)) {
-    return { bookingId: null, error: "ID phiên hoặc user không hợp lệ" };
+  if (!uuidRegex.test(sessionId)) {
+    return { bookingId: null, error: "ID phiên không hợp lệ" };
   }
 
   try {
     const supabase = await createClient();
-    const now = new Date().toISOString();
 
-    // 1. Lấy và kiểm tra checkout session
-    const { data: session, error: sessionError } = await supabase
+    // Lấy final_payable_amount_vnd và payment_reference từ session
+    // để truyền vào RPC (RPC yêu cầu caller cung cấp verified amount và reference).
+    const { data: sessionData, error: sessionFetchError } = await supabase
       .from("checkout_sessions")
-      .select("*")
+      .select("final_payable_amount_vnd, payment_reference, status")
       .eq("id", sessionId)
-      .eq("user_id", userId)
       .maybeSingle();
 
-    if (sessionError) {
-      console.error("[checkout] confirmBooking — fetch session error:", sessionError.message);
-      return { bookingId: null, error: sessionError.message };
+    if (sessionFetchError) {
+      console.error(
+        "[checkout] confirmBookingAndPayment — fetch session error:",
+        sessionFetchError.message
+      );
+      return { bookingId: null, error: sessionFetchError.message };
     }
 
-    if (!session) {
+    if (!sessionData) {
       return {
         bookingId: null,
         error: "Không tìm thấy phiên đặt phòng hoặc không có quyền truy cập.",
       };
     }
 
-    // Chỉ cho phép xác nhận khi session ở trạng thái ACTIVE hoặc PAYMENT_PROCESSING.
-    // PENDING không tồn tại trong schema — không bao giờ match.
-    const confirmableStatuses = ["ACTIVE", "PAYMENT_PROCESSING"];
-    if (!confirmableStatuses.includes(session.status)) {
-      const statusMsg: Record<string, string> = {
-        COMPLETED: "Đặt phòng đã được xác nhận trước đó.",
-        EXPIRED: "Phiên đặt phòng đã hết hạn. Vui lòng bắt đầu lại từ đầu.",
-        FAILED: "Phiên thanh toán đã thất bại. Vui lòng bắt đầu lại từ đầu.",
-      };
-      return {
-        bookingId: null,
-        error: statusMsg[session.status] ?? "Phiên đặt phòng không hợp lệ.",
-      };
+    // Kiểm tra sớm để trả về lỗi thân thiện trước khi gọi RPC
+    if (sessionData.status === "COMPLETED") {
+      return { bookingId: null, error: "Đặt phòng đã được xác nhận trước đó." };
     }
-
-    if (session.expires_at <= now) {
+    if (sessionData.status === "EXPIRED") {
       return {
         bookingId: null,
         error: "Phiên đặt phòng đã hết hạn. Vui lòng bắt đầu lại từ đầu.",
       };
     }
-
-    // 2. Tạo booking record (trạng thái CONFIRMED / PAID)
-    const bookingInsert: TablesInsert<"bookings"> = {
-      user_id: session.user_id,
-      room_id: session.room_id,
-      check_in: session.check_in,
-      check_out: session.check_out,
-      guest_count: session.guest_count,
-      gross_amount_vnd: session.gross_amount_vnd,
-      discount_amount_vnd: session.discount_amount_vnd,
-      final_paid_amount_vnd: session.final_payable_amount_vnd,
-      booking_status: "CONFIRMED",
-      payment_status: "PAID",
-    };
-
-    const { data: newBooking, error: bookingError } = await supabase
-      .from("bookings")
-      .insert(bookingInsert)
-      .select("id")
-      .single();
-
-    if (bookingError || !newBooking) {
-      console.error(
-        "[checkout] confirmBooking — insert booking error:",
-        bookingError?.message
-      );
+    if (sessionData.status === "FAILED") {
       return {
         bookingId: null,
-        error: bookingError?.message ?? "Không thể tạo đặt phòng. Vui lòng thử lại.",
+        error: "Phiên thanh toán đã thất bại. Vui lòng bắt đầu lại từ đầu.",
       };
     }
 
-    const bookingId = newBooking.id;
-
-    // 3. Cập nhật checkout_sessions → COMPLETED
-    const { error: completeSessionError } = await supabase
-      .from("checkout_sessions")
-      .update({ status: "COMPLETED" })
-      .eq("id", sessionId)
-      .eq("user_id", userId);
-
-    if (completeSessionError) {
-      // Booking đã tạo thành công nhưng session chưa cập nhật — vẫn trả về bookingId
-      // để người dùng không bị mất đặt phòng; log để team backend xử lý.
+    if (!sessionData.payment_reference) {
       console.error(
-        "[checkout] confirmBooking — complete session update error:",
-        completeSessionError.message
+        "[checkout] confirmBookingAndPayment — session has no payment_reference"
       );
+      return {
+        bookingId: null,
+        error:
+          "Phiên đặt phòng thiếu mã tham chiếu thanh toán. Vui lòng liên hệ hỗ trợ.",
+      };
     }
 
-    // 4. Tìm và cập nhật voucher_redemptions → USED (nếu có voucher gắn vào session)
-    const { data: redemption, error: redemptionFetchError } = await supabase
-      .from("voucher_redemptions")
-      .select("id")
-      .eq("checkout_session_id", sessionId)
-      .eq("user_id", userId)
-      .eq("status", "RESERVED")
-      .maybeSingle();
-
-    if (redemptionFetchError) {
-      console.error(
-        "[checkout] confirmBooking — fetch redemption error:",
-        redemptionFetchError.message
-      );
-    }
-
-    if (redemption) {
-      const { error: redeemError } = await supabase
-        .from("voucher_redemptions")
-        .update({
-          status: "USED",
-          booking_id: bookingId,
-          used_at: now,
-        })
-        .eq("id", redemption.id)
-        .eq("status", "RESERVED"); // Guard: chỉ update nếu vẫn RESERVED
-
-      if (redeemError) {
-        console.error(
-          "[checkout] confirmBooking — redeem voucher update error:",
-          redeemError.message
-        );
-        // Không fail toàn bộ giao dịch — booking đã tạo thành công.
-        // Trường hợp này cần alert cho TV8 / TV1 xử lý bằng tay nếu cần.
+    // Gọi RPC finalize_verified_checkout_atomic.
+    // LƯU Ý KIẾN TRÚC: RPC này chỉ cho phép service_role. Khi được gọi với
+    // JWT user thông thường (createClient() trong server component), Supabase
+    // sẽ từ chối. Đây là placeholder đúng cấu trúc cho đến khi có payment webhook.
+    const { data, error } = await supabase.rpc(
+      "finalize_verified_checkout_atomic",
+      {
+        p_checkout_session_id: sessionId,
+        p_verified_paid_amount_vnd: sessionData.final_payable_amount_vnd,
+        p_verified_payment_reference: sessionData.payment_reference,
       }
+    );
+
+    if (error) {
+      console.error(
+        "[checkout] confirmBookingAndPayment RPC error:",
+        error.message,
+        "— Note: finalize_verified_checkout_atomic requires service_role."
+      );
+      // Phân biệt lỗi permission (42501 = insufficient_privilege) với lỗi nghiệp vụ
+      if (
+        error.code === "42501" ||
+        error.message.toLowerCase().includes("permission denied")
+      ) {
+        return {
+          bookingId: null,
+          error:
+            "Tính năng xác nhận thanh toán đang chờ tích hợp payment backend. " +
+            "Vui lòng liên hệ hỗ trợ để xác nhận thủ công.",
+        };
+      }
+      return { bookingId: null, error: error.message };
     }
 
-    // NOTE: Điểm loyalty (BOOKING_EARN) KHÔNG được ghi ở đây.
-    // Formula tham khảo: Math.floor(session.final_payable_amount_vnd * 0.00025) points
-    // Việc ghi loyalty_transactions phải được thực hiện bởi RPC / DB trigger
-    // sau khi booking được xác nhận — thuộc phạm vi TV8 (Quỳnh) + TV1 phê duyệt.
+    const result = data as {
+      success: boolean;
+      idempotent?: boolean;
+      error?: string;
+      booking?: { id: string };
+    };
+
+    if (!result.success) {
+      const msg = mapRpcError(
+        result.error,
+        "Không thể xác nhận đặt phòng. Vui lòng thử lại hoặc liên hệ hỗ trợ."
+      );
+      console.error(
+        "[checkout] confirmBookingAndPayment RPC returned failure:",
+        result.error
+      );
+      return { bookingId: null, error: msg };
+    }
+
+    const bookingId = result.booking?.id ?? null;
+    if (!bookingId) {
+      console.error(
+        "[checkout] confirmBookingAndPayment: RPC succeeded but no booking id returned"
+      );
+      return {
+        bookingId: null,
+        error: "Đặt phòng đã xử lý nhưng không lấy được mã đặt phòng.",
+      };
+    }
+
+    if (result.idempotent) {
+      console.info(
+        "[checkout] confirmBookingAndPayment: idempotent — returning existing booking",
+        bookingId
+      );
+    }
 
     return { bookingId, error: null };
   } catch (err) {
@@ -681,79 +624,74 @@ export async function confirmBookingAndPayment(
 // ---------------------------------------------------------------------------
 
 /**
- * Trả voucher về trạng thái AVAILABLE khi user rời khỏi checkout mà
- * chưa hoàn tất thanh toán (abandoned checkout).
+ * Trả voucher về trạng thái AVAILABLE (hoặc EXPIRED nếu đã quá hạn) khi user
+ * rời khỏi checkout thông qua RPC `release_checkout_voucher_atomic`
+ * (SECURITY DEFINER, authenticated).
+ *
+ * RPC đảm bảo (atomic):
+ * - Session tồn tại, thuộc caller, ở trạng thái ACTIVE
+ * - Tìm voucher RESERVED gắn với session đó
+ * - Chuyển về AVAILABLE nếu chưa hết hạn, EXPIRED nếu đã hết hạn
+ * - Reset checkout_sessions.discount = 0, final_payable = gross
  *
  * NGHIỆP VỤ (AGENTS.md):
- * - Khi user bỏ checkout, voucher quay về AVAILABLE (nếu chưa hết hạn).
  * - 500 điểm KHÔNG được hoàn lại vì voucher vẫn còn hiệu lực đến expires_at.
  *
  * @param sessionId - UUID của checkout_sessions
- * @param userId    - UUID của user sở hữu session
+ * @param userId    - UUID của user (audit; RPC tự xác minh qua ownership check)
  */
 export async function releaseVoucherFromSession(
   sessionId: string,
   userId: string
 ): Promise<{ success: boolean; error: string | null }> {
+  // userId không được truyền vào RPC — RPC xác minh qua auth.uid().
+  // Tham số giữ lại để không phá vỡ signature của caller (actions.ts).
+  void userId;
+
   try {
     const supabase = await createClient();
-    const now = new Date().toISOString();
 
-    // Trả voucher về AVAILABLE nếu còn hạn, clear checkout_session_id
-    const { error: voucherError } = await supabase
-      .from("voucher_redemptions")
-      .update({
-        status: "AVAILABLE",
-        checkout_session_id: null,
-        discount_amount_vnd: null,
-      })
-      .eq("checkout_session_id", sessionId)
-      .eq("user_id", userId)
-      .eq("status", "RESERVED")
-      .gt("expires_at", now); // Chỉ trả lại nếu voucher chưa hết hạn
+    const { data, error } = await supabase.rpc(
+      "release_checkout_voucher_atomic",
+      {
+        p_checkout_session_id: sessionId,
+      }
+    );
 
-    if (voucherError) {
-      console.error("[checkout] releaseVoucherFromSession — voucher update error:", voucherError.message);
-      return { success: false, error: voucherError.message };
-    }
-
-    // Đọc gross_amount_vnd từ session để reset final_payable_amount_vnd về đúng giá trị.
-    // NGHIỆP VỤ: khi không còn voucher, final_payable = gross (không phải 0).
-    const { data: sessionData, error: sessionFetchError } = await supabase
-      .from("checkout_sessions")
-      .select("gross_amount_vnd")
-      .eq("id", sessionId)
-      .eq("user_id", userId)
-      .maybeSingle();
-
-    if (sessionFetchError) {
+    if (error) {
       console.error(
-        "[checkout] releaseVoucherFromSession — fetch session error:",
-        sessionFetchError.message
+        "[checkout] releaseVoucherFromSession RPC error:",
+        error.message
       );
-      return { success: false, error: sessionFetchError.message };
+      return { success: false, error: error.message };
     }
 
-    if (!sessionData) {
-      return { success: false, error: "Không tìm thấy phiên đặt phòng." };
-    }
+    const result = data as {
+      success: boolean;
+      error?: string;
+    };
 
-    // Reset discount về 0 và final_payable về đúng gross_amount_vnd
-    const { error: sessionUpdateError } = await supabase
-      .from("checkout_sessions")
-      .update({
-        discount_amount_vnd: 0,
-        final_payable_amount_vnd: sessionData.gross_amount_vnd,
-      })
-      .eq("id", sessionId)
-      .eq("user_id", userId);
+    if (!result.success) {
+      // NO_RESERVED_VOUCHER_ATTACHED không phải lỗi nghiêm trọng —
+      // có thể xảy ra nếu user gọi release khi chưa có voucher.
+      if (result.error === "NO_RESERVED_VOUCHER_ATTACHED") {
+        console.info(
+          "[checkout] releaseVoucherFromSession: no reserved voucher to release (session:",
+          sessionId,
+          ")"
+        );
+        return { success: true, error: null };
+      }
 
-    if (sessionUpdateError) {
+      const msg = mapRpcError(
+        result.error,
+        "Không thể hủy voucher. Vui lòng thử lại."
+      );
       console.error(
-        "[checkout] releaseVoucherFromSession — session update error:",
-        sessionUpdateError.message
+        "[checkout] releaseVoucherFromSession RPC returned failure:",
+        result.error
       );
-      return { success: false, error: sessionUpdateError.message };
+      return { success: false, error: msg };
     }
 
     return { success: true, error: null };
@@ -770,6 +708,7 @@ export async function releaseVoucherFromSession(
 /**
  * Lấy tất cả voucher redemptions còn hiệu lực (AVAILABLE, chưa hết hạn) của user.
  * Dùng để hiển thị danh sách voucher có thể áp dụng trong VoucherPicker.
+ * Đây là thao tác READ-ONLY — không thay đổi theo RPC migration.
  *
  * @param userId - UUID của authenticated user
  */

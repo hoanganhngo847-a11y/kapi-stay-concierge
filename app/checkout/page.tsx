@@ -82,12 +82,6 @@ function isValidDate(v: unknown): v is string {
   return typeof v === "string" && DATE_REGEX.test(v);
 }
 
-function calcNights(checkIn: string, checkOut: string): number {
-  const a = new Date(checkIn).getTime();
-  const b = new Date(checkOut).getTime();
-  return Math.max(1, Math.round((b - a) / 86_400_000));
-}
-
 // ---------------------------------------------------------------------------
 // Page Component (Server)
 // ---------------------------------------------------------------------------
@@ -264,7 +258,9 @@ export default async function CheckoutPage({
   // Parse số khách
   const guestCount = Math.max(1, parseInt(guestsStr ?? "1", 10) || 1);
 
-  // Tải thông tin phòng để tính giá
+  // Tải thông tin phòng để hiển thị tên và kiểm tra capacity phía client.
+  // gross_amount_vnd được tính server-side bởi RPC create_checkout_session_atomic
+  // (nightly_price_vnd × số đêm) — không cần tính ở đây nữa.
   const { data: room, error: roomError } = await getPublicRoomById(roomId);
 
   if (roomError || !room) {
@@ -278,7 +274,7 @@ export default async function CheckoutPage({
     );
   }
 
-  // Kiểm tra số khách không vượt capacity
+  // Kiểm tra số khách không vượt capacity (pre-flight trước khi gọi RPC)
   if (guestCount > room.capacity) {
     return (
       <CheckoutPageLayout>
@@ -292,19 +288,14 @@ export default async function CheckoutPage({
     );
   }
 
-  // Tính tổng tiền gốc
-  const nights = calcNights(checkIn, checkOut);
-  const grossAmountVnd = nights * room.nightly_price_vnd;
-
-  // Tạo checkout session mới
+  // Tạo checkout session mới qua RPC (gross_amount_vnd được tính server-side).
+  // Không truyền grossAmountVnd — RPC tự tính từ nightly_price_vnd × số đêm.
   const { sessionId: newSessionId, error: createError } =
     await createCheckoutSession({
-      userId: user.id,
       roomId: room.id,
       checkIn,
       checkOut,
       guestCount,
-      grossAmountVnd,
     });
 
   if (createError || !newSessionId) {
