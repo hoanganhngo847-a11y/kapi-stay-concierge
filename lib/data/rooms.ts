@@ -253,7 +253,7 @@ export async function getPublicRooms(filters?: RoomCatalogFilters): Promise<{
         amenities,
         image_paths,
         is_listed,
-        properties (
+        properties!inner (
           id,
           name,
           slug,
@@ -262,7 +262,8 @@ export async function getPublicRooms(filters?: RoomCatalogFilters): Promise<{
         )
       `
       )
-      .eq("is_listed", true);
+      .eq("is_listed", true)
+      .eq("properties.is_active", true);
 
     if (propertyId) {
       query = query.eq("property_id", propertyId);
@@ -412,7 +413,7 @@ export async function getPublicRoomById(id: string): Promise<{
         amenities,
         image_paths,
         is_listed,
-        properties (
+        properties!inner (
           id,
           name,
           slug,
@@ -423,6 +424,7 @@ export async function getPublicRoomById(id: string): Promise<{
       )
       .eq("id", id)
       .eq("is_listed", true)
+      .eq("properties.is_active", true)
       .maybeSingle();
 
     if (error) {
