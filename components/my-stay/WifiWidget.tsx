@@ -38,7 +38,7 @@ export default function WifiWidget({ ssid, password }: WifiWidgetProps) {
                 onClick={handleCopy}
                 className="w-full mt-3 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-medium transition"
             >
-                {copied ? "✓ Đã sao chép mật khẩu" : "Copied Mật khẩu Wi-Fi (1-Chạm)"}
+                {copied ? "✓ Đã sao chép mật khẩu" : "Sao chép mật khẩu Wi-Fi"}
             </button>
         </div>
     );

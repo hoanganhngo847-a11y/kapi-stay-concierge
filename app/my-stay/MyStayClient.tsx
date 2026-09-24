@@ -1,11 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback, useRef, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { KeyCard, type StayStatus } from "@/components/my-stay/KeyCard";
-import WifiWidget from "@/components/my-stay/WifiWidget"; import { QuickActions } from "@/components/my-stay/QuickActions";
+import WifiWidget from "@/components/my-stay/WifiWidget";
+import { QuickActions } from "@/components/my-stay/QuickActions";
 import { getMyStayBookingDetails } from "@/lib/data/my-stay";
 
-const SUPPORT_HOTLINE = "0901 234 567";
+const SUPPORT_HOTLINE = process.env.NEXT_PUBLIC_SUPPORT_HOTLINE?.trim();
+const CANONICAL_PARAM = "bookingId";
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface StayData {
   bookingId: string;
@@ -21,21 +25,60 @@ interface StayData {
   isActiveStay?: boolean;
 }
 
-export default function MyStayClient() {
-  const [bookingInput, setBookingInput] = useState("");
+function MyStayContent() {
+  const searchParams = useSearchParams();
+  const rawParam =
+    searchParams.get(CANONICAL_PARAM) ||
+    searchParams.get("booking") ||
+    searchParams.get("code") ||
+    "";
+  const trimmedParam = rawParam.trim();
+  const isValidUuid = UUID_REGEX.test(trimmedParam);
+
+  const [bookingInput, setBookingInput] = useState(() => (isValidUuid ? trimmedParam : ""));
   const [stayData, setStayData] = useState<StayData | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(() => {
+    if (trimmedParam && !isValidUuid) {
+      return "Mã đặt phòng không đúng định dạng UUID. Vui lòng kiểm tra lại đường dẫn hoặc mã được cung cấp.";
+    }
+    return null;
+  });
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!bookingInput.trim()) return;
+  // Synchronize state during render when query parameter changes
+  const [prevParam, setPrevParam] = useState(trimmedParam);
+  if (trimmedParam !== prevParam) {
+    setPrevParam(trimmedParam);
+    if (isValidUuid) {
+      setBookingInput(trimmedParam);
+      setErrorMessage(null);
+    } else if (trimmedParam) {
+      setBookingInput("");
+      setErrorMessage(
+        "Mã đặt phòng không đúng định dạng UUID. Vui lòng kiểm tra lại đường dẫn hoặc mã được cung cấp."
+      );
+      setStayData(null);
+    } else {
+      setBookingInput("");
+      setErrorMessage(null);
+      setStayData(null);
+    }
+  }
+  const lastFetchedIdRef = useRef<string | null>(null);
 
+  const executeLookup = useCallback(async (id: string) => {
+    const cleanId = id.trim();
+    if (!cleanId) return;
+
+    if (!UUID_REGEX.test(cleanId)) {
+      setErrorMessage("Mã đặt phòng không đúng định dạng.");
+      return;
+    }
     setIsLoading(true);
     setErrorMessage(null);
 
     try {
-      const data = await getMyStayBookingDetails(bookingInput.trim());
+      const data = await getMyStayBookingDetails(cleanId);
       if (!data) {
         setErrorMessage("Không tìm thấy thông tin đặt phòng hoặc bạn không có quyền truy cập.");
         setStayData(null);
@@ -43,11 +86,12 @@ export default function MyStayClient() {
         setStayData(data as StayData);
       }
     } catch (err: unknown) {
-      const errorObj = err as { code?: string; status?: number } | null | undefined;
-      if (errorObj?.code === "PGRST116" || errorObj?.status === 404) {
-        setErrorMessage("Mã đặt phòng không tồn tại hoặc không khớp với tài khoản của bạn.");
-      } else if (errorObj?.status === 401 || errorObj?.status === 403) {
+      // TODO: Replace message markers with a structured backend error code.
+      const errMsg = err instanceof Error ? err.message : "";
+      if (errMsg.startsWith("Unauthorized:")) {
         setErrorMessage("Bạn cần đăng nhập để xem thông tin lưu trú này.");
+      } else if (errMsg.startsWith("Forbidden:")) {
+        setErrorMessage("Không tìm thấy đơn hoặc bạn không có quyền truy cập.");
       } else {
         setErrorMessage("Hệ thống tạm thời không khả dụng. Vui lòng thử lại sau.");
       }
@@ -55,9 +99,59 @@ export default function MyStayClient() {
     } finally {
       setIsLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    if (!trimmedParam || !isValidUuid) {
+      return;
+    }
+
+    if (lastFetchedIdRef.current !== trimmedParam) {
+      lastFetchedIdRef.current = trimmedParam;
+      void executeLookup(trimmedParam);
+    }
+
+    // Canonicalize query parameter in URL if alias or non-canonical form was used
+    if (typeof window !== "undefined") {
+      const currentCanonical = searchParams.get(CANONICAL_PARAM);
+      const hasAliases = searchParams.has("booking") || searchParams.has("code");
+      if (currentCanonical !== trimmedParam || hasAliases) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("booking");
+        url.searchParams.delete("code");
+        url.searchParams.set(CANONICAL_PARAM, trimmedParam);
+        window.history.replaceState(null, "", url.pathname + url.search);
+      }
+    }
+  }, [trimmedParam, isValidUuid, executeLookup, searchParams]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanInput = bookingInput.trim();
+    if (!cleanInput) return;
+
+    if (!UUID_REGEX.test(cleanInput)) {
+      setErrorMessage("Mã đặt phòng không đúng định dạng.");
+      setStayData(null);
+      return;
+    }
+
+    lastFetchedIdRef.current = cleanInput;
+
+    // Update URL to canonical param
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("booking");
+      url.searchParams.delete("code");
+      url.searchParams.set(CANONICAL_PARAM, cleanInput);
+      window.history.replaceState(null, "", url.pathname + url.search);
+    }
+
+    await executeLookup(cleanInput);
   };
 
   const canRevealAccess = Boolean(stayData?.hasActiveCredential && stayData?.isActiveStay);
+
   return (
     <div className="max-w-2xl mx-auto p-4 space-y-6">
       <form onSubmit={handleSubmit} className="space-y-3">
@@ -112,20 +206,34 @@ export default function MyStayClient() {
             <WifiWidget ssid={stayData.wifiSsid} password={stayData.wifiPass} />
           ) : null}
 
-          <QuickActions
-            bookingId={stayData.bookingId}
-            // Tạm thời disable cho tới khi backend cung cấp trusted guest checkout RPC
-            isCheckoutAllowed={false}
-          />
+          <QuickActions />
 
-          <div className="text-xs text-muted-foreground text-center border-t pt-4">
-            Cần hỗ trợ gấp? Liên hệ Hotline:{" "}
-            <a href={`tel:${SUPPORT_HOTLINE.replace(/\s+/g, "")}`} className="font-semibold text-primary underline">
-              {SUPPORT_HOTLINE}
-            </a>
-          </div>
+          {SUPPORT_HOTLINE ? (
+            <div className="text-xs text-muted-foreground text-center border-t pt-4">
+              Cần hỗ trợ gấp? Liên hệ Hotline:{" "}
+              <a href={`tel:${SUPPORT_HOTLINE.replace(/\s+/g, "")}`} className="font-semibold text-primary underline">
+                {SUPPORT_HOTLINE}
+              </a>
+            </div>
+          ) : null}
         </div>
       )}
     </div>
   );
 }
+
+export default function MyStayClient() {
+  return (
+    <Suspense
+      fallback={
+        <div className="max-w-2xl mx-auto p-4 text-center text-sm text-muted-foreground">
+          Đang tải thông tin lưu trú...
+        </div>
+      }
+    >
+      <MyStayContent />
+    </Suspense>
+  );
+}
+
+export { MyStayClient };
