@@ -12,13 +12,30 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
-import { getPublicRoomById } from "@/lib/data/rooms";
+import {
+  getPublicRoomById,
+  getTodayInVietnam,
+  isValidCalendarDate,
+} from "@/lib/data/rooms";
 import { Gallery } from "@/components/rooms/Gallery";
 import { RoomAmenities } from "@/components/rooms/RoomAmenities";
 import { RoomBookingWidget } from "@/components/rooms/RoomBookingWidget";
 
+type RoomDetailSearchParams = {
+  [key: string]: string | string[] | undefined;
+};
+
 interface RoomDetailPageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<RoomDetailSearchParams>;
+}
+
+function getFirstParam(value: string | string[] | undefined): string {
+  if (typeof value === "string") return value.trim();
+  if (Array.isArray(value) && typeof value[0] === "string") {
+    return value[0].trim();
+  }
+  return "";
 }
 
 export async function generateMetadata({
@@ -44,19 +61,72 @@ export async function generateMetadata({
 // Dynamic rendering for room details
 export const dynamic = "force-dynamic";
 
-export default async function RoomDetailPage({ params }: RoomDetailPageProps) {
-  const { id } = await params;
+export default async function RoomDetailPage({
+  params,
+  searchParams,
+}: RoomDetailPageProps) {
+  const [{ id }, resolvedSearchParams] = await Promise.all([
+    params,
+    searchParams,
+  ]);
   const { data: room, error } = await getPublicRoomById(id);
 
   if (error || !room) {
     notFound();
   }
 
+  const propertyId = getFirstParam(resolvedSearchParams.property_id);
+  const checkIn = getFirstParam(
+    resolvedSearchParams.check_in ??
+      resolvedSearchParams["check-in"] ??
+      resolvedSearchParams.checkin
+  );
+  const checkOut = getFirstParam(
+    resolvedSearchParams.check_out ??
+      resolvedSearchParams["check-out"] ??
+      resolvedSearchParams.checkout
+  );
+  const capacityRaw = getFirstParam(
+    resolvedSearchParams.capacity ??
+      resolvedSearchParams.max_guests ??
+      resolvedSearchParams.guests
+  );
+
+  const todayVN = getTodayInVietnam();
+  const hasValidDatePair =
+    isValidCalendarDate(checkIn) &&
+    isValidCalendarDate(checkOut) &&
+    checkIn >= todayVN &&
+    checkOut > checkIn;
+
+  const capacityNum = /^\d+$/.test(capacityRaw) ? Number(capacityRaw) : 0;
+  const initialGuests =
+    Number.isInteger(capacityNum) &&
+    capacityNum > 0 &&
+    capacityNum <= room.capacity
+      ? capacityNum
+      : undefined;
+
+  const catalogParams = new URLSearchParams();
+  if (propertyId === room.property_id) {
+    catalogParams.set("property_id", propertyId);
+  }
+  if (hasValidDatePair) {
+    catalogParams.set("check_in", checkIn);
+    catalogParams.set("check_out", checkOut);
+  }
+  if (initialGuests) {
+    catalogParams.set("capacity", String(initialGuests));
+  }
+
+  const catalogQuery = catalogParams.toString();
+  const catalogHref = catalogQuery ? `/rooms?${catalogQuery}` : "/rooms";
+
   return (
     <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
       {/* Back to catalog navigation */}
       <Link
-        href="/rooms"
+        href={catalogHref}
         className="inline-flex items-center gap-1.5 text-xs font-medium text-dark/60 hover:text-primary mb-6 transition-colors"
       >
         <ArrowLeft className="w-3.5 h-3.5" />
@@ -157,7 +227,12 @@ export default async function RoomDetailPage({ params }: RoomDetailPageProps) {
 
         {/* Sidebar Column (1 col): Booking Widget */}
         <div className="lg:col-span-1">
-          <RoomBookingWidget room={room} />
+          <RoomBookingWidget
+            room={room}
+            initialCheckIn={hasValidDatePair ? checkIn : undefined}
+            initialCheckOut={hasValidDatePair ? checkOut : undefined}
+            initialGuests={initialGuests}
+          />
         </div>
       </div>
     </div>
