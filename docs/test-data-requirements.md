@@ -34,8 +34,16 @@ Khi chuẩn bị dữ liệu mẫu trong cơ sở dữ liệu Supabase, TV8 cầ
    - Thời hạn hiệu lực của voucher là đúng 24 giờ kể từ thời điểm phát hành (`expires_at = current_timestamp + interval '24 hours'`).
 4. **Định dạng UUID chuẩn Hex:**
    - Toàn bộ ID khóa chính và khóa ngoại mẫu phải là chuỗi UUID hợp lệ tuân thủ bảng chữ số Hex (`[0-9a-fA-F]`). Tuyệt đối không dùng ký tự ngoài quy chuẩn (như ký tự `t` hay tiền tố chuỗi `CK-...`).
-5. **Không tự chốt Enum / Status cứng nhắc:**
-   - Tại các cột trạng thái (`payment_status`, `booking_status`, `status` của checkout session hay ticket), tài liệu này đưa ra giá trị khuyến nghị và quy định rõ: **Sử dụng canonical status do TV1/TV8 thống nhất trong backend schema** (ví dụ: `payment_status = 'verified'/'paid'`, `booking_status = 'confirmed'`, session status = `'ACTIVE'`).
+5. **Chuẩn hóa giá trị Canonical Statuses theo Backend Schema:**
+   - Toàn bộ các trường trạng thái trong fixtures phải tuân thủ chính xác 1 giá trị canonical enum/text duy nhất theo schema migrations trên main (chuẩn xác từng ký tự hoa/thường):
+     - `checkout_sessions.status`: `'ACTIVE'`
+     - `bookings.booking_status`: `'confirmed'`
+     - `bookings.payment_status`: `'paid'`
+     - `tickets.status`: `'pending'` (phiếu mới tạo) và `'in_progress'` (phiếu đang xử lý)
+     - `booking_access_credentials.status`: `'active'`
+     - `voucher_redemptions.status`: `'AVAILABLE'` (chưa dùng), `'EXPIRED'` (hết hạn), `'USED'` (đã dùng)
+     - `room_operations.operational_status`: `'ready'`
+   - Tuyệt đối không sử dụng cách viết tùy chọn (A/B, hoặc, ví dụ) để đảm bảo tính deterministic cho kịch bản kiểm thử.
 
 ---
 
@@ -128,8 +136,8 @@ Yêu cầu 01 đơn đặt phòng trong `public.bookings` kèm Digital Key tươ
   - `gross_amount_vnd`: `650000`
   - `discount_amount_vnd`: `260000` (giảm 40% voucher)
   - `final_paid_amount_vnd`: `390000`
-  - `payment_status`: Sử dụng canonical status do TV1/TV8 thống nhất trong backend schema (ví dụ: `payment_status = 'verified'/'paid'`)
-  - `booking_status`: Sử dụng canonical status do TV1/TV8 thống nhất trong backend schema (ví dụ: `booking_status = 'confirmed'`)
+  - `payment_status`: `'paid'`
+  - `booking_status`: `'confirmed'`
 - **Mã số mở cửa Digital Key (`booking_access_credentials`):**
   - `id`: `ba111111-1111-1111-1111-111111111111` (UUID chuẩn hex)
   - `booking_id`: `00000000-0000-0000-0000-000000000021`
@@ -139,7 +147,7 @@ Yêu cầu 01 đơn đặt phòng trong `public.bookings` kèm Digital Key tươ
   - `instructions`: `'Chạm mu bàn tay cho sáng màn hình cảm ứng, nhập 123456 kèm phím #.'`
   - `valid_from`: `(current_date + time '14:00:00') at time zone 'Asia/Ho_Chi_Minh'` *(Bắt đầu đúng 14:00 ngày nhận phòng)*
   - `valid_until`: `((current_date + 1) + time '12:00:00') at time zone 'Asia/Ho_Chi_Minh'` *(Kết thúc đúng 12:00 ngày trả phòng)*
-  - `status`: Sử dụng canonical status do TV1/TV8 thống nhất trong backend schema (ví dụ: `status = 'active'`)
+  - `status`: `'active'`
 
 ---
 
@@ -153,8 +161,8 @@ Yêu cầu 02 tickets trong `public.tickets` có UUID hex chuẩn để kiểm t
    - `room_id`: `00000000-0000-0000-0000-000000000011`
    - `category`: `'Thiết bị điện lạnh'`
    - `description`: `'Điều hòa chảy nước xuống góc sàn gỗ gần giường, cần thợ kiểm tra kỹ thuật.'`
-   - `media_paths`: `array['/images/rooms/room-1.webp']`
-   - `status`: Sử dụng canonical status do TV1/TV8 thống nhất trong backend schema (ví dụ: `'pending'` hoặc `'open'`)
+   - `media_paths`: `array[]::text[]` *(Acceptance path dùng mảng rỗng; media upload đánh dấu PENDING/TBD)*
+   - `status`: `'pending'`
 2. **Ticket 2 (Đang xử lý):**
    - `id`: `00000000-0000-0000-0000-000000000032` (UUID chuẩn hex)
    - `user_id`: `00000000-0000-0000-0000-000000000001`
@@ -163,7 +171,7 @@ Yêu cầu 02 tickets trong `public.tickets` có UUID hex chuẩn để kiểm t
    - `category`: `'Tiện ích phòng'`
    - `description`: `'Xin thêm gối ngủ êm và 01 chăn mỏng phục vụ thêm người lớn.'`
    - `media_paths`: `array[]::text[]`
-   - `status`: Sử dụng canonical status do TV1/TV8 thống nhất trong backend schema (ví dụ: `'in_progress'`)
+   - `status`: `'in_progress'`
 
 ---
 
@@ -173,12 +181,13 @@ Yêu cầu 02 tickets trong `public.tickets` có UUID hex chuẩn để kiểm t
 |:---:|---|---|
 | **TC-01** | Lọc phòng theo cơ sở và số khách | Sử dụng **Phòng 4 (Kapi Family Suite DVN, capacity = 4)** tại Cơ sở Đặng Văn Ngữ (`...00000071`) làm Positive Case; các phòng còn lại kiểm thử lọc loại trừ (Mục 3.2). |
 | **TC-02** | Validation chọn ngày Check-out trước Check-in | Không phụ thuộc dữ liệu database, kiểm tra logic form frontend. |
-| **TC-03** | Khóa nút đặt khi phòng đã kín ngày | Đơn booking mẫu `...00000021` chiếm khoảng ngày `current_date` đến `current_date + 1` của phòng Studio Hoa Nắng (Mục 3.5). |
-| **TC-04** | Render mã VietQR thanh toán | Sử dụng Checkout Session `00000000-0000-0000-0000-000000000051` (trạng thái `status = 'ACTIVE'`) với số tiền 900.000đ và `payment_reference = 'KAPI51PAY'` (Mục 3.4). |
-| **TC-05** | Chặn khách vãng lai (Auth Guard) | Cần tài khoản khách mẫu `testguest@kapistay.local` (Mục 3.1) để hoàn tất đăng nhập chuyển hướng về `/login?next=/checkout`. |
-| **TC-06** | Hiển thị mã Digital Key & Copy Wi-Fi tại My Stay | Cần đơn booking `...00000021` (`confirmed`) và bản ghi mã PIN hợp lệ trong `booking_access_credentials` (Mục 3.5). *QA đảm bảo thời điểm test nằm trong khung 14:00 - 12:00.* |
-| **TC-07** | Gửi ticket báo sự cố đính kèm ảnh | Cần đơn booking đang diễn ra để gửi ticket không reload trang. |
-| **TC-08** | Operations Dashboard tải dữ liệu tickets | Cần 2 tickets mẫu `...00000031` và `...00000032` (Mục 3.6). |
+| **TC-03** | Khóa nút đặt khi phòng đã kín ngày | Đơn booking mẫu `...00000021` (`booking_status = 'confirmed'`) chiếm khoảng ngày `current_date` đến `current_date + 1` của phòng Studio Hoa Nắng (Mục 3.5). |
+| **TC-04A** | Render mã VietQR thanh toán | Sử dụng Checkout Session `00000000-0000-0000-0000-000000000051` (trạng thái `status = 'ACTIVE'`) với số tiền 900.000đ và `payment_reference = 'KAPI51PAY'` (Mục 3.4). |
+| **TC-04B** | Xác thực thanh toán & Chốt đơn atomic | [PENDING / BLOCKED] Yêu cầu webhook/verifier ngân hàng thật và trusted backend RPC (`finalize_checkout_session`) để chuyển session sang `'COMPLETED'`, tạo đơn booking (`'confirmed'`) và thanh toán (`'paid'`). |
+| **TC-05** | Chặn khách vãng lai (Auth Guard) | Cần tài khoản khách mẫu `testguest@kapistay.local` (Mục 3.1) để hoàn tất đăng nhập chuyển hướng về `/login?next=<encoded checkout URL>`. |
+| **TC-06** | Hiển thị mã Digital Key & Copy Wi-Fi tại My Stay | Cần đơn booking `...00000021` (`booking_status = 'confirmed'`) và bản ghi mã PIN hợp lệ trong `booking_access_credentials` (trạng thái `'active'`) (Mục 3.5). *QA đảm bảo thời điểm test nằm trong khung 14:00 - 12:00.* |
+| **TC-07** | Gửi ticket báo sự cố hỗ trợ | Cần đơn booking đang diễn ra (`booking_status = 'confirmed'`) để gửi ticket không reload trang, lưu DB với `status = 'pending'`; [PENDING / TBD — Media upload chưa có trusted upload/persistence flow, hiện dùng `media_paths = []`]. |
+| **TC-08** | Operations Dashboard tải dữ liệu tickets | Mở Operations Dashboard tại `/operations`; cần 2 tickets mẫu `...00000031` (`status = 'pending'`) và `...00000032` (`status = 'in_progress'`) (Mục 3.6). |
 | **TC-09** | Co giãn giao diện di động (Responsive QA) | Sử dụng toàn bộ giao diện đã có dữ liệu danh mục phòng và chi tiết phòng. |
 | **TC-10** | Tốc độ tải ảnh WebP [QA Benchmark] | Sử dụng các ảnh WebP nhẹ (~9.5KB) tại `/images/rooms/room-*.webp`. |
 
