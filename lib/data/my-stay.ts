@@ -51,7 +51,7 @@ export interface MyStayBookingDetails {
   instructions: string | null;
 }
 
-function parseCredentialsResponse(data: unknown): MyStayCredentialsRpcResponse | null {
+export function parseCredentialsResponse(data: unknown): MyStayCredentialsRpcResponse | null {
   if (!data || typeof data !== "object") {
     return null;
   }
