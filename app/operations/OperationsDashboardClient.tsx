@@ -3,10 +3,57 @@
 import React, { useState } from "react";
 import { updateRoomStatus, updateTicketStatusAdmin } from "@/lib/data/admin";
 
+export type RoomOperationalStatus = "ready" | "occupied" | "cleaning" | "maintenance";
+export type TicketStatus = "pending" | "in_progress" | "resolved";
+
+export interface RoomOperationItem {
+  room_id: string;
+  room_name?: string;
+  operational_status: RoomOperationalStatus | string;
+  updated_at?: string;
+  updated_by?: string;
+}
+
+export interface TicketItem {
+  id: string;
+  booking_id?: string;
+  room_id?: string;
+  room_name?: string;
+  user_id?: string;
+  guest_name?: string;
+  guest_phone?: string;
+  category?: string;
+  description?: string;
+  status: TicketStatus | string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface TodayBookingItem {
+  booking_id?: string;
+  id?: string;
+  check_in?: string;
+  check_out?: string;
+  is_checkin_today?: boolean;
+  is_checkout_today?: boolean;
+  booking_status?: string;
+  payment_status?: string;
+}
+
+export interface StaffDashboardDataPayload {
+  room_operations?: RoomOperationItem[];
+  tickets?: TicketItem[];
+  today_bookings?: TodayBookingItem[];
+}
+
+export type ScheduleItem = TodayBookingItem & {
+  eventType: "checkin" | "checkout";
+};
+
 interface OperationsDashboardClientProps {
-  initialData: any;
+  initialData: StaffDashboardDataPayload | null;
   loadError: boolean;
-  staffEmail?: string;
+  staffEmail?: string | null;
 }
 
 export default function OperationsDashboardClient({
@@ -14,12 +61,11 @@ export default function OperationsDashboardClient({
   loadError: initialLoadError,
   staffEmail,
 }: OperationsDashboardClientProps) {
-  const [dashboardData, setDashboardData] = useState<any>(initialData);
+  const [dashboardData, setDashboardData] = useState<StaffDashboardDataPayload | null>(initialData);
   const [loadError] = useState<boolean>(initialLoadError);
   const [isUpdating, setIsUpdating] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
-  // Filters
   const [activeTab, setActiveTab] = useState<"rooms" | "tickets" | "schedule">("rooms");
   const [roomFilter, setRoomFilter] = useState<string>("all");
   const [scheduleFilter, setScheduleFilter] = useState<"all" | "checkin" | "checkout">("all");
@@ -29,10 +75,9 @@ export default function OperationsDashboardClient({
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Canonical Mappings
-  const roomOperations: any[] = dashboardData?.room_operations || [];
-  const tickets: any[] = dashboardData?.tickets || [];
-  const todayBookings: any[] = dashboardData?.today_bookings || [];
+  const roomOperations: RoomOperationItem[] = dashboardData?.room_operations || [];
+  const tickets: TicketItem[] = dashboardData?.tickets || [];
+  const todayBookings: TodayBookingItem[] = dashboardData?.today_bookings || [];
 
   // KPI Calculations
   const roomKPIs = {
@@ -45,19 +90,26 @@ export default function OperationsDashboardClient({
   const checkinCount = todayBookings.filter((b) => b.is_checkin_today).length;
   const checkoutCount = todayBookings.filter((b) => b.is_checkout_today).length;
 
-  // Handlers
-  const handleRoomStatusChange = async (roomId: string, newStatus: "ready" | "occupied" | "cleaning" | "maintenance") => {
+  // 1. Room Mutation Reconcile (Authoritative Server Response)
+  const handleRoomStatusChange = async (roomId: string, newStatus: RoomOperationalStatus) => {
     setIsUpdating(true);
     try {
       const updatedRecord = await updateRoomStatus(roomId, newStatus);
       if (updatedRecord) {
-        setDashboardData((prev: any) => {
+        setDashboardData((prev) => {
           if (!prev) return prev;
           const currentRooms = prev.room_operations || [];
           return {
             ...prev,
-            room_operations: currentRooms.map((r: any) =>
-              r.room_id === roomId ? { ...r, operational_status: newStatus, updated_at: new Date().toISOString() } : r
+            room_operations: currentRooms.map((r) =>
+              r.room_id === (updatedRecord.room_id || roomId)
+                ? {
+                    ...r,
+                    operational_status: updatedRecord.operational_status || newStatus,
+                    updated_at: updatedRecord.updated_at || r.updated_at,
+                    updated_by: updatedRecord.updated_by || r.updated_by,
+                  }
+                : r
             ),
           };
         });
@@ -72,18 +124,25 @@ export default function OperationsDashboardClient({
     }
   };
 
-  const handleTicketStatusChange = async (ticketId: string, newStatus: "pending" | "in_progress" | "resolved") => {
+  // 2. Ticket Mutation Reconcile (Authoritative Server Response)
+  const handleTicketStatusChange = async (ticketId: string, newStatus: TicketStatus) => {
     setIsUpdating(true);
     try {
       const res = await updateTicketStatusAdmin(ticketId, newStatus);
       if (res) {
-        setDashboardData((prev: any) => {
+        setDashboardData((prev) => {
           if (!prev) return prev;
           const currentTickets = prev.tickets || [];
           return {
             ...prev,
-            tickets: currentTickets.map((t: any) =>
-              t.id === ticketId ? { ...t, status: newStatus, updated_at: new Date().toISOString() } : t
+            tickets: currentTickets.map((t) =>
+              t.id === (res.id || ticketId)
+                ? {
+                    ...t,
+                    status: res.status,
+                    updated_at: res.updated_at,
+                  }
+                : t
             ),
           };
         });
@@ -115,12 +174,11 @@ export default function OperationsDashboardClient({
     );
   }
 
-  // Filtered Lists
   const filteredRooms = roomOperations.filter((r) =>
     roomFilter === "all" ? true : r.operational_status === roomFilter
   );
 
-  const scheduleItems: any[] = [];
+  const scheduleItems: ScheduleItem[] = [];
   todayBookings.forEach((b) => {
     if (b.is_checkin_today) scheduleItems.push({ ...b, eventType: "checkin" });
     if (b.is_checkout_today) scheduleItems.push({ ...b, eventType: "checkout" });
@@ -132,7 +190,6 @@ export default function OperationsDashboardClient({
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
-      {/* Toast */}
       {toastMessage && (
         <div
           className={`fixed bottom-4 right-4 px-4 py-2 rounded-md text-white font-medium shadow-lg z-50 ${
@@ -143,7 +200,6 @@ export default function OperationsDashboardClient({
         </div>
       )}
 
-      {/* Header */}
       <div className="flex justify-between items-center border-b pb-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Bảng Điều Khiển Vận Hành</h1>
@@ -153,7 +209,7 @@ export default function OperationsDashboardClient({
         </div>
       </div>
 
-      {/* KPIs Room & Schedule */}
+      {/* Thẻ KPI */}
       <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
         <button
           onClick={() => { setActiveTab("rooms"); setRoomFilter("ready"); }}
@@ -216,7 +272,7 @@ export default function OperationsDashboardClient({
         </button>
       </div>
 
-      {/* Navigation Tabs */}
+      {/* Tabs Navigation */}
       <div className="flex space-x-4 border-b">
         <button
           onClick={() => setActiveTab("rooms")}
@@ -244,7 +300,7 @@ export default function OperationsDashboardClient({
         </button>
       </div>
 
-      {/* Tab 1: Rooms Table */}
+      {/* Tab 1: Bảng Phòng */}
       {activeTab === "rooms" && (
         <div className="bg-white rounded-lg border p-4 space-y-4">
           <div className="flex justify-between items-center">
@@ -302,13 +358,20 @@ export default function OperationsDashboardClient({
                     <td className="p-3 text-gray-500 text-xs">
                       {room.updated_at ? new Date(room.updated_at).toLocaleString("vi-VN") : "---"}
                     </td>
-                    <td className="p-3 text-right space-x-2">
+                    <td className="p-3 text-right space-x-1">
                       <button
                         disabled={isUpdating}
                         onClick={() => handleRoomStatusChange(room.room_id, "ready")}
                         className="px-2 py-1 text-xs bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 rounded"
                       >
                         Sẵn sàng
+                      </button>
+                      <button
+                        disabled={isUpdating}
+                        onClick={() => handleRoomStatusChange(room.room_id, "occupied")}
+                        className="px-2 py-1 text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded"
+                      >
+                        Có khách
                       </button>
                       <button
                         disabled={isUpdating}
@@ -333,7 +396,7 @@ export default function OperationsDashboardClient({
         </div>
       )}
 
-      {/* Tab 2: Tickets List */}
+      {/* Tab 2: Danh Sách Sự Cố */}
       {activeTab === "tickets" && (
         <div className="bg-white rounded-lg border p-4 space-y-4">
           <div className="divide-y">
@@ -348,17 +411,43 @@ export default function OperationsDashboardClient({
                       <span className="text-xs text-gray-500">({t.room_name || "Chưa rõ phòng"})</span>
                     </div>
                     <p className="text-sm text-gray-600 mt-1">{t.description}</p>
-                    <p className="text-xs text-gray-400 mt-1">Khách: {t.guest_name || "N/A"} - SĐT: {t.guest_phone || "N/A"}</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Khách: {t.guest_name || "N/A"} - SĐT: {t.guest_phone || "N/A"}
+                    </p>
                   </div>
                   <div className="flex items-center space-x-2">
                     <span className="text-xs px-2 py-1 rounded bg-gray-100 font-medium uppercase">{t.status}</span>
-                    <button
-                      disabled={isUpdating}
-                      onClick={() => handleTicketStatusChange(t.id, t.status === "resolved" ? "in_progress" : "resolved")}
-                      className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
-                    >
-                      {t.status === "resolved" ? "Mở lại" : "Giải quyết"}
-                    </button>
+
+                    {/* Workflow 3 Bước Chuẩn Lifecycle */}
+                    {t.status === "pending" && (
+                      <button
+                        disabled={isUpdating}
+                        onClick={() => handleTicketStatusChange(t.id, "in_progress")}
+                        className="px-3 py-1 text-xs bg-yellow-600 text-white rounded hover:bg-yellow-700 font-medium"
+                      >
+                        Tiếp nhận xử lý
+                      </button>
+                    )}
+
+                    {t.status === "in_progress" && (
+                      <button
+                        disabled={isUpdating}
+                        onClick={() => handleTicketStatusChange(t.id, "resolved")}
+                        className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 font-medium"
+                      >
+                        Đánh dấu đã xử lý
+                      </button>
+                    )}
+
+                    {t.status === "resolved" && (
+                      <button
+                        disabled={isUpdating}
+                        onClick={() => handleTicketStatusChange(t.id, "in_progress")}
+                        className="px-3 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-700 font-medium"
+                      >
+                        Mở lại
+                      </button>
+                    )}
                   </div>
                 </div>
               ))
@@ -367,7 +456,7 @@ export default function OperationsDashboardClient({
         </div>
       )}
 
-      {/* Tab 3: Schedule Table */}
+      {/* Tab 3: Lịch Đón Trả Khách (Schedule Table) */}
       {activeTab === "schedule" && (
         <div className="bg-white rounded-lg border p-4 space-y-4">
           <div className="flex justify-between items-center">
