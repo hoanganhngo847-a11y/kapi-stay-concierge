@@ -111,6 +111,24 @@ export async function checkRoomAvailability(
   try {
     const supabase = await createClient();
 
+    // Defense-in-depth: phòng chỉ được coi là khả dụng khi bản thân phòng đang
+    // được mở bán và cơ sở cha vẫn đang active.
+    const { data: publicRoom, error: publicRoomError } = await supabase
+      .from("rooms")
+      .select("id, properties!inner(id)")
+      .eq("id", cleanRoomId)
+      .eq("is_listed", true)
+      .eq("properties.is_active", true)
+      .maybeSingle();
+
+    if (publicRoomError) {
+      throw publicRoomError;
+    }
+
+    if (!publicRoom) {
+      return false;
+    }
+
     // Gọi RPC function check_room_availability từ Supabase
     const { data, error } = await supabase.rpc(
       "check_room_availability",
