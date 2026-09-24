@@ -7,7 +7,6 @@ import WifiWidget from "@/components/my-stay/WifiWidget";
 import { QuickActions } from "@/components/my-stay/QuickActions";
 import { getMyStayBookingDetails } from "@/lib/data/my-stay";
 
-const SUPPORT_HOTLINE = process.env.NEXT_PUBLIC_SUPPORT_HOTLINE?.trim();
 const CANONICAL_PARAM = "bookingId";
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -29,6 +28,7 @@ function MyStayContent() {
   const searchParams = useSearchParams();
   const rawParam =
     searchParams.get(CANONICAL_PARAM) ||
+    searchParams.get("bookingID") ||
     searchParams.get("booking") ||
     searchParams.get("code") ||
     "";
@@ -39,7 +39,7 @@ function MyStayContent() {
   const [stayData, setStayData] = useState<StayData | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(() => {
     if (trimmedParam && !isValidUuid) {
-      return "Mã đặt phòng không đúng định dạng UUID. Vui lòng kiểm tra lại đường dẫn hoặc mã được cung cấp.";
+      return "Mã đặt phòng không đúng định dạng.";
     }
     return null;
   });
@@ -54,9 +54,7 @@ function MyStayContent() {
       setErrorMessage(null);
     } else if (trimmedParam) {
       setBookingInput("");
-      setErrorMessage(
-        "Mã đặt phòng không đúng định dạng UUID. Vui lòng kiểm tra lại đường dẫn hoặc mã được cung cấp."
-      );
+      setErrorMessage("Mã đặt phòng không đúng định dạng.");
       setStayData(null);
     } else {
       setBookingInput("");
@@ -86,10 +84,10 @@ function MyStayContent() {
         setStayData(data as StayData);
       }
     } catch (err: unknown) {
-      // TODO: Replace message markers with a structured backend error code.
+      // Map domain markers to user-friendly messages without exposing internal/DB details
       const errMsg = err instanceof Error ? err.message : "";
       if (errMsg.startsWith("Unauthorized:")) {
-        setErrorMessage("Bạn cần đăng nhập để xem thông tin lưu trú này.");
+        setErrorMessage("Bạn cần đăng nhập để xem thông tin kỳ nghỉ.");
       } else if (errMsg.startsWith("Forbidden:")) {
         setErrorMessage("Không tìm thấy đơn hoặc bạn không có quyền truy cập.");
       } else {
@@ -114,9 +112,13 @@ function MyStayContent() {
     // Canonicalize query parameter in URL if alias or non-canonical form was used
     if (typeof window !== "undefined") {
       const currentCanonical = searchParams.get(CANONICAL_PARAM);
-      const hasAliases = searchParams.has("booking") || searchParams.has("code");
+      const hasAliases =
+        searchParams.has("bookingID") ||
+        searchParams.has("booking") ||
+        searchParams.has("code");
       if (currentCanonical !== trimmedParam || hasAliases) {
         const url = new URL(window.location.href);
+        url.searchParams.delete("bookingID");
         url.searchParams.delete("booking");
         url.searchParams.delete("code");
         url.searchParams.set(CANONICAL_PARAM, trimmedParam);
@@ -141,6 +143,7 @@ function MyStayContent() {
     // Update URL to canonical param
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
+      url.searchParams.delete("bookingID");
       url.searchParams.delete("booking");
       url.searchParams.delete("code");
       url.searchParams.set(CANONICAL_PARAM, cleanInput);
@@ -163,7 +166,10 @@ function MyStayContent() {
             id="bookingCode"
             type="text"
             value={bookingInput}
-            onChange={(e) => setBookingInput(e.target.value)}
+            onChange={(e) => {
+              setBookingInput(e.target.value);
+              if (errorMessage) setErrorMessage(null);
+            }}
             placeholder="Nhập UUID đơn hàng (VD: 123e4567-e89b-12d3-a456-426614174000)"
             className="flex-1 px-3 py-2 border rounded-lg text-sm"
           />
@@ -181,8 +187,16 @@ function MyStayContent() {
       </form>
 
       {errorMessage && (
-        <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-lg">
-          {errorMessage}
+        <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-lg flex items-center justify-between">
+          <span>{errorMessage}</span>
+          {errorMessage.includes("đăng nhập") && (
+            <a
+              href="/login?next=/my-stay"
+              className="text-xs font-semibold underline ml-2 text-primary whitespace-nowrap"
+            >
+              Đăng nhập ngay
+            </a>
+          )}
         </div>
       )}
 
@@ -206,16 +220,7 @@ function MyStayContent() {
             <WifiWidget ssid={stayData.wifiSsid} password={stayData.wifiPass} />
           ) : null}
 
-          <QuickActions />
-
-          {SUPPORT_HOTLINE ? (
-            <div className="text-xs text-muted-foreground text-center border-t pt-4">
-              Cần hỗ trợ gấp? Liên hệ Hotline:{" "}
-              <a href={`tel:${SUPPORT_HOTLINE.replace(/\s+/g, "")}`} className="font-semibold text-primary underline">
-                {SUPPORT_HOTLINE}
-              </a>
-            </div>
-          ) : null}
+          <QuickActions bookingId={stayData.bookingId} isCheckoutAllowed={false} />
         </div>
       )}
     </div>
