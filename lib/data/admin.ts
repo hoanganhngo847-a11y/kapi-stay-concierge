@@ -185,48 +185,6 @@ interface RpcUpdateTicketResult {
   };
 }
 
-interface RpcDashboardResult {
-  success: boolean;
-  error?: string;
-  today?: string;
-  room_operations?: Array<{
-    room_id: string;
-    room_name: string;
-    operational_status: string;
-    updated_at: string;
-    updated_by: string | null;
-  }>;
-  tickets?: Array<{
-    id: string;
-    booking_id: string;
-    room_id: string;
-    room_name: string | null;
-    user_id: string;
-    guest_name: string | null;
-    guest_phone?: string | null;
-    category: string;
-    description: string;
-    media_paths?: string[];
-    status: string;
-    created_at: string;
-    updated_at: string;
-  }>;
-  today_bookings?: Array<{
-    id: string;
-    room_id: string;
-    room_name: string | null;
-    user_id: string;
-    guest_name: string | null;
-    guest_phone?: string | null;
-    check_in: string;
-    check_out: string;
-    guest_count: number;
-    booking_status: string;
-    payment_status: string;
-    is_checkin_today: boolean;
-    is_checkout_today: boolean;
-  }>;
-}
 
 /**
  * Verifies that the current authenticated user has 'staff' or 'admin' privileges.
@@ -246,7 +204,14 @@ export async function verifyStaffRole(): Promise<{
     error: authError,
   } = await supabase.auth.getUser();
 
-  if (authError || !user) {
+  // 1. Supabase Auth / auth.getUser() gặp lỗi backend, network hoặc service error
+  if (authError) {
+    console.error("[verifyStaffRole] Lỗi kết nối Supabase Auth:", authError.message);
+    throw new StaffAuthError("AUTH_BACKEND_ERROR", authError.message);
+  }
+
+  // 2. auth.getUser() thành công nhưng không có user/session
+  if (!user) {
     throw new StaffAuthError("UNAUTHENTICATED", "Chưa đăng nhập");
   }
 
@@ -257,11 +222,13 @@ export async function verifyStaffRole(): Promise<{
     .eq("user_id", user.id)
     .maybeSingle();
 
+  // 3. User tồn tại nhưng query staff_roles gặp DB/network error
   if (roleError) {
     console.error("[verifyStaffRole] Lỗi truy vấn bảng staff_roles:", roleError.message);
     throw new StaffAuthError("AUTH_BACKEND_ERROR", roleError.message);
   }
 
+  // 4. Query thành công nhưng user không có role staff hoặc admin
   if (!roleData || (roleData.role !== "staff" && roleData.role !== "admin")) {
     throw new StaffAuthError("FORBIDDEN", "Bạn không có quyền truy cập trang quản trị.");
   }
@@ -504,26 +471,42 @@ export async function updateTicketStatusAdmin(
  * Validates and sanitizes dashboard data at the backend boundary.
  * Enforces Fail-Closed security: throws an error if any operational_status
  * or ticket status falls outside the strictly permitted union types.
+ * Treats raw input as untrusted `unknown` without unsafe direct casting.
  */
-export function validateStaffDashboardBoundary(data: RpcDashboardResult): StaffDashboardData {
+export function validateStaffDashboardBoundary(data: unknown): StaffDashboardData {
+  if (!data || typeof data !== "object") {
+    throw new Error("Dữ liệu bảng điều khiển từ máy chủ không hợp lệ (không phải đối tượng).");
+  }
+
+  const payload = data as Record<string, unknown>;
+
+  if (payload.success !== true) {
+    const domainError = typeof payload.error === "string" ? payload.error : undefined;
+    if (domainError === "FORBIDDEN_STAFF_ONLY") {
+      throw new Error("Forbidden: Bạn không có quyền truy cập trang quản trị.");
+    }
+    throw new Error("Không thể tải dữ liệu bảng điều khiển vận hành.");
+  }
+
   if (
-    !Array.isArray(data.room_operations) ||
-    !Array.isArray(data.tickets) ||
-    !Array.isArray(data.today_bookings)
+    !Array.isArray(payload.room_operations) ||
+    !Array.isArray(payload.tickets) ||
+    !Array.isArray(payload.today_bookings)
   ) {
     throw new Error("Dữ liệu bảng điều khiển từ máy chủ không đúng định dạng danh sách.");
   }
 
-  const validatedRoomOperations = data.room_operations.map((item, index) => {
-    if (!item || typeof item !== "object") {
+  const validatedRoomOperations = payload.room_operations.map((rawItem, index) => {
+    if (!rawItem || typeof rawItem !== "object") {
       throw new Error(`Dữ liệu room_operations[${index}] không hợp lệ.`);
     }
+    const item = rawItem as Record<string, unknown>;
     const validatedStatus = validateRoomOperationalStatusBoundary(
       item.operational_status,
-      `phòng ${item.room_id || index}`
+      `phòng ${String(item.room_id || index)}`
     );
     return {
-      room_id: String(item.room_id),
+      room_id: String(item.room_id ?? ""),
       room_name: String(item.room_name ?? ""),
       operational_status: validatedStatus,
       updated_at: String(item.updated_at ?? ""),
@@ -531,20 +514,21 @@ export function validateStaffDashboardBoundary(data: RpcDashboardResult): StaffD
     };
   });
 
-  const validatedTickets = data.tickets.map((item, index) => {
-    if (!item || typeof item !== "object") {
+  const validatedTickets = payload.tickets.map((rawItem, index) => {
+    if (!rawItem || typeof rawItem !== "object") {
       throw new Error(`Dữ liệu tickets[${index}] không hợp lệ.`);
     }
+    const item = rawItem as Record<string, unknown>;
     const validatedStatus = validateTicketStatusBoundary(
       item.status,
-      `sự cố ${item.id || index}`
+      `sự cố ${String(item.id || index)}`
     );
     return {
-      id: String(item.id),
-      booking_id: String(item.booking_id),
-      room_id: String(item.room_id),
+      id: String(item.id ?? ""),
+      booking_id: String(item.booking_id ?? ""),
+      room_id: String(item.room_id ?? ""),
       room_name: item.room_name ? String(item.room_name) : null,
-      user_id: String(item.user_id),
+      user_id: String(item.user_id ?? ""),
       guest_name: item.guest_name ? String(item.guest_name) : null,
       guest_phone: item.guest_phone ? String(item.guest_phone) : null,
       category: String(item.category ?? ""),
@@ -556,12 +540,34 @@ export function validateStaffDashboardBoundary(data: RpcDashboardResult): StaffD
     };
   });
 
+  const validatedTodayBookings = payload.today_bookings.map((rawBooking, index) => {
+    if (!rawBooking || typeof rawBooking !== "object") {
+      throw new Error(`Dữ liệu today_bookings[${index}] không hợp lệ.`);
+    }
+    const b = rawBooking as Record<string, unknown>;
+    return {
+      id: String(b.id ?? ""),
+      room_id: String(b.room_id ?? ""),
+      room_name: b.room_name ? String(b.room_name) : null,
+      user_id: String(b.user_id ?? ""),
+      guest_name: b.guest_name ? String(b.guest_name) : null,
+      guest_phone: b.guest_phone ? String(b.guest_phone) : null,
+      check_in: String(b.check_in ?? ""),
+      check_out: String(b.check_out ?? ""),
+      guest_count: typeof b.guest_count === "number" ? b.guest_count : Number(b.guest_count || 0),
+      booking_status: String(b.booking_status ?? ""),
+      payment_status: String(b.payment_status ?? ""),
+      is_checkin_today: Boolean(b.is_checkin_today),
+      is_checkout_today: Boolean(b.is_checkout_today),
+    };
+  });
+
   return {
     success: true,
-    today: data.today,
+    today: typeof payload.today === "string" ? payload.today : undefined,
     room_operations: validatedRoomOperations,
     tickets: validatedTickets,
-    today_bookings: data.today_bookings,
+    today_bookings: validatedTodayBookings,
   };
 }
 
@@ -581,16 +587,5 @@ export async function getStaffDashboardData(): Promise<StaffDashboardData> {
     throw new Error("Không thể tải dữ liệu bảng điều khiển vận hành.");
   }
 
-  const result = rpcRaw as unknown as RpcDashboardResult | null;
-
-  if (!result || result.success !== true) {
-    const domainError = result?.error;
-    console.error("[getStaffDashboardData] RPC trả về thất bại:", domainError);
-    if (domainError === "FORBIDDEN_STAFF_ONLY") {
-      throw new Error("Forbidden: Bạn không có quyền truy cập trang quản trị.");
-    }
-    throw new Error("Không thể tải dữ liệu bảng điều khiển vận hành.");
-  }
-
-  return validateStaffDashboardBoundary(result);
+  return validateStaffDashboardBoundary(rpcRaw);
 }
