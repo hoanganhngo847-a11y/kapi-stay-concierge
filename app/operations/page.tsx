@@ -1,6 +1,13 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import { verifyStaffRole, getStaffDashboardData } from "@/lib/data/admin";
+import {
+  verifyStaffRole,
+  getStaffDashboardData,
+  updateRoomStatus,
+  updateTicketStatusAdmin,
+  StaffAuthError,
+  type RoomOperationalStatus,
+  type TicketStatus,
+} from "@/lib/data/admin";
 import OperationsDashboardClient from "./OperationsDashboardClient";
 
 export const metadata = {
@@ -11,18 +18,6 @@ export const metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function OperationsDashboardPage() {
-  // LỖI 2: Dùng helper canonical của project
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (!user || authError) {
-    redirect("/login?next=/operations");
-  }
-
   let staffRoleInfo: { id: string; email?: string; role: "staff" | "admin" } | null = null;
   let isForbidden = false;
   let isBackendError = false;
@@ -30,10 +25,14 @@ export default async function OperationsDashboardPage() {
   try {
     staffRoleInfo = await verifyStaffRole();
   } catch (error: unknown) {
-    // LỖI 1: Không parse Error.message để phân loại auth
-    const err = error as { code?: string; status?: number };
-    if (err?.code === "FORBIDDEN" || err?.status === 403) {
-      isForbidden = true;
+    if (error instanceof StaffAuthError) {
+      if (error.code === "UNAUTHENTICATED") {
+        redirect("/login?next=/operations");
+      } else if (error.code === "FORBIDDEN") {
+        isForbidden = true;
+      } else {
+        isBackendError = true;
+      }
     } else {
       isBackendError = true;
     }
@@ -75,13 +74,25 @@ export default async function OperationsDashboardPage() {
     loadError = true;
   }
 
-  const safeEmail: string = staffRoleInfo?.email || user?.email || "";
+  const safeEmail: string = staffRoleInfo?.email || "";
+
+  async function handleUpdateRoomStatus(roomId: string, status: RoomOperationalStatus) {
+    "use server";
+    return updateRoomStatus(roomId, status);
+  }
+
+  async function handleUpdateTicketStatus(ticketId: string, status: TicketStatus) {
+    "use server";
+    return updateTicketStatusAdmin(ticketId, status);
+  }
 
   return (
     <OperationsDashboardClient
       initialData={dashboardData}
       loadError={loadError}
       staffEmail={safeEmail}
+      onUpdateRoomStatus={handleUpdateRoomStatus}
+      onUpdateTicketStatus={handleUpdateTicketStatus}
     />
   );
 }

@@ -1,12 +1,12 @@
 "use client";
 
 import React, { useState } from "react";
-import {
-  updateRoomStatus,
-  updateTicketStatusAdmin,
-  type RoomOperationalStatus,
-  type TicketStatus,
-  type StaffDashboardData,
+import type {
+  RoomOperationalStatus,
+  TicketStatus,
+  StaffDashboardData,
+  RoomOperationRecord,
+  AdminTicketRecord,
 } from "@/lib/data/admin";
 
 export type StaffDashboardDataPayload = StaffDashboardData;
@@ -23,12 +23,22 @@ interface OperationsDashboardClientProps {
   initialData: StaffDashboardDataPayload | null;
   loadError: boolean;
   staffEmail?: string | null;
+  onUpdateRoomStatus?: (
+    roomId: string,
+    status: RoomOperationalStatus
+  ) => Promise<RoomOperationRecord>;
+  onUpdateTicketStatus?: (
+    ticketId: string,
+    status: TicketStatus
+  ) => Promise<AdminTicketRecord>;
 }
 
 export default function OperationsDashboardClient({
   initialData,
   loadError: initialLoadError,
   staffEmail,
+  onUpdateRoomStatus,
+  onUpdateTicketStatus,
 }: OperationsDashboardClientProps) {
   const [dashboardData, setDashboardData] = useState<StaffDashboardDataPayload | null>(initialData);
   const [loadError] = useState<boolean>(initialLoadError);
@@ -61,9 +71,10 @@ export default function OperationsDashboardClient({
 
   // 1. Room Mutation Reconcile (Authoritative Server Response)
   const handleRoomStatusChange = async (roomId: string, newStatus: RoomOperationalStatus) => {
+    if (!onUpdateRoomStatus) return;
     setIsUpdating(true);
     try {
-      const updatedRecord = await updateRoomStatus(roomId, newStatus);
+      const updatedRecord = await onUpdateRoomStatus(roomId, newStatus);
       if (updatedRecord) {
         setDashboardData((prev) => {
           if (!prev) return prev;
@@ -95,9 +106,10 @@ export default function OperationsDashboardClient({
 
   // 2. Ticket Mutation Reconcile (Authoritative Server Response)
   const handleTicketStatusChange = async (ticketId: string, newStatus: TicketStatus) => {
+    if (!onUpdateTicketStatus) return;
     setIsUpdating(true);
     try {
-      const res = await updateTicketStatusAdmin(ticketId, newStatus);
+      const res = await onUpdateTicketStatus(ticketId, newStatus);
       if (res) {
         setDashboardData((prev) => {
           if (!prev) return prev;
