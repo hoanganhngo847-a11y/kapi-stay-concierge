@@ -10,17 +10,18 @@ import {
 import { Badge, Button, Modal } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import type { Tables, TablesInsert } from "@/lib/database.types";
+import {
+  VALID_TICKET_CATEGORIES,
+  isValidTicketCategory,
+  type TicketCategory,
+} from "./constants";
 import { createGuestTicketAction } from "./actions";
 
 export type Ticket = Tables<"tickets">;
 export type TicketInsert = TablesInsert<"tickets">;
 
-export type TicketCategory =
-  | "Khóa kẹt"
-  | "Thiết bị hỏng"
-  | "Vệ sinh chưa sạch"
-  | "Tiếng ồn"
-  | "Yêu cầu khác";
+export { VALID_TICKET_CATEGORIES, isValidTicketCategory };
+export type { TicketCategory };
 
 export interface TicketFormData {
   category: TicketCategory;
@@ -34,7 +35,7 @@ export interface TicketModalProps {
   bookingId?: string;
   roomId?: string;
   onSuccess?: (ticket: Ticket) => void;
-  onSubmit?: (data: TicketFormData) => Promise<Ticket> | Ticket;
+  onSubmit?: (ticket: Ticket) => Promise<unknown> | unknown;
 }
 
 export const TICKET_CATEGORIES: {
@@ -134,7 +135,7 @@ export function TicketModal({
     // 2. Validate dữ liệu nhập
     const validationErrors: typeof errors = {};
 
-    if (!category) {
+    if (!category || !isValidTicketCategory(category)) {
       validationErrors.category = "Vui lòng chọn loại sự cố hoặc yêu cầu cần hỗ trợ";
     }
 
@@ -158,46 +159,15 @@ export function TicketModal({
       const cleanBookingId = bookingId.trim();
       const cleanRoomId = roomId.trim();
 
-      // 3. Trường hợp component nhận custom submit handler từ props
-      if (onSubmit) {
-        let result: Ticket | null = null;
-        try {
-          result = (await onSubmit({
-            category: category as TicketCategory,
-            description: trimmedDescription,
-          })) as Ticket | null;
-        } catch {
-          setSubmittedTicket(null);
-          setIsSuccess(false);
-          setSubmitError("Không thể xác nhận lưu trữ yêu cầu hỗ trợ.");
-          return;
-        }
-
-        if (
-          result &&
-          typeof result === "object" &&
-          typeof result.id === "string" &&
-          result.id.trim().length > 0
-        ) {
-          setSubmittedTicket(result);
-          setIsSuccess(true);
-          onSuccess?.(result);
-        } else {
-          setSubmittedTicket(null);
-          setIsSuccess(false);
-          setSubmitError("Không thể xác nhận lưu trữ yêu cầu hỗ trợ.");
-        }
-        return;
-      }
-
-      // 4. Mặc định: Ủy quyền xác thực và tạo ticket cho Server Action đáng tin cậy
+      // C.7: The modal MUST ALWAYS call and await createGuestTicketAction to enforce persistence boundary
       const res = await createGuestTicketAction({
         bookingId: cleanBookingId,
         roomId: cleanRoomId,
-        category: category as string,
+        category,
         description: trimmedDescription,
       });
 
+      // If createGuestTicketAction fails: set error state, DO NOT call onSubmit, keep isSuccess(false)
       if (!res.success) {
         setSubmittedTicket(null);
         setIsSuccess(false);
@@ -205,6 +175,7 @@ export function TicketModal({
         return;
       }
 
+      // If and only if createGuestTicketAction succeeds and returns a persisted ticket:
       if (
         res.ticket &&
         typeof res.ticket === "object" &&
@@ -213,6 +184,7 @@ export function TicketModal({
       ) {
         setSubmittedTicket(res.ticket);
         setIsSuccess(true);
+        await onSubmit?.(res.ticket);
         onSuccess?.(res.ticket);
       } else {
         setSubmittedTicket(null);
