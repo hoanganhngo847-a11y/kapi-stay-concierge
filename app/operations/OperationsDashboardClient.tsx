@@ -1,50 +1,19 @@
 "use client";
 
 import React, { useState } from "react";
-import { updateRoomStatus, updateTicketStatusAdmin } from "@/lib/data/admin";
+import {
+  updateRoomStatus,
+  updateTicketStatusAdmin,
+  type RoomOperationalStatus,
+  type TicketStatus,
+  type StaffDashboardData,
+} from "@/lib/data/admin";
 
-export type RoomOperationalStatus = "ready" | "occupied" | "cleaning" | "maintenance";
-export type TicketStatus = "pending" | "in_progress" | "resolved";
+export type StaffDashboardDataPayload = StaffDashboardData;
 
-export interface RoomOperationItem {
-  room_id: string;
-  room_name?: string;
-  operational_status: RoomOperationalStatus | string;
-  updated_at?: string;
-  updated_by?: string;
-}
-
-export interface TicketItem {
-  id: string;
-  booking_id?: string;
-  room_id?: string;
-  room_name?: string;
-  user_id?: string;
-  guest_name?: string;
-  guest_phone?: string;
-  category?: string;
-  description?: string;
-  status: TicketStatus | string;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface TodayBookingItem {
-  booking_id?: string;
-  id?: string;
-  check_in?: string;
-  check_out?: string;
-  is_checkin_today?: boolean;
-  is_checkout_today?: boolean;
-  booking_status?: string;
-  payment_status?: string;
-}
-
-export interface StaffDashboardDataPayload {
-  room_operations?: RoomOperationItem[];
-  tickets?: TicketItem[];
-  today_bookings?: TodayBookingItem[];
-}
+export type RoomOperationItem = NonNullable<StaffDashboardData["room_operations"]>[number];
+export type TicketItem = NonNullable<StaffDashboardData["tickets"]>[number];
+export type TodayBookingItem = NonNullable<StaffDashboardData["today_bookings"]>[number];
 
 export type ScheduleItem = TodayBookingItem & {
   eventType: "checkin" | "checkout";
@@ -104,11 +73,11 @@ export default function OperationsDashboardClient({
             room_operations: currentRooms.map((r) =>
               r.room_id === (updatedRecord.room_id || roomId)
                 ? {
-                    ...r,
-                    operational_status: updatedRecord.operational_status || newStatus,
-                    updated_at: updatedRecord.updated_at || r.updated_at,
-                    updated_by: updatedRecord.updated_by || r.updated_by,
-                  }
+                  ...r,
+                  operational_status: updatedRecord.operational_status || newStatus,
+                  updated_at: updatedRecord.updated_at || r.updated_at,
+                  updated_by: updatedRecord.updated_by || r.updated_by,
+                }
                 : r
             ),
           };
@@ -138,10 +107,10 @@ export default function OperationsDashboardClient({
             tickets: currentTickets.map((t) =>
               t.id === (res.id || ticketId)
                 ? {
-                    ...t,
-                    status: res.status,
-                    updated_at: res.updated_at,
-                  }
+                  ...t,
+                  status: res.status,
+                  updated_at: res.updated_at,
+                }
                 : t
             ),
           };
@@ -192,9 +161,8 @@ export default function OperationsDashboardClient({
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       {toastMessage && (
         <div
-          className={`fixed bottom-4 right-4 px-4 py-2 rounded-md text-white font-medium shadow-lg z-50 ${
-            toastMessage.type === "success" ? "bg-green-600" : "bg-red-600"
-          }`}
+          className={`fixed bottom-4 right-4 px-4 py-2 rounded-md text-white font-medium shadow-lg z-50 ${toastMessage.type === "success" ? "bg-green-600" : "bg-red-600"
+            }`}
         >
           {toastMessage.text}
         </div>
@@ -213,9 +181,8 @@ export default function OperationsDashboardClient({
       <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
         <button
           onClick={() => { setActiveTab("rooms"); setRoomFilter("ready"); }}
-          className={`p-4 rounded-lg border text-left transition ${
-            roomFilter === "ready" && activeTab === "rooms" ? "ring-2 ring-green-500 bg-green-50" : "bg-white"
-          }`}
+          className={`p-4 rounded-lg border text-left transition ${roomFilter === "ready" && activeTab === "rooms" ? "ring-2 ring-green-500 bg-green-50" : "bg-white"
+            }`}
         >
           <p className="text-xs text-gray-500 font-medium">Sẵn sàng (Ready)</p>
           <p className="text-2xl font-bold text-green-600">{roomKPIs.ready}</p>
@@ -223,9 +190,8 @@ export default function OperationsDashboardClient({
 
         <button
           onClick={() => { setActiveTab("rooms"); setRoomFilter("occupied"); }}
-          className={`p-4 rounded-lg border text-left transition ${
-            roomFilter === "occupied" && activeTab === "rooms" ? "ring-2 ring-blue-500 bg-blue-50" : "bg-white"
-          }`}
+          className={`p-4 rounded-lg border text-left transition ${roomFilter === "occupied" && activeTab === "rooms" ? "ring-2 ring-blue-500 bg-blue-50" : "bg-white"
+            }`}
         >
           <p className="text-xs text-gray-500 font-medium">Đang ở (Occupied)</p>
           <p className="text-2xl font-bold text-blue-600">{roomKPIs.occupied}</p>
@@ -233,9 +199,8 @@ export default function OperationsDashboardClient({
 
         <button
           onClick={() => { setActiveTab("rooms"); setRoomFilter("cleaning"); }}
-          className={`p-4 rounded-lg border text-left transition ${
-            roomFilter === "cleaning" && activeTab === "rooms" ? "ring-2 ring-yellow-500 bg-yellow-50" : "bg-white"
-          }`}
+          className={`p-4 rounded-lg border text-left transition ${roomFilter === "cleaning" && activeTab === "rooms" ? "ring-2 ring-yellow-500 bg-yellow-50" : "bg-white"
+            }`}
         >
           <p className="text-xs text-gray-500 font-medium">Đang dọn (Cleaning)</p>
           <p className="text-2xl font-bold text-yellow-600">{roomKPIs.cleaning}</p>
@@ -243,9 +208,8 @@ export default function OperationsDashboardClient({
 
         <button
           onClick={() => { setActiveTab("rooms"); setRoomFilter("maintenance"); }}
-          className={`p-4 rounded-lg border text-left transition ${
-            roomFilter === "maintenance" && activeTab === "rooms" ? "ring-2 ring-red-500 bg-red-50" : "bg-white"
-          }`}
+          className={`p-4 rounded-lg border text-left transition ${roomFilter === "maintenance" && activeTab === "rooms" ? "ring-2 ring-red-500 bg-red-50" : "bg-white"
+            }`}
         >
           <p className="text-xs text-gray-500 font-medium">Bảo trì (Maintenance)</p>
           <p className="text-2xl font-bold text-red-600">{roomKPIs.maintenance}</p>
@@ -253,9 +217,8 @@ export default function OperationsDashboardClient({
 
         <button
           onClick={() => { setActiveTab("schedule"); setScheduleFilter("checkin"); }}
-          className={`p-4 rounded-lg border text-left transition ${
-            scheduleFilter === "checkin" && activeTab === "schedule" ? "ring-2 ring-indigo-500 bg-indigo-50" : "bg-white"
-          }`}
+          className={`p-4 rounded-lg border text-left transition ${scheduleFilter === "checkin" && activeTab === "schedule" ? "ring-2 ring-indigo-500 bg-indigo-50" : "bg-white"
+            }`}
         >
           <p className="text-xs text-gray-500 font-medium">Check-in Hôm nay</p>
           <p className="text-2xl font-bold text-indigo-600">{checkinCount}</p>
@@ -263,9 +226,8 @@ export default function OperationsDashboardClient({
 
         <button
           onClick={() => { setActiveTab("schedule"); setScheduleFilter("checkout"); }}
-          className={`p-4 rounded-lg border text-left transition ${
-            scheduleFilter === "checkout" && activeTab === "schedule" ? "ring-2 ring-purple-500 bg-purple-50" : "bg-white"
-          }`}
+          className={`p-4 rounded-lg border text-left transition ${scheduleFilter === "checkout" && activeTab === "schedule" ? "ring-2 ring-purple-500 bg-purple-50" : "bg-white"
+            }`}
         >
           <p className="text-xs text-gray-500 font-medium">Check-out Hôm nay</p>
           <p className="text-2xl font-bold text-purple-600">{checkoutCount}</p>
@@ -276,25 +238,22 @@ export default function OperationsDashboardClient({
       <div className="flex space-x-4 border-b">
         <button
           onClick={() => setActiveTab("rooms")}
-          className={`pb-2 text-sm font-semibold border-b-2 ${
-            activeTab === "rooms" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500"
-          }`}
+          className={`pb-2 text-sm font-semibold border-b-2 ${activeTab === "rooms" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500"
+            }`}
         >
           Trạng Thái Phòng ({roomOperations.length})
         </button>
         <button
           onClick={() => setActiveTab("tickets")}
-          className={`pb-2 text-sm font-semibold border-b-2 ${
-            activeTab === "tickets" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500"
-          }`}
+          className={`pb-2 text-sm font-semibold border-b-2 ${activeTab === "tickets" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500"
+            }`}
         >
           Sự Cố Tiếp Nhận ({tickets.length})
         </button>
         <button
           onClick={() => setActiveTab("schedule")}
-          className={`pb-2 text-sm font-semibold border-b-2 ${
-            activeTab === "schedule" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500"
-          }`}
+          className={`pb-2 text-sm font-semibold border-b-2 ${activeTab === "schedule" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500"
+            }`}
         >
           Lịch Đón Trả Khách ({scheduleItems.length})
         </button>
@@ -310,9 +269,8 @@ export default function OperationsDashboardClient({
                 <button
                   key={st}
                   onClick={() => setRoomFilter(st)}
-                  className={`px-3 py-1 rounded-md text-xs font-medium capitalize ${
-                    roomFilter === st ? "bg-gray-800 text-white" : "bg-gray-100 text-gray-600"
-                  }`}
+                  className={`px-3 py-1 rounded-md text-xs font-medium capitalize ${roomFilter === st ? "bg-gray-800 text-white" : "bg-gray-100 text-gray-600"
+                    }`}
                 >
                   {st === "all" ? "Tất cả" : st}
                 </button>
@@ -342,15 +300,14 @@ export default function OperationsDashboardClient({
                     <td className="p-3 font-medium text-gray-900">{room.room_name || room.room_id}</td>
                     <td className="p-3">
                       <span
-                        className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                          room.operational_status === "ready"
-                            ? "bg-green-100 text-green-800"
-                            : room.operational_status === "occupied"
+                        className={`px-2 py-1 rounded-full text-xs font-semibold ${room.operational_status === "ready"
+                          ? "bg-green-100 text-green-800"
+                          : room.operational_status === "occupied"
                             ? "bg-blue-100 text-blue-800"
                             : room.operational_status === "cleaning"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : "bg-red-100 text-red-800"
-                        }`}
+                              ? "bg-yellow-100 text-yellow-800"
+                              : "bg-red-100 text-red-800"
+                          }`}
                       >
                         {room.operational_status}
                       </span>
@@ -418,7 +375,6 @@ export default function OperationsDashboardClient({
                   <div className="flex items-center space-x-2">
                     <span className="text-xs px-2 py-1 rounded bg-gray-100 font-medium uppercase">{t.status}</span>
 
-                    {/* Workflow 3 Bước Chuẩn Lifecycle */}
                     {t.status === "pending" && (
                       <button
                         disabled={isUpdating}
@@ -456,7 +412,7 @@ export default function OperationsDashboardClient({
         </div>
       )}
 
-      {/* Tab 3: Lịch Đón Trả Khách (Schedule Table) */}
+      {/* Tab 3: Lịch Đón Trả Khách */}
       {activeTab === "schedule" && (
         <div className="bg-white rounded-lg border p-4 space-y-4">
           <div className="flex justify-between items-center">
@@ -464,25 +420,22 @@ export default function OperationsDashboardClient({
             <div className="space-x-2">
               <button
                 onClick={() => setScheduleFilter("all")}
-                className={`px-3 py-1 rounded-md text-xs font-medium ${
-                  scheduleFilter === "all" ? "bg-gray-800 text-white" : "bg-gray-100 text-gray-600"
-                }`}
+                className={`px-3 py-1 rounded-md text-xs font-medium ${scheduleFilter === "all" ? "bg-gray-800 text-white" : "bg-gray-100 text-gray-600"
+                  }`}
               >
                 Tất cả
               </button>
               <button
                 onClick={() => setScheduleFilter("checkin")}
-                className={`px-3 py-1 rounded-md text-xs font-medium ${
-                  scheduleFilter === "checkin" ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600"
-                }`}
+                className={`px-3 py-1 rounded-md text-xs font-medium ${scheduleFilter === "checkin" ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600"
+                  }`}
               >
                 Check-in
               </button>
               <button
                 onClick={() => setScheduleFilter("checkout")}
-                className={`px-3 py-1 rounded-md text-xs font-medium ${
-                  scheduleFilter === "checkout" ? "bg-purple-600 text-white" : "bg-gray-100 text-gray-600"
-                }`}
+                className={`px-3 py-1 rounded-md text-xs font-medium ${scheduleFilter === "checkout" ? "bg-purple-600 text-white" : "bg-gray-100 text-gray-600"
+                  }`}
               >
                 Check-out
               </button>
@@ -502,22 +455,21 @@ export default function OperationsDashboardClient({
               {filteredSchedule.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="p-4 text-center text-gray-500">
-                    Không có lịch đón trả nào hôm nay.
+                    Không có lịch đón trả nào hôm hôm nay.
                   </td>
                 </tr>
               ) : (
                 filteredSchedule.map((item, idx) => (
-                  <tr key={`${item.booking_id || item.id || idx}-${item.eventType}`}>
+                  <tr key={`${item.id || idx}-${item.eventType}`}>
                     <td className="p-3">
                       <span
-                        className={`px-2 py-1 rounded text-xs font-semibold uppercase ${
-                          item.eventType === "checkin" ? "bg-indigo-100 text-indigo-800" : "bg-purple-100 text-purple-800"
-                        }`}
+                        className={`px-2 py-1 rounded text-xs font-semibold uppercase ${item.eventType === "checkin" ? "bg-indigo-100 text-indigo-800" : "bg-purple-100 text-purple-800"
+                          }`}
                       >
                         {item.eventType}
                       </span>
                     </td>
-                    <td className="p-3 font-medium text-gray-900">{item.booking_id || item.id || "N/A"}</td>
+                    <td className="p-3 font-medium text-gray-900">{item.id || "N/A"}</td>
                     <td className="p-3 text-gray-600 text-xs">
                       {item.eventType === "checkin" ? item.check_in : item.check_out}
                     </td>

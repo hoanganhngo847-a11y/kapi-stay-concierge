@@ -1,10 +1,7 @@
 import { redirect } from "next/navigation";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { createClient } from "@/lib/supabase/server";
 import { verifyStaffRole, getStaffDashboardData } from "@/lib/data/admin";
-import OperationsDashboardClient, {
-  StaffDashboardDataPayload,
-} from "./OperationsDashboardClient";
+import OperationsDashboardClient from "./OperationsDashboardClient";
 
 export const metadata = {
   title: "Bảng Điều Khiển Vận Hành | Kapi Stay Concierge",
@@ -14,40 +11,18 @@ export const metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function OperationsDashboardPage() {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
-          } catch {
-            // Context trong Server Component
-          }
-        },
-      },
-    }
-  );
+  // LỖI 2: Dùng helper canonical của project
+  const supabase = await createClient();
 
-  // 1. Kiểm tra Guest (Unauthenticated) trực tiếp qua Supabase Auth Session
   const {
     data: { user },
     error: authError,
   } = await supabase.auth.getUser();
 
-  // Nếu không có session user hoặc dính lỗi Auth -> Chắc chắn chưa đăng nhập
   if (!user || authError) {
     redirect("/login?next=/operations");
   }
 
-  // 2. Đã đăng nhập -> Xác minh vai trò Staff / Admin
   let staffRoleInfo: { id: string; email?: string; role: "staff" | "admin" } | null = null;
   let isForbidden = false;
   let isBackendError = false;
@@ -55,15 +30,15 @@ export default async function OperationsDashboardPage() {
   try {
     staffRoleInfo = await verifyStaffRole();
   } catch (error: unknown) {
-    // Phân loại không dựa vào string substring matching
-    if (error instanceof Error && error.message.toLowerCase().includes("backend")) {
-      isBackendError = true;
-    } else {
+    // LỖI 1: Không parse Error.message để phân loại auth
+    const err = error as { code?: string; status?: number };
+    if (err?.code === "FORBIDDEN" || err?.status === 403) {
       isForbidden = true;
+    } else {
+      isBackendError = true;
     }
   }
 
-  // Render màn hình 403 cho Non-Staff
   if (isForbidden && !staffRoleInfo) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center">
@@ -75,7 +50,6 @@ export default async function OperationsDashboardPage() {
     );
   }
 
-  // Render màn hình lỗi hệ thống khi DB/Backend lookup fail
   if (isBackendError) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center">
@@ -87,14 +61,13 @@ export default async function OperationsDashboardPage() {
     );
   }
 
-  // 3. Tải dữ liệu Dashboard khi đã đủ quyền
-  let dashboardData: StaffDashboardDataPayload | null = null;
+  let dashboardData = null;
   let loadError = false;
 
   try {
     const res = await getStaffDashboardData();
     if (res) {
-      dashboardData = res as StaffDashboardDataPayload;
+      dashboardData = res;
     } else {
       loadError = true;
     }
