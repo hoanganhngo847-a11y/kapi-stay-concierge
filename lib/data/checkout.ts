@@ -29,8 +29,9 @@
  *   - create_checkout_session_atomic   → createCheckoutSession
  *   - reserve_checkout_voucher_atomic  → validateAndApplyVoucher
  *   - release_checkout_voucher_atomic  → releaseVoucherFromSession
- *   - finalize_verified_checkout_atomic → confirmBookingAndPayment
- *     (service_role only — xem ghi chú trong hàm)
+ *
+ * LƯU Ý: finalize_verified_checkout_atomic (service_role only) KHÔNG được gọi
+ * từ frontend. Việc finalize booking sẽ do payment webhook xử lý (TV1 + TV8).
  */
 
 import { createClient } from "@/lib/supabase/server";
@@ -119,17 +120,6 @@ const RPC_ERROR_MESSAGES: Record<string, string> = {
   NO_RESERVED_VOUCHER_ATTACHED:
     "Không có voucher nào đang được gắn vào phiên này.",
 
-  // finalize_verified_checkout_atomic
-  PAYMENT_REFERENCE_MISMATCH:
-    "Nội dung chuyển khoản không khớp. Vui lòng kiểm tra lại.",
-  VERIFIED_AMOUNT_MISMATCH:
-    "Số tiền xác nhận không khớp với số tiền cần thanh toán.",
-  VOUCHER_STATE_INVALID:
-    "Trạng thái voucher không hợp lệ tại thời điểm xác nhận.",
-  COMPLETED_SESSION_WITHOUT_BOOKING:
-    "Phiên đặt phòng đã hoàn tất nhưng không tìm thấy đặt phòng liên kết.",
-  VERIFIED_AMOUNT_OR_REFERENCE_MISMATCH_ON_COMPLETED:
-    "Số tiền hoặc mã tham chiếu không khớp với đơn đặt phòng đã xác nhận.",
 };
 
 function mapRpcError(errorCode: string | undefined | null, fallback: string): string {
@@ -173,7 +163,7 @@ export async function createCheckoutSession(
 
     if (error) {
       console.error("[checkout] createCheckoutSession RPC error:", error.message);
-      return { sessionId: null, error: error.message };
+      return { sessionId: null, error: "Không thể tạo phiên đặt phòng. Vui lòng thử lại." };
     }
 
     // RPC trả về JSONB: { success: bool, checkout_session?: {...}, error?: string }
@@ -429,177 +419,6 @@ export async function validateAndApplyVoucher(
       discountAmountVnd: 0,
       errorMessage: "Lỗi kết nối cơ sở dữ liệu",
     };
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Hàm 4 — Xác nhận booking sau khi thanh toán thành công
-// ---------------------------------------------------------------------------
-
-/**
- * Hoàn tất quá trình đặt phòng sau khi thanh toán VietQR được xác nhận
- * thông qua RPC `finalize_verified_checkout_atomic`.
- *
- * RPC thực hiện atomic (với row-level locking):
- * 1. Kiểm tra idempotency (session đã COMPLETED → trả về booking cũ)
- * 2. Validate session (status, expiry, payment_reference, amount)
- * 3. Lock room row, re-check inventory
- * 4. Validate voucher state (nếu có)
- * 5. INSERT bookings với checkout_session_id (durable link, ngăn duplicate)
- * 6. UPDATE voucher_redemptions → USED (nếu có)
- * 7. INSERT loyalty_transactions (booking_earn = final_paid × 0.00025)
- * 8. UPDATE checkout_sessions → COMPLETED
- *
- * QUAN TRỌNG — GIỚI HẠN KIẾN TRÚC:
- * `finalize_verified_checkout_atomic` yêu cầu `service_role` (theo migration
- * 20260920120000_trusted_checkout_flow.sql, line 686–687). Khi gọi từ
- * server component với JWT user, Supabase sẽ từ chối với lỗi permission.
- * Đây là giới hạn thiết kế — hàm này đóng vai trò STUB cho đến khi TV1+TV8
- * quyết định cơ chế payment webhook (service_role callback).
- * Flow hiện tại (user tự bấm "xác nhận đã chuyển khoản") sẽ nhận lỗi permission
- * rõ ràng thay vì bị RLS block âm thầm như trước.
- *
- * @param sessionId - UUID của checkout_sessions
- */
-export async function confirmBookingAndPayment(
-  sessionId: string
-): Promise<{ bookingId: string | null; error: string | null }> {
-  const uuidRegex =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-  if (!uuidRegex.test(sessionId)) {
-    return { bookingId: null, error: "ID phiên không hợp lệ" };
-  }
-
-  try {
-    const supabase = await createClient();
-
-    // Lấy final_payable_amount_vnd và payment_reference từ session
-    // để truyền vào RPC (RPC yêu cầu caller cung cấp verified amount và reference).
-    const { data: sessionData, error: sessionFetchError } = await supabase
-      .from("checkout_sessions")
-      .select("final_payable_amount_vnd, payment_reference, status")
-      .eq("id", sessionId)
-      .maybeSingle();
-
-    if (sessionFetchError) {
-      console.error(
-        "[checkout] confirmBookingAndPayment — fetch session error:",
-        sessionFetchError.message
-      );
-      return { bookingId: null, error: "Không thể tải thông tin phiên đặt phòng. Vui lòng thử lại." };
-    }
-
-    if (!sessionData) {
-      return {
-        bookingId: null,
-        error: "Không tìm thấy phiên đặt phòng hoặc không có quyền truy cập.",
-      };
-    }
-
-    // Kiểm tra sớm để trả về lỗi thân thiện trước khi gọi RPC
-    if (sessionData.status === "COMPLETED") {
-      return { bookingId: null, error: "Đặt phòng đã được xác nhận trước đó." };
-    }
-    if (sessionData.status === "EXPIRED") {
-      return {
-        bookingId: null,
-        error: "Phiên đặt phòng đã hết hạn. Vui lòng bắt đầu lại từ đầu.",
-      };
-    }
-    if (sessionData.status === "FAILED") {
-      return {
-        bookingId: null,
-        error: "Phiên thanh toán đã thất bại. Vui lòng bắt đầu lại từ đầu.",
-      };
-    }
-
-    if (!sessionData.payment_reference) {
-      console.error(
-        "[checkout] confirmBookingAndPayment — session has no payment_reference"
-      );
-      return {
-        bookingId: null,
-        error:
-          "Phiên đặt phòng thiếu mã tham chiếu thanh toán. Vui lòng liên hệ hỗ trợ.",
-      };
-    }
-
-    // Gọi RPC finalize_verified_checkout_atomic.
-    // LƯU Ý KIẾN TRÚC: RPC này chỉ cho phép service_role. Khi được gọi với
-    // JWT user thông thường (createClient() trong server component), Supabase
-    // sẽ từ chối. Đây là placeholder đúng cấu trúc cho đến khi có payment webhook.
-    const { data, error } = await supabase.rpc(
-      "finalize_verified_checkout_atomic",
-      {
-        p_checkout_session_id: sessionId,
-        p_verified_paid_amount_vnd: sessionData.final_payable_amount_vnd,
-        p_verified_payment_reference: sessionData.payment_reference,
-      }
-    );
-
-    if (error) {
-      console.error(
-        "[checkout] confirmBookingAndPayment RPC error:",
-        error.message,
-        "— Note: finalize_verified_checkout_atomic requires service_role."
-      );
-      // Phân biệt lỗi permission (42501 = insufficient_privilege) với lỗi nghiệp vụ
-      if (
-        error.code === "42501" ||
-        error.message.toLowerCase().includes("permission denied")
-      ) {
-        return {
-          bookingId: null,
-          error:
-            "Tính năng xác nhận thanh toán đang chờ tích hợp payment backend. " +
-            "Vui lòng liên hệ hỗ trợ để xác nhận thủ công.",
-        };
-      }
-      return { bookingId: null, error: "Xác nhận đặt phòng thất bại. Vui lòng liên hệ hỗ trợ." };
-    }
-
-    const result = data as {
-      success: boolean;
-      idempotent?: boolean;
-      error?: string;
-      booking?: { id: string };
-    };
-
-    if (!result.success) {
-      const msg = mapRpcError(
-        result.error,
-        "Không thể xác nhận đặt phòng. Vui lòng thử lại hoặc liên hệ hỗ trợ."
-      );
-      console.error(
-        "[checkout] confirmBookingAndPayment RPC returned failure:",
-        result.error
-      );
-      return { bookingId: null, error: msg };
-    }
-
-    const bookingId = result.booking?.id ?? null;
-    if (!bookingId) {
-      console.error(
-        "[checkout] confirmBookingAndPayment: RPC succeeded but no booking id returned"
-      );
-      return {
-        bookingId: null,
-        error: "Đặt phòng đã xử lý nhưng không lấy được mã đặt phòng.",
-      };
-    }
-
-    if (result.idempotent) {
-      console.info(
-        "[checkout] confirmBookingAndPayment: idempotent — returning existing booking",
-        bookingId
-      );
-    }
-
-    return { bookingId, error: null };
-  } catch (err) {
-    console.error("[checkout] confirmBookingAndPayment unexpected error:", err);
-    return { bookingId: null, error: "Lỗi kết nối cơ sở dữ liệu" };
   }
 }
 

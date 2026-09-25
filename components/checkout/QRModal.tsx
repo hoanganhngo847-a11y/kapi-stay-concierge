@@ -14,8 +14,12 @@
  * Đã XOÁ handleConfirmPayment / confirmPaymentAction / onPaymentSuccess.
  * User bấm nút xác nhận KHÔNG được phép kích hoạt finalize_verified_checkout_atomic
  * (service_role-only RPC). Sau khi quét QR và chuyển khoản, UI hiển thị trạng thái
- * "Đang chờ hệ thống xác nhận" — việc finalize booking sẽ do payment webhook xử lý
+ * chờ xác nhận trung tính — việc finalize booking sẽ do payment webhook xử lý
  * (TV1 + TV8 phụ trách riêng).
+ *
+ * RE-REVIEW #3 — Điểm 3:
+ * Cập nhật wording trạng thái chờ thanh toán: bỏ câu hứa hẹn auto-verify,
+ * thay bằng wording trung tính phản ánh đúng thực tế hệ thống.
  *
  * RE-REVIEW #2 — Điểm 3 (HIGH):
  * Đã XOÁ fallback tài khoản giả (MB / 0000000000 / KAPI STAY).
@@ -294,9 +298,8 @@ export function QRModal({
               aria-hidden="true"
             />
             <p className="text-xs text-blue-800 leading-relaxed">
-              <span className="font-semibold">Đang chờ xác nhận từ ngân hàng.</span>{" "}
-              Sau khi chuyển khoản, hệ thống sẽ tự động đối soát và gửi thông
-              báo xác nhận đặt phòng. Bạn không cần làm thêm thao tác nào.
+              <span className="font-semibold">Đang chờ xác nhận thanh toán.</span>{" "}
+              Đặt phòng sẽ được xác nhận sau khi hệ thống xác minh giao dịch thành công.
             </p>
           </div>
 
