@@ -23,6 +23,23 @@ export class StaffAuthError extends Error {
   }
 }
 
+export type RoomOperationErrorCode =
+  | "ROOM_NOT_FOUND"
+  | "ROOM_OCCUPIED_READ_ONLY"
+  | "INVALID_TARGET_STATUS"
+  | "FORBIDDEN_STAFF_ONLY"
+  | "OPERATION_FAILED";
+
+export class RoomOperationError extends Error {
+  constructor(
+    public code: RoomOperationErrorCode,
+    message: string
+  ) {
+    super(message);
+    this.name = "RoomOperationError";
+  }
+}
+
 export const VALID_ROOM_OPERATIONAL_STATUSES: readonly RoomOperationalStatus[] = [
   "ready",
   "occupied",
@@ -141,6 +158,31 @@ export function validateRequiredTimestamp(val: unknown, fieldName: string, conte
   return val.trim();
 }
 
+export function validateOptionalTimestamp(
+  val: unknown,
+  fieldName: string,
+  context?: string
+): string | null {
+  if (val === null || val === undefined) {
+    return null;
+  }
+  if (typeof val === "string") {
+    const trimmed = val.trim();
+    if (trimmed === "" || trimmed === "undefined" || trimmed === "null") {
+      return null;
+    }
+    if (Number.isNaN(Date.parse(trimmed))) {
+      throw new Error(
+        `Timestamp tùy chọn ${fieldName} không hợp lệ ('${val}') tại ${context || "backend boundary"}. Dữ liệu bị chặn (Fail-Closed).`
+      );
+    }
+    return trimmed;
+  }
+  throw new Error(
+    `Timestamp tùy chọn ${fieldName} không đúng định dạng tại ${context || "backend boundary"}. Dữ liệu bị chặn (Fail-Closed).`
+  );
+}
+
 export function validateRequiredDate(val: unknown, fieldName: string, context?: string): string {
   if (
     typeof val !== "string" ||
@@ -251,7 +293,7 @@ export interface StaffDashboardData {
     room_id: string;
     room_name: string;
     operational_status: RoomOperationalStatus;
-    updated_at: string;
+    updated_at: string | null;
     updated_by: string | null;
   }>;
   tickets?: Array<{
@@ -396,20 +438,40 @@ export async function updateRoomStatus(
   const staff = await verifyStaffRole();
 
   if (!roomId || typeof roomId !== "string" || roomId.trim().length === 0) {
-    throw new Error("Mã phòng không hợp lệ.");
+    throw new RoomOperationError("ROOM_NOT_FOUND", "Mã phòng không hợp lệ.");
   }
 
   const cleanRoomId = roomId.trim();
 
   // Fail-Closed: Chặn dứt khoát manual mutation gửi 'occupied'
   if ((status as unknown) === "occupied") {
-    throw new Error(
+    throw new RoomOperationError(
+      "INVALID_TARGET_STATUS",
       "Trạng thái 'occupied' do vòng đời nhận phòng (check-in) quản lý, nhân viên không được cập nhật thủ công."
     );
   }
 
   if (!isValidStaffMutableRoomOperationalStatus(status)) {
-    throw new Error("Trạng thái vận hành phòng không hợp lệ cho thao tác thủ công của nhân viên.");
+    throw new RoomOperationError(
+      "INVALID_TARGET_STATUS",
+      "Trạng thái vận hành phòng không hợp lệ cho thao tác thủ công của nhân viên."
+    );
+  }
+
+  // Canonical current operational status check (Server-side protection)
+  // Fail-Closed: Nếu phòng hiện tại đang 'occupied' (lifecycle-owned), cấm nhân viên thay đổi operational status
+  const dashboard = await getStaffDashboardData();
+  const currentRoom = dashboard.room_operations?.find((r) => r.room_id === cleanRoomId);
+
+  if (!currentRoom) {
+    throw new RoomOperationError("ROOM_NOT_FOUND", "Không tìm thấy phòng tương ứng.");
+  }
+
+  if (currentRoom.operational_status === "occupied") {
+    throw new RoomOperationError(
+      "ROOM_OCCUPIED_READ_ONLY",
+      "Phòng đang có khách (occupied) thuộc vòng đời lưu trú, nhân viên không thể thay đổi trạng thái."
+    );
   }
 
   const supabase = await createClient();
@@ -424,7 +486,7 @@ export async function updateRoomStatus(
 
   if (rpcError) {
     console.error(`[updateRoomStatus] Lỗi RPC (${cleanRoomId}):`, rpcError.message);
-    throw new Error("Không thể cập nhật trạng thái vận hành phòng.");
+    throw new RoomOperationError("OPERATION_FAILED", "Không thể cập nhật trạng thái vận hành phòng.");
   }
 
   const result = rpcRaw as unknown as RpcUpdateRoomResult | null;
@@ -433,15 +495,15 @@ export async function updateRoomStatus(
     const domainError = result?.error;
     console.error(`[updateRoomStatus] RPC trả về thất bại (${cleanRoomId}):`, domainError);
     if (domainError === "FORBIDDEN_STAFF_ONLY") {
-      throw new Error("Forbidden: Bạn không có quyền thực hiện thao tác này.");
+      throw new RoomOperationError("FORBIDDEN_STAFF_ONLY", "Forbidden: Bạn không có quyền thực hiện thao tác này.");
     }
     if (domainError === "ROOM_NOT_FOUND") {
-      throw new Error("Không tìm thấy phòng tương ứng.");
+      throw new RoomOperationError("ROOM_NOT_FOUND", "Không tìm thấy phòng tương ứng.");
     }
     if (domainError === "INVALID_OPERATIONAL_STATUS") {
-      throw new Error("Trạng thái vận hành phòng không hợp lệ.");
+      throw new RoomOperationError("INVALID_TARGET_STATUS", "Trạng thái vận hành phòng không hợp lệ.");
     }
-    throw new Error("Không thể cập nhật trạng thái vận hành phòng.");
+    throw new RoomOperationError("OPERATION_FAILED", "Không thể cập nhật trạng thái vận hành phòng.");
   }
 
   if (
@@ -461,7 +523,10 @@ export async function updateRoomStatus(
     result.updated_by.trim().length === 0
   ) {
     console.error("[updateRoomStatus] RPC trả về payload không đúng định dạng:", result);
-    throw new Error("Dữ liệu phản hồi từ máy chủ không hợp lệ.");
+    throw new RoomOperationError(
+      "OPERATION_FAILED",
+      "Dữ liệu phản hồi từ máy chủ không hợp lệ (Fail-Closed)."
+    );
   }
 
   // Fail-Closed: Validate operational_status boundary from RPC response
@@ -475,7 +540,7 @@ export async function updateRoomStatus(
     console.error(
       `[updateRoomStatus] Người cập nhật không khớp: expected ${staff.id}, got ${result.updated_by}`
     );
-    throw new Error("Dữ liệu phản hồi từ máy chủ không hợp lệ.");
+    throw new RoomOperationError("OPERATION_FAILED", "Dữ liệu phản hồi từ máy chủ không hợp lệ.");
   }
 
   return {
@@ -651,7 +716,7 @@ export function validateStaffDashboardBoundary(data: unknown): StaffDashboardDat
       item.operational_status,
       `phòng ${roomId}`
     );
-    const updatedAt = validateRequiredTimestamp(item.updated_at, "updated_at", context);
+    const updatedAt = validateOptionalTimestamp(item.updated_at, "updated_at", context);
     const updatedBy = validateOptionalId(item.updated_by, "updated_by", context);
 
     return {

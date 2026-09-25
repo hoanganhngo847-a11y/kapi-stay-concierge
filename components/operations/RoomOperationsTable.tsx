@@ -222,6 +222,8 @@ export function RoomOperationsTable({
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
                             <span>Đang lưu...</span>
                           </Button>
+                        ) : room.operational_status === "occupied" ? (
+                          <span className="text-xs text-dark/40 italic">Chỉ đọc</span>
                         ) : (
                           <>
                             {room.operational_status === "cleaning" && (
@@ -243,17 +245,6 @@ export function RoomOperationsTable({
                                 onClick={() => onStatusChange?.(room.room_id, "cleaning")}
                               >
                                 Báo dọn dẹp
-                              </Button>
-                            )}
-
-                            {room.operational_status === "occupied" && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                leftIcon={<Sparkles className="w-3.5 h-3.5" />}
-                                onClick={() => onStatusChange?.(room.room_id, "cleaning")}
-                              >
-                                Khách trả phòng
                               </Button>
                             )}
 

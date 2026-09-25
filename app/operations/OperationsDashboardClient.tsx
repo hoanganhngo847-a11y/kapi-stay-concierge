@@ -72,6 +72,11 @@ export default function OperationsDashboardClient({
   // 1. Room Mutation Reconcile (Authoritative Server Response)
   const handleRoomStatusChange = async (roomId: string, newStatus: StaffMutableRoomOperationalStatus) => {
     if (!onUpdateRoomStatus) return;
+    const currentRoom = roomOperations.find((r) => r.room_id === roomId);
+    if (currentRoom?.operational_status === "occupied") {
+      showToast("Phòng đang có khách (occupied) là chỉ đọc, không thể thay đổi.", "error");
+      return;
+    }
     setIsUpdating(true);
     try {
       const updatedRecord = await onUpdateRoomStatus(roomId, newStatus);
@@ -86,8 +91,8 @@ export default function OperationsDashboardClient({
                 ? {
                   ...r,
                   operational_status: updatedRecord.operational_status || newStatus,
-                  updated_at: updatedRecord.updated_at || r.updated_at,
-                  updated_by: updatedRecord.updated_by || r.updated_by,
+                  updated_at: updatedRecord.updated_at ?? r.updated_at,
+                  updated_by: updatedRecord.updated_by ?? r.updated_by,
                 }
                 : r
             ),
@@ -325,30 +330,36 @@ export default function OperationsDashboardClient({
                       </span>
                     </td>
                     <td className="p-3 text-gray-500 text-xs">
-                      {room.updated_at ? new Date(room.updated_at).toLocaleString("vi-VN") : "---"}
+                      {room.updated_at ? new Date(room.updated_at).toLocaleString("vi-VN") : "Chưa cập nhật"}
                     </td>
                     <td className="p-3 text-right space-x-1">
-                      <button
-                        disabled={isUpdating}
-                        onClick={() => handleRoomStatusChange(room.room_id, "ready")}
-                        className="px-2 py-1 text-xs bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 rounded"
-                      >
-                        Sẵn sàng
-                      </button>
-                      <button
-                        disabled={isUpdating}
-                        onClick={() => handleRoomStatusChange(room.room_id, "cleaning")}
-                        className="px-2 py-1 text-xs bg-yellow-50 text-yellow-700 hover:bg-yellow-100 border border-yellow-200 rounded"
-                      >
-                        Đang dọn
-                      </button>
-                      <button
-                        disabled={isUpdating}
-                        onClick={() => handleRoomStatusChange(room.room_id, "maintenance")}
-                        className="px-2 py-1 text-xs bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 rounded"
-                      >
-                        Bảo trì
-                      </button>
+                      {room.operational_status === "occupied" ? (
+                        <span className="text-xs text-gray-400 italic">Chỉ đọc</span>
+                      ) : (
+                        <>
+                          <button
+                            disabled={isUpdating}
+                            onClick={() => handleRoomStatusChange(room.room_id, "ready")}
+                            className="px-2 py-1 text-xs bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 rounded"
+                          >
+                            Sẵn sàng
+                          </button>
+                          <button
+                            disabled={isUpdating}
+                            onClick={() => handleRoomStatusChange(room.room_id, "cleaning")}
+                            className="px-2 py-1 text-xs bg-yellow-50 text-yellow-700 hover:bg-yellow-100 border border-yellow-200 rounded"
+                          >
+                            Đang dọn
+                          </button>
+                          <button
+                            disabled={isUpdating}
+                            onClick={() => handleRoomStatusChange(room.room_id, "maintenance")}
+                            className="px-2 py-1 text-xs bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 rounded"
+                          >
+                            Bảo trì
+                          </button>
+                        </>
+                      )}
                     </td>
                   </tr>
                 ))
