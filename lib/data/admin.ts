@@ -6,6 +6,11 @@ export type RoomOperationalStatus =
   | "cleaning"
   | "maintenance";
 
+export type StaffMutableRoomOperationalStatus =
+  | "ready"
+  | "cleaning"
+  | "maintenance";
+
 export type TicketStatus = "pending" | "in_progress" | "resolved";
 
 export class StaffAuthError extends Error {
@@ -25,6 +30,12 @@ export const VALID_ROOM_OPERATIONAL_STATUSES: readonly RoomOperationalStatus[] =
   "maintenance",
 ] as const;
 
+export const VALID_STAFF_MUTABLE_ROOM_OPERATIONAL_STATUSES: readonly StaffMutableRoomOperationalStatus[] = [
+  "ready",
+  "cleaning",
+  "maintenance",
+] as const;
+
 export const VALID_TICKET_STATUSES: readonly TicketStatus[] = [
   "pending",
   "in_progress",
@@ -35,6 +46,15 @@ export function isValidRoomOperationalStatus(status: unknown): status is RoomOpe
   return (
     typeof status === "string" &&
     (VALID_ROOM_OPERATIONAL_STATUSES as readonly string[]).includes(status)
+  );
+}
+
+export function isValidStaffMutableRoomOperationalStatus(
+  status: unknown
+): status is StaffMutableRoomOperationalStatus {
+  return (
+    typeof status === "string" &&
+    (VALID_STAFF_MUTABLE_ROOM_OPERATIONAL_STATUSES as readonly string[]).includes(status)
   );
 }
 
@@ -362,13 +382,16 @@ export async function verifyStaffRole(): Promise<{
  * Updates the housekeeping/operational status of a room via trusted RPC `update_room_operational_status`.
  * Strict permission: Requires 'admin' or 'staff' role verified via `verifyStaffRole()`.
  *
+ * NOTE: 'occupied' is strictly lifecycle-owned (managed by check-in/stay lifecycle).
+ * Staff cannot manually set a room to 'occupied'. Only 'ready', 'cleaning', or 'maintenance' are allowed.
+ *
  * @param roomId - The UUID of the room to update
- * @param status - The new operational status ('ready' | 'occupied' | 'cleaning' | 'maintenance')
+ * @param status - The new operational status ('ready' | 'cleaning' | 'maintenance')
  * @returns Promise<RoomOperationRecord> - The updated operational status record returned from RPC
  */
 export async function updateRoomStatus(
   roomId: string,
-  status: RoomOperationalStatus
+  status: StaffMutableRoomOperationalStatus
 ): Promise<RoomOperationRecord> {
   const staff = await verifyStaffRole();
 
@@ -377,15 +400,16 @@ export async function updateRoomStatus(
   }
 
   const cleanRoomId = roomId.trim();
-  const validStatuses: RoomOperationalStatus[] = [
-    "ready",
-    "occupied",
-    "cleaning",
-    "maintenance",
-  ];
 
-  if (!validStatuses.includes(status)) {
-    throw new Error("Trạng thái vận hành phòng không hợp lệ.");
+  // Fail-Closed: Chặn dứt khoát manual mutation gửi 'occupied'
+  if ((status as unknown) === "occupied") {
+    throw new Error(
+      "Trạng thái 'occupied' do vòng đời nhận phòng (check-in) quản lý, nhân viên không được cập nhật thủ công."
+    );
+  }
+
+  if (!isValidStaffMutableRoomOperationalStatus(status)) {
+    throw new Error("Trạng thái vận hành phòng không hợp lệ cho thao tác thủ công của nhân viên.");
   }
 
   const supabase = await createClient();

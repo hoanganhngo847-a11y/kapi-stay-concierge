@@ -5,7 +5,7 @@ import {
   updateRoomStatus,
   updateTicketStatusAdmin,
   StaffAuthError,
-  type RoomOperationalStatus,
+  type StaffMutableRoomOperationalStatus,
   type TicketStatus,
 } from "@/lib/data/admin";
 import OperationsDashboardClient from "./OperationsDashboardClient";
@@ -76,7 +76,10 @@ export default async function OperationsDashboardPage() {
 
   const safeEmail: string = staffRoleInfo?.email || "";
 
-  async function handleUpdateRoomStatus(roomId: string, status: RoomOperationalStatus) {
+  async function handleUpdateRoomStatus(
+    roomId: string,
+    status: StaffMutableRoomOperationalStatus
+  ) {
     "use server";
     return updateRoomStatus(roomId, status);
   }

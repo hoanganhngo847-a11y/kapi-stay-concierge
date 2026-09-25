@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/Input";
 import { cn } from "@/lib/utils";
 
 export type OperationalStatus = "ready" | "occupied" | "cleaning" | "maintenance";
+export type StaffMutableOperationalStatus = "ready" | "cleaning" | "maintenance";
 
 export interface RoomOperationItem {
   room_id: string;
@@ -29,7 +30,7 @@ export interface RoomOperationsTableProps {
   rooms: RoomOperationItem[];
   statusFilter?: string;
   onStatusFilterChange?: (status: string) => void;
-  onStatusChange?: (roomId: string, newStatus: OperationalStatus) => void;
+  onStatusChange?: (roomId: string, newStatus: StaffMutableOperationalStatus) => void;
   pendingRoomId?: string | null;
   className?: string;
 }

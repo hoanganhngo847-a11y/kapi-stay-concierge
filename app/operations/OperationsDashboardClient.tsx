@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import type {
-  RoomOperationalStatus,
+  StaffMutableRoomOperationalStatus,
   TicketStatus,
   StaffDashboardData,
   RoomOperationRecord,
@@ -25,7 +25,7 @@ interface OperationsDashboardClientProps {
   staffEmail?: string | null;
   onUpdateRoomStatus?: (
     roomId: string,
-    status: RoomOperationalStatus
+    status: StaffMutableRoomOperationalStatus
   ) => Promise<RoomOperationRecord>;
   onUpdateTicketStatus?: (
     ticketId: string,
@@ -70,7 +70,7 @@ export default function OperationsDashboardClient({
   const checkoutCount = todayBookings.filter((b) => b.is_checkout_today).length;
 
   // 1. Room Mutation Reconcile (Authoritative Server Response)
-  const handleRoomStatusChange = async (roomId: string, newStatus: RoomOperationalStatus) => {
+  const handleRoomStatusChange = async (roomId: string, newStatus: StaffMutableRoomOperationalStatus) => {
     if (!onUpdateRoomStatus) return;
     setIsUpdating(true);
     try {
@@ -334,13 +334,6 @@ export default function OperationsDashboardClient({
                         className="px-2 py-1 text-xs bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 rounded"
                       >
                         Sẵn sàng
-                      </button>
-                      <button
-                        disabled={isUpdating}
-                        onClick={() => handleRoomStatusChange(room.room_id, "occupied")}
-                        className="px-2 py-1 text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded"
-                      >
-                        Có khách
                       </button>
                       <button
                         disabled={isUpdating}
