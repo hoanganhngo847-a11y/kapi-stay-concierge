@@ -166,21 +166,18 @@ export function validateOptionalTimestamp(
   if (val === null || val === undefined) {
     return null;
   }
-  if (typeof val === "string") {
-    const trimmed = val.trim();
-    if (trimmed === "" || trimmed === "undefined" || trimmed === "null") {
-      return null;
-    }
-    if (Number.isNaN(Date.parse(trimmed))) {
-      throw new Error(
-        `Timestamp tùy chọn ${fieldName} không hợp lệ ('${val}') tại ${context || "backend boundary"}. Dữ liệu bị chặn (Fail-Closed).`
-      );
-    }
-    return trimmed;
+  if (
+    typeof val !== "string" ||
+    val.trim().length === 0 ||
+    val.trim() === "undefined" ||
+    val.trim() === "null" ||
+    Number.isNaN(Date.parse(val.trim()))
+  ) {
+    throw new Error(
+      `Timestamp tùy chọn ${fieldName} không hợp lệ ('${String(val)}') tại ${context || "backend boundary"}. Dữ liệu bị chặn (Fail-Closed).`
+    );
   }
-  throw new Error(
-    `Timestamp tùy chọn ${fieldName} không đúng định dạng tại ${context || "backend boundary"}. Dữ liệu bị chặn (Fail-Closed).`
-  );
+  return val.trim();
 }
 
 export function validateRequiredDate(val: unknown, fieldName: string, context?: string): string {
@@ -529,11 +526,25 @@ export async function updateRoomStatus(
     );
   }
 
-  // Fail-Closed: Validate operational_status boundary from RPC response
-  const validatedStatus = validateRoomOperationalStatusBoundary(
-    result.operational_status,
-    `RPC update_room_operational_status (${cleanRoomId})`
-  );
+  // Fail-Closed: Validate operational_status boundary from RPC response against staff-mutable contract
+  // Staff mutation chỉ được phép có: ready | cleaning | maintenance
+  // Không dùng full RoomOperationalStatus validator; reject 'occupied' hoặc status ngoài staff-mutable contract
+  if (!isValidStaffMutableRoomOperationalStatus(result.operational_status)) {
+    console.error(
+      `[updateRoomStatus] RPC trả về operational_status không thuộc staff-mutable contract ('${String(
+        result.operational_status
+      )}'):`,
+      result
+    );
+    throw new RoomOperationError(
+      "OPERATION_FAILED",
+      `Trạng thái vận hành phòng '${String(
+        result.operational_status
+      )}' trả về từ máy chủ không hợp lệ cho nhân viên (Fail-Closed).`
+    );
+  }
+
+  const validatedStatus: StaffMutableRoomOperationalStatus = result.operational_status;
 
   // Defense-in-depth: updated_by phải bằng staff.id
   if (result.updated_by !== staff.id) {
