@@ -73,6 +73,124 @@ export function validateTicketStatusBoundary(
   return status;
 }
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DATE_FORMAT_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+export function validateRequiredId(val: unknown, fieldName: string, context?: string): string {
+  if (
+    typeof val !== "string" ||
+    val.trim().length === 0 ||
+    val === "undefined" ||
+    val === "null" ||
+    !UUID_REGEX.test(val.trim())
+  ) {
+    throw new Error(
+      `Định danh bắt buộc ${fieldName} không hợp lệ ('${String(val)}') tại ${context || "backend boundary"}. Dữ liệu bị chặn (Fail-Closed).`
+    );
+  }
+  return val.trim();
+}
+
+export function validateRequiredString(val: unknown, fieldName: string, context?: string): string {
+  if (
+    typeof val !== "string" ||
+    val.trim().length === 0 ||
+    val === "undefined" ||
+    val === "null"
+  ) {
+    throw new Error(
+      `Chuỗi bắt buộc ${fieldName} không hợp lệ ('${String(val)}') tại ${context || "backend boundary"}. Dữ liệu bị chặn (Fail-Closed).`
+    );
+  }
+  return val.trim();
+}
+
+export function validateRequiredTimestamp(val: unknown, fieldName: string, context?: string): string {
+  if (
+    typeof val !== "string" ||
+    val.trim().length === 0 ||
+    val === "undefined" ||
+    val === "null" ||
+    Number.isNaN(Date.parse(val.trim()))
+  ) {
+    throw new Error(
+      `Timestamp bắt buộc ${fieldName} không hợp lệ ('${String(val)}') tại ${context || "backend boundary"}. Dữ liệu bị chặn (Fail-Closed).`
+    );
+  }
+  return val.trim();
+}
+
+export function validateRequiredDate(val: unknown, fieldName: string, context?: string): string {
+  if (
+    typeof val !== "string" ||
+    !DATE_FORMAT_REGEX.test(val.trim()) ||
+    Number.isNaN(Date.parse(val.trim()))
+  ) {
+    throw new Error(
+      `Ngày bắt buộc ${fieldName} không hợp lệ ('${String(val)}') tại ${context || "backend boundary"}. Dữ liệu bị chặn (Fail-Closed).`
+    );
+  }
+  return val.trim();
+}
+
+export function validateOptionalString(val: unknown): string | null {
+  if (val === null || val === undefined) {
+    return null;
+  }
+  if (typeof val === "string") {
+    const trimmed = val.trim();
+    if (trimmed === "" || trimmed === "undefined" || trimmed === "null") {
+      return null;
+    }
+    return trimmed;
+  }
+  return null;
+}
+
+export function validateOptionalId(val: unknown, fieldName: string, context?: string): string | null {
+  if (val === null || val === undefined) {
+    return null;
+  }
+  if (typeof val === "string") {
+    const trimmed = val.trim();
+    if (trimmed === "" || trimmed === "undefined" || trimmed === "null") {
+      return null;
+    }
+    if (!UUID_REGEX.test(trimmed)) {
+      throw new Error(
+        `Định danh tùy chọn ${fieldName} không hợp lệ ('${val}') tại ${context || "backend boundary"}. Dữ liệu bị chặn (Fail-Closed).`
+      );
+    }
+    return trimmed;
+  }
+  throw new Error(
+    `Định danh tùy chọn ${fieldName} không đúng định dạng tại ${context || "backend boundary"}.`
+  );
+}
+
+export function validatePositiveInteger(val: unknown, fieldName: string, context?: string): number {
+  if (typeof val === "number" && Number.isInteger(val) && val > 0) {
+    return val;
+  }
+  if (typeof val === "string" && /^\d+$/.test(val.trim())) {
+    const num = parseInt(val.trim(), 10);
+    if (num > 0) return num;
+  }
+  throw new Error(
+    `Số nguyên dương bắt buộc ${fieldName} không hợp lệ ('${String(val)}') tại ${context || "backend boundary"}. Dữ liệu bị chặn (Fail-Closed).`
+  );
+}
+
+export function validateStringArray(val: unknown): string[] {
+  if (!Array.isArray(val)) {
+    return [];
+  }
+  return val
+    .filter((item): item is string => typeof item === "string" && item.trim().length > 0 && item !== "undefined" && item !== "null")
+    .map((item) => item.trim());
+}
+
 export interface RoomOperationRecord {
   room_id: string;
   operational_status: RoomOperationalStatus;
@@ -474,7 +592,7 @@ export async function updateTicketStatusAdmin(
  * Treats raw input as untrusted `unknown` without unsafe direct casting.
  */
 export function validateStaffDashboardBoundary(data: unknown): StaffDashboardData {
-  if (!data || typeof data !== "object") {
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
     throw new Error("Dữ liệu bảng điều khiển từ máy chủ không hợp lệ (không phải đối tượng).");
   }
 
@@ -497,74 +615,116 @@ export function validateStaffDashboardBoundary(data: unknown): StaffDashboardDat
   }
 
   const validatedRoomOperations = payload.room_operations.map((rawItem, index) => {
-    if (!rawItem || typeof rawItem !== "object") {
+    if (!rawItem || typeof rawItem !== "object" || Array.isArray(rawItem)) {
       throw new Error(`Dữ liệu room_operations[${index}] không hợp lệ.`);
     }
     const item = rawItem as Record<string, unknown>;
+    const context = `room_operations[${index}]`;
+
+    const roomId = validateRequiredId(item.room_id, "room_id", context);
+    const roomName = validateRequiredString(item.room_name, "room_name", context);
     const validatedStatus = validateRoomOperationalStatusBoundary(
       item.operational_status,
-      `phòng ${String(item.room_id || index)}`
+      `phòng ${roomId}`
     );
+    const updatedAt = validateRequiredTimestamp(item.updated_at, "updated_at", context);
+    const updatedBy = validateOptionalId(item.updated_by, "updated_by", context);
+
     return {
-      room_id: String(item.room_id ?? ""),
-      room_name: String(item.room_name ?? ""),
+      room_id: roomId,
+      room_name: roomName,
       operational_status: validatedStatus,
-      updated_at: String(item.updated_at ?? ""),
-      updated_by: item.updated_by ? String(item.updated_by) : null,
+      updated_at: updatedAt,
+      updated_by: updatedBy,
     };
   });
 
   const validatedTickets = payload.tickets.map((rawItem, index) => {
-    if (!rawItem || typeof rawItem !== "object") {
+    if (!rawItem || typeof rawItem !== "object" || Array.isArray(rawItem)) {
       throw new Error(`Dữ liệu tickets[${index}] không hợp lệ.`);
     }
     const item = rawItem as Record<string, unknown>;
+    const context = `tickets[${index}]`;
+
+    const id = validateRequiredId(item.id, "id", context);
+    const bookingId = validateRequiredId(item.booking_id, "booking_id", context);
+    const roomId = validateRequiredId(item.room_id, "room_id", context);
+    const userId = validateRequiredId(item.user_id, "user_id", context);
+    const roomName = validateOptionalString(item.room_name);
+    const guestName = validateOptionalString(item.guest_name);
+    const guestPhone = validateOptionalString(item.guest_phone);
+    const category = validateRequiredString(item.category, "category", context);
+    const description = typeof item.description === "string" ? item.description : "";
+    const mediaPaths = validateStringArray(item.media_paths);
     const validatedStatus = validateTicketStatusBoundary(
       item.status,
-      `sự cố ${String(item.id || index)}`
+      `sự cố ${id}`
     );
+    const createdAt = validateRequiredTimestamp(item.created_at, "created_at", context);
+    const updatedAt = validateRequiredTimestamp(item.updated_at, "updated_at", context);
+
     return {
-      id: String(item.id ?? ""),
-      booking_id: String(item.booking_id ?? ""),
-      room_id: String(item.room_id ?? ""),
-      room_name: item.room_name ? String(item.room_name) : null,
-      user_id: String(item.user_id ?? ""),
-      guest_name: item.guest_name ? String(item.guest_name) : null,
-      guest_phone: item.guest_phone ? String(item.guest_phone) : null,
-      category: String(item.category ?? ""),
-      description: String(item.description ?? ""),
-      media_paths: Array.isArray(item.media_paths) ? item.media_paths.map(String) : [],
+      id,
+      booking_id: bookingId,
+      room_id: roomId,
+      room_name: roomName,
+      user_id: userId,
+      guest_name: guestName,
+      guest_phone: guestPhone,
+      category,
+      description,
+      media_paths: mediaPaths,
       status: validatedStatus,
-      created_at: String(item.created_at ?? ""),
-      updated_at: String(item.updated_at ?? ""),
+      created_at: createdAt,
+      updated_at: updatedAt,
     };
   });
 
   const validatedTodayBookings = payload.today_bookings.map((rawBooking, index) => {
-    if (!rawBooking || typeof rawBooking !== "object") {
+    if (!rawBooking || typeof rawBooking !== "object" || Array.isArray(rawBooking)) {
       throw new Error(`Dữ liệu today_bookings[${index}] không hợp lệ.`);
     }
     const b = rawBooking as Record<string, unknown>;
+    const context = `today_bookings[${index}]`;
+
+    const id = validateRequiredId(b.id, "id", context);
+    const roomId = validateRequiredId(b.room_id, "room_id", context);
+    const userId = validateRequiredId(b.user_id, "user_id", context);
+    const roomName = validateOptionalString(b.room_name);
+    const guestName = validateOptionalString(b.guest_name);
+    const guestPhone = validateOptionalString(b.guest_phone);
+    const checkIn = validateRequiredDate(b.check_in, "check_in", context);
+    const checkOut = validateRequiredDate(b.check_out, "check_out", context);
+    const guestCount = validatePositiveInteger(b.guest_count, "guest_count", context);
+    const bookingStatus = validateRequiredString(b.booking_status, "booking_status", context);
+    const paymentStatus = validateRequiredString(b.payment_status, "payment_status", context);
+    const isCheckinToday = typeof b.is_checkin_today === "boolean" ? b.is_checkin_today : false;
+    const isCheckoutToday = typeof b.is_checkout_today === "boolean" ? b.is_checkout_today : false;
+
     return {
-      id: String(b.id ?? ""),
-      room_id: String(b.room_id ?? ""),
-      room_name: b.room_name ? String(b.room_name) : null,
-      user_id: String(b.user_id ?? ""),
-      guest_name: b.guest_name ? String(b.guest_name) : null,
-      guest_phone: b.guest_phone ? String(b.guest_phone) : null,
-      check_in: String(b.check_in ?? ""),
-      check_out: String(b.check_out ?? ""),
-      guest_count: typeof b.guest_count === "number" ? b.guest_count : Number(b.guest_count || 0),
-      booking_status: String(b.booking_status ?? ""),
-      payment_status: String(b.payment_status ?? ""),
-      is_checkin_today: Boolean(b.is_checkin_today),
-      is_checkout_today: Boolean(b.is_checkout_today),
+      id,
+      room_id: roomId,
+      room_name: roomName,
+      user_id: userId,
+      guest_name: guestName,
+      guest_phone: guestPhone,
+      check_in: checkIn,
+      check_out: checkOut,
+      guest_count: guestCount,
+      booking_status: bookingStatus,
+      payment_status: paymentStatus,
+      is_checkin_today: isCheckinToday,
+      is_checkout_today: isCheckoutToday,
     };
   });
 
+  const today = payload.today !== undefined && payload.today !== null
+    ? validateRequiredDate(payload.today, "today", "dashboard")
+    : undefined;
+
   return {
     success: true,
-    today: typeof payload.today === "string" ? payload.today : undefined,
+    today,
     room_operations: validatedRoomOperations,
     tickets: validatedTickets,
     today_bookings: validatedTodayBookings,
