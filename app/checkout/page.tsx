@@ -460,12 +460,18 @@ function CheckoutPageLayout({ children, sessionId }: CheckoutPageLayoutProps) {
           </p>
           <p className="text-xs text-dark/35">
             Gặp vấn đề?{" "}
-            <a
-              href="tel:+84000000000"
-              className="text-primary hover:underline font-medium"
-            >
-              Liên hệ hỗ trợ
-            </a>
+            {process.env.NEXT_PUBLIC_SUPPORT_PHONE?.trim() ? (
+              <a
+                href={`tel:${process.env.NEXT_PUBLIC_SUPPORT_PHONE.trim()}`}
+                className="text-primary hover:underline font-medium"
+              >
+                Liên hệ hỗ trợ
+              </a>
+            ) : (
+              <span className="text-dark/50 font-medium">
+                Liên hệ lễ tân để được hỗ trợ
+              </span>
+            )}
           </p>
         </div>
       </main>

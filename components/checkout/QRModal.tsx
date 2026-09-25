@@ -59,6 +59,13 @@ const ACCOUNT_NO = process.env.NEXT_PUBLIC_VIETQR_ACCOUNT_NO ?? "";
 const ACCOUNT_NAME = process.env.NEXT_PUBLIC_VIETQR_ACCOUNT_NAME ?? "";
 
 /**
+ * Số điện thoại hỗ trợ — tuỳ chọn.
+ * Nếu không cấu hình: KHÔNG render link tel:, chỉ hiển thị text an toàn.
+ *   NEXT_PUBLIC_SUPPORT_PHONE=<số điện thoại, ví dụ: +84901234567>
+ */
+const SUPPORT_PHONE = process.env.NEXT_PUBLIC_SUPPORT_PHONE?.trim() ?? "";
+
+/**
  * Kiểm tra tất cả biến môi trường bắt buộc có giá trị hợp lệ.
  * Nếu bất kỳ biến nào thiếu/rỗng → không render QR.
  */
@@ -235,15 +242,21 @@ function VietQRUnavailable({ onClose }: { onClose: () => void }) {
             Thanh toán qua VietQR hiện chưa khả dụng
           </p>
           <p className="text-xs text-dark/55 leading-relaxed">
-            Vui lòng liên hệ hỗ trợ để hoàn tất thanh toán hoặc thử lại sau.
+            Vui lòng liên hệ lễ tân hoặc bộ phận hỗ trợ để hoàn tất thanh toán.
           </p>
         </div>
-        <a
-          href="tel:+84000000000"
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary-600 transition-colors"
-        >
-          Liên hệ hỗ trợ
-        </a>
+        {SUPPORT_PHONE ? (
+          <a
+            href={`tel:${SUPPORT_PHONE}`}
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary-600 transition-colors"
+          >
+            Liên hệ hỗ trợ
+          </a>
+        ) : (
+          <p className="text-sm font-medium text-dark/60">
+            Liên hệ lễ tân để được hỗ trợ
+          </p>
+        )}
       </div>
     </Modal>
   );
@@ -410,7 +423,7 @@ export function QRModal({
             "Mở ứng dụng ngân hàng và chọn chuyển khoản",
             "Quét mã QR hoặc nhập số tài khoản thủ công",
             "Nhập đúng số tiền và nội dung chuyển khoản",
-            "Hệ thống sẽ tự động đối soát và xác nhận đặt phòng sau khi nhận được giao dịch",
+            "Sau khi chuyển khoản, vui lòng chờ hệ thống xác minh giao dịch. Đặt phòng chỉ được xác nhận sau khi giao dịch được xác minh thành công.",
           ].map((step, i) => (
             <div key={i} className="flex items-start gap-2.5">
               <span
@@ -426,8 +439,8 @@ export function QRModal({
 
         {/* ── Lưu ý quan trọng ─────────────────────────────────────────── */}
         <p className="text-xs text-dark/40 text-center leading-relaxed">
-          ⚠️ Nhập đúng nội dung chuyển khoản để hệ thống tự động đối soát.
-          Sai nội dung có thể làm chậm xác nhận.
+          ⚠️ Nhập đúng nội dung chuyển khoản để hỗ trợ việc xác minh giao dịch.
+          Sai nội dung có thể làm chậm quá trình xác nhận.
         </p>
       </div>
     </Modal>
