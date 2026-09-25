@@ -297,7 +297,7 @@ export function QRModal({
       closeOnOverlayClick={true}
       size="md"
       title="Thanh toán qua VietQR"
-      description="Quét mã QR hoặc chuyển khoản theo thông tin bên dưới. Giữ nguyên nội dung chuyển khoản để hệ thống tự đối soát."
+      description="Quét mã QR hoặc chuyển khoản theo thông tin bên dưới. Giữ nguyên nội dung chuyển khoản để hỗ trợ việc xác minh giao dịch."
       footer={
         <div className="flex flex-col gap-3 w-full">
           {/* Trạng thái chờ đối soát — thay thế nút "Kiểm tra thanh toán" */}
