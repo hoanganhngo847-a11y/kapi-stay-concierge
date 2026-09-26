@@ -1,96 +1,248 @@
 "use client";
 
-import * as React from "react";
+import React, { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { Suspense } from "react";
-import { KeyRound, Search, ArrowRight, ShieldCheck, Phone } from "lucide-react";
-import { Button, Input } from "@/components/ui";
+import { KeyCard, type StayStatus } from "@/components/my-stay/KeyCard";
+import WifiWidget from "@/components/my-stay/WifiWidget";
+import { QuickActions } from "@/components/my-stay/QuickActions";
+import { getMyStayBookingDetails } from "@/lib/data/my-stay";
+
+const CANONICAL_PARAM = "bookingId";
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+interface StayData {
+  bookingId: string;
+  roomName?: string;
+  passcode?: string | null;
+  propertyAddress?: string | null;
+  propertyMapsUrl?: string | null;
+  wifiSsid?: string | null;
+  wifiPass?: string | null;
+  hasActiveCredential?: boolean;
+  activationNotice?: string;
+  stayStatus?: StayStatus;
+  isActiveStay?: boolean;
+}
 
 function MyStayContent() {
   const searchParams = useSearchParams();
-  const initialCode = searchParams.get("code") || "";
-  const [bookingCode, setBookingCode] = React.useState(initialCode);
-  const [prevCode, setPrevCode] = React.useState(initialCode);
-  const [errorMessage, setErrorMessage] = React.useState("");
-  const [isLoading, setIsLoading] = React.useState(false);
+  const rawParam =
+    searchParams.get(CANONICAL_PARAM) ||
+    searchParams.get("bookingID") ||
+    searchParams.get("booking") ||
+    searchParams.get("code") ||
+    "";
+  const trimmedParam = rawParam.trim();
+  const isValidUuid = UUID_REGEX.test(trimmedParam);
 
-  // Sync state if search param changes during navigation without synchronous setState in effect
-  if (initialCode !== prevCode) {
-    setPrevCode(initialCode);
-    setBookingCode(initialCode);
+  const [bookingInput, setBookingInput] = useState(() => (isValidUuid ? trimmedParam : ""));
+  const [stayData, setStayData] = useState<StayData | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(() => {
+    if (trimmedParam && !isValidUuid) {
+      return "Mã đặt phòng không đúng định dạng.";
+    }
+    return null;
+  });
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Synchronize state during render when query parameter changes
+  const [prevParam, setPrevParam] = useState(trimmedParam);
+  if (trimmedParam !== prevParam) {
+    setPrevParam(trimmedParam);
+    if (isValidUuid) {
+      setBookingInput(trimmedParam);
+      setErrorMessage(null);
+    } else if (trimmedParam) {
+      setBookingInput("");
+      setErrorMessage("Mã đặt phòng không đúng định dạng.");
+      setStayData(null);
+    } else {
+      setBookingInput("");
+      setErrorMessage(null);
+      setStayData(null);
+    }
   }
+  const lastFetchedIdRef = useRef<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!bookingCode.trim()) {
-      setErrorMessage("Vui lòng nhập mã đơn đặt phòng (Ví dụ: KP-1029)");
+  const executeLookup = useCallback(async (id: string) => {
+    const cleanId = id.trim();
+    if (!cleanId) return;
+
+    if (!UUID_REGEX.test(cleanId)) {
+      setErrorMessage("Mã đặt phòng không đúng định dạng.");
       return;
     }
-    setErrorMessage("");
     setIsLoading(true);
+    setErrorMessage(null);
 
-    setTimeout(() => {
+    try {
+      const data = await getMyStayBookingDetails(cleanId);
+      if (!data) {
+        setErrorMessage("Không tìm thấy thông tin đặt phòng hoặc bạn không có quyền truy cập.");
+        setStayData(null);
+      } else {
+        setStayData(data as StayData);
+      }
+    } catch (err: unknown) {
+      // Map domain markers to user-friendly messages without exposing internal/DB details
+      const errMsg = err instanceof Error ? err.message : "";
+      if (errMsg.startsWith("Unauthorized:")) {
+        setErrorMessage("Bạn cần đăng nhập để xem thông tin kỳ nghỉ.");
+      } else if (errMsg.startsWith("Forbidden:")) {
+        setErrorMessage("Không tìm thấy đơn hoặc bạn không có quyền truy cập.");
+      } else {
+        setErrorMessage("Hệ thống tạm thời không khả dụng. Vui lòng thử lại sau.");
+      }
+      setStayData(null);
+    } finally {
       setIsLoading(false);
-      alert(`Đang tra cứu mã phòng: ${bookingCode.trim().toUpperCase()}`);
-    }, 800);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!trimmedParam || !isValidUuid) {
+      return;
+    }
+
+    if (lastFetchedIdRef.current !== trimmedParam) {
+      lastFetchedIdRef.current = trimmedParam;
+      void executeLookup(trimmedParam);
+    }
+
+    // Canonicalize query parameter in URL if alias or non-canonical form was used
+    if (typeof window !== "undefined") {
+      const currentCanonical = searchParams.get(CANONICAL_PARAM);
+      const hasAliases =
+        searchParams.has("bookingID") ||
+        searchParams.has("booking") ||
+        searchParams.has("code");
+      if (currentCanonical !== trimmedParam || hasAliases) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("bookingID");
+        url.searchParams.delete("booking");
+        url.searchParams.delete("code");
+        url.searchParams.set(CANONICAL_PARAM, trimmedParam);
+        window.history.replaceState(null, "", url.pathname + url.search);
+      }
+    }
+  }, [trimmedParam, isValidUuid, executeLookup, searchParams]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanInput = bookingInput.trim();
+    if (!cleanInput) return;
+
+    if (!UUID_REGEX.test(cleanInput)) {
+      setErrorMessage("Mã đặt phòng không đúng định dạng.");
+      setStayData(null);
+      return;
+    }
+
+    lastFetchedIdRef.current = cleanInput;
+
+    // Update URL to canonical param
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("bookingID");
+      url.searchParams.delete("booking");
+      url.searchParams.delete("code");
+      url.searchParams.set(CANONICAL_PARAM, cleanInput);
+      window.history.replaceState(null, "", url.pathname + url.search);
+    }
+
+    await executeLookup(cleanInput);
   };
 
+  const canRevealAccess = Boolean(stayData?.hasActiveCredential && stayData?.isActiveStay);
+
   return (
-    <div className="w-full max-w-lg mx-auto py-12 sm:py-20 px-4">
-      <div className="bg-white rounded-2xl border border-dark/10 shadow-sm p-6 sm:p-8">
-        <div className="text-center mb-6">
-          <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary border border-primary/20 flex items-center justify-center mx-auto mb-3">
-            <KeyRound className="w-6 h-6" />
-          </div>
-          <h1 className="text-2xl font-bold text-dark">Truy cập phòng của bạn</h1>
-          <p className="text-sm text-dark/60 mt-1">
-            Tra cứu thông tin nhận phòng, hướng dẫn mật mã và tiện ích homestay
-          </p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <Input
-            label="Mã đơn đặt phòng (Booking Code)"
-            placeholder="Ví dụ: KP-1029"
-            value={bookingCode}
+    <div className="max-w-2xl mx-auto p-4 space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <label htmlFor="bookingCode" className="block text-sm font-medium">
+          Mã đặt phòng (Booking ID)
+        </label>
+        <div className="flex gap-2">
+          <input
+            id="bookingCode"
+            type="text"
+            value={bookingInput}
             onChange={(e) => {
-              setBookingCode(e.target.value);
-              if (errorMessage) setErrorMessage("");
+              setBookingInput(e.target.value);
+              if (errorMessage) setErrorMessage(null);
             }}
-            errorMessage={errorMessage}
-            startIcon={<Search className="w-4 h-4 text-dark/40" />}
-            autoFocus
+            placeholder="Nhập UUID đơn hàng (VD: 123e4567-e89b-12d3-a456-426614174000)"
+            className="flex-1 px-3 py-2 border rounded-lg text-sm"
           />
-
-          <Button
+          <button
             type="submit"
-            isLoading={isLoading}
-            className="w-full h-11 text-base font-medium"
-            rightIcon={<ArrowRight className="w-4 h-4" />}
+            disabled={isLoading}
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium disabled:opacity-50"
           >
-            Tra cứu đơn phòng
-          </Button>
-        </form>
-
-        <div className="mt-8 pt-6 border-t border-dark/10 flex flex-col gap-3 text-xs text-dark/60">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-secondary shrink-0" />
-            <span>Mã đặt phòng được gửi qua SMS hoặc email khi đặt phòng thành công.</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Phone className="w-4 h-4 text-primary shrink-0" />
-            <span>Cần trợ giúp khẩn cấp? Gọi Hotline <strong>0988.123.456</strong></span>
-          </div>
+            {isLoading ? "Đang tra cứu..." : "Tra cứu"}
+          </button>
         </div>
-      </div>
+        <p className="text-xs text-muted-foreground">
+          Vui lòng nhập mã định danh đơn hàng được cung cấp trong xác nhận đặt phòng.
+        </p>
+      </form>
+
+      {errorMessage && (
+        <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-lg flex items-center justify-between">
+          <span>{errorMessage}</span>
+          {errorMessage.includes("đăng nhập") && (
+            <a
+              href={
+                bookingInput.trim()
+                  ? `/login?next=${encodeURIComponent(`/my-stay?${CANONICAL_PARAM}=${encodeURIComponent(bookingInput.trim())}`)}`
+                  : "/login?next=/my-stay"
+              }
+              className="text-xs font-semibold underline ml-2 text-primary whitespace-nowrap"
+            >
+              Đăng nhập ngay
+            </a>
+          )}
+        </div>
+      )}
+
+      {stayData && (
+        <div className="space-y-6 border-t pt-6">
+          {canRevealAccess && stayData.passcode ? (
+            <KeyCard
+              roomName={stayData.roomName}
+              passcode={stayData.passcode}
+              address={stayData.propertyAddress ?? undefined}
+              mapUrl={stayData.propertyMapsUrl ?? undefined}
+              stayStatus={stayData.stayStatus}
+            />
+          ) : (
+            <div className="p-4 rounded-xl border bg-muted/50 text-sm text-muted-foreground text-center">
+              {stayData.activationNotice ?? "Thông tin truy cập phòng chưa khả dụng."}
+            </div>
+          )}
+
+          {canRevealAccess && stayData.wifiSsid && stayData.wifiPass ? (
+            <WifiWidget ssid={stayData.wifiSsid} password={stayData.wifiPass} />
+          ) : null}
+
+          <QuickActions bookingId={stayData.bookingId} isCheckoutAllowed={false} />
+        </div>
+      )}
     </div>
   );
 }
 
-export function MyStayClient() {
+export default function MyStayClient() {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-dark/60">Đang tải...</div>}>
+    <Suspense
+      fallback={
+        <div className="max-w-2xl mx-auto p-4 text-center text-sm text-muted-foreground">
+          Đang tải thông tin lưu trú...
+        </div>
+      }
+    >
       <MyStayContent />
     </Suspense>
   );
 }
+
+export { MyStayClient };
