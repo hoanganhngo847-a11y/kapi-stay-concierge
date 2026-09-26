@@ -706,6 +706,15 @@ export type Database = {
         }
         Returns: Json
       }
+      create_guest_ticket: {
+        Args: {
+          p_booking_id: string
+          p_category: string
+          p_description: string
+          p_media_paths?: string[]
+        }
+        Returns: Json
+      }
       finalize_verified_checkout_atomic: {
         Args: {
           p_checkout_session_id: string
