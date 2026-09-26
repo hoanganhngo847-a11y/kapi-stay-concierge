@@ -241,14 +241,6 @@ export function validatePositiveInteger(val: unknown, fieldName: string, context
   );
 }
 
-export function validateStringArray(val: unknown): string[] {
-  if (!Array.isArray(val)) {
-    return [];
-  }
-  return val
-    .filter((item): item is string => typeof item === "string" && item.trim().length > 0 && item !== "undefined" && item !== "null")
-    .map((item) => item.trim());
-}
 
 export interface RoomOperationRecord {
   room_id: string;
@@ -499,6 +491,12 @@ export async function updateRoomStatus(
     }
     if (domainError === "INVALID_OPERATIONAL_STATUS") {
       throw new RoomOperationError("INVALID_TARGET_STATUS", "Trạng thái vận hành phòng không hợp lệ.");
+    }
+    if (domainError === "ROOM_OCCUPIED_READ_ONLY") {
+      throw new RoomOperationError(
+        "ROOM_OCCUPIED_READ_ONLY",
+        "Phòng đang có khách (occupied) thuộc vòng đời lưu trú, nhân viên không thể thay đổi trạng thái."
+      );
     }
     throw new RoomOperationError("OPERATION_FAILED", "Không thể cập nhật trạng thái vận hành phòng.");
   }
@@ -754,8 +752,24 @@ export function validateStaffDashboardBoundary(data: unknown): StaffDashboardDat
     const guestName = validateOptionalString(item.guest_name);
     const guestPhone = validateOptionalString(item.guest_phone);
     const category = validateRequiredString(item.category, "category", context);
-    const description = typeof item.description === "string" ? item.description : "";
-    const mediaPaths = validateStringArray(item.media_paths);
+    if (typeof item.description !== "string") {
+      throw new Error(
+        `Chuỗi description không hợp lệ tại ${context}. Dữ liệu bị chặn (Fail-Closed).`
+      );
+    }
+    const description = item.description;
+
+    if (
+      !Array.isArray(item.media_paths) ||
+      !item.media_paths.every(
+        (mediaPath) => typeof mediaPath === "string"
+      )
+    ) {
+      throw new Error(
+        `Danh sách media_paths không hợp lệ tại ${context}. Dữ liệu bị chặn (Fail-Closed).`
+      );
+    }
+    const mediaPaths = item.media_paths;
     const validatedStatus = validateTicketStatusBoundary(
       item.status,
       `sự cố ${id}`
@@ -798,8 +812,20 @@ export function validateStaffDashboardBoundary(data: unknown): StaffDashboardDat
     const guestCount = validatePositiveInteger(b.guest_count, "guest_count", context);
     const bookingStatus = validateRequiredString(b.booking_status, "booking_status", context);
     const paymentStatus = validateRequiredString(b.payment_status, "payment_status", context);
-    const isCheckinToday = typeof b.is_checkin_today === "boolean" ? b.is_checkin_today : false;
-    const isCheckoutToday = typeof b.is_checkout_today === "boolean" ? b.is_checkout_today : false;
+    if (typeof b.is_checkin_today !== "boolean") {
+      throw new Error(
+        `Boolean bắt buộc is_checkin_today không hợp lệ tại ${context}. Dữ liệu bị chặn (Fail-Closed).`
+      );
+    }
+
+    if (typeof b.is_checkout_today !== "boolean") {
+      throw new Error(
+        `Boolean bắt buộc is_checkout_today không hợp lệ tại ${context}. Dữ liệu bị chặn (Fail-Closed).`
+      );
+    }
+
+    const isCheckinToday = b.is_checkin_today;
+    const isCheckoutToday = b.is_checkout_today;
 
     return {
       id,
