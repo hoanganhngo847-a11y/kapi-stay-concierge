@@ -191,7 +191,11 @@ function MyStayContent() {
           <span>{errorMessage}</span>
           {errorMessage.includes("đăng nhập") && (
             <a
-              href="/login?next=/my-stay"
+              href={
+                bookingInput.trim()
+                  ? `/login?next=${encodeURIComponent(`/my-stay?${CANONICAL_PARAM}=${encodeURIComponent(bookingInput.trim())}`)}`
+                  : "/login?next=/my-stay"
+              }
               className="text-xs font-semibold underline ml-2 text-primary whitespace-nowrap"
             >
               Đăng nhập ngay
