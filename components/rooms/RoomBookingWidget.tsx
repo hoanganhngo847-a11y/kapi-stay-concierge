@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import {
   Info,
   ShieldCheck,
@@ -98,6 +99,7 @@ export function RoomBookingWidget({
   initialCheckOut,
   initialGuests,
 }: RoomBookingWidgetProps) {
+  const router = useRouter();
   const todayStr = React.useMemo(() => getTodayInVietnam(), []);
   const maxCapacity = Math.max(1, Number(room.capacity) || 1);
 
@@ -121,7 +123,6 @@ export function RoomBookingWidget({
   const [checkOut, setCheckOut] = React.useState(normalizedInitialCheckOut);
   const [guests, setGuests] = React.useState(normalizedInitialGuests);
   const [validationError, setValidationError] = React.useState<string | null>(null);
-  const [handoffMessage, setHandoffMessage] = React.useState<string | null>(null);
 
   // If the catalog handed us a complete valid date range, immediately verify it.
   const [availability, setAvailability] = React.useState<AvailabilityState>(
@@ -150,7 +151,6 @@ export function RoomBookingWidget({
     const newVal = e.target.value;
     setCheckIn(newVal);
     setValidationError(null);
-    setHandoffMessage(null);
 
     // Invalidate any in-flight request.
     requestIdRef.current += 1;
@@ -178,7 +178,6 @@ export function RoomBookingWidget({
     const newVal = e.target.value;
     setCheckOut(newVal);
     setValidationError(null);
-    setHandoffMessage(null);
 
     // Invalidate any in-flight request.
     requestIdRef.current += 1;
@@ -299,11 +298,14 @@ export function RoomBookingWidget({
       return;
     }
 
-    // Checkout UI has not been integrated yet.
-    // Do not navigate to a non-existent /checkout route.
-    setHandoffMessage(
-      "Phòng còn trống và thông tin đặt phòng đã hợp lệ. Bước thanh toán sẽ được kết nối khi Checkout được tích hợp."
-    );
+    const params = new URLSearchParams({
+      roomId: room.id,
+      checkIn,
+      checkOut,
+      guests: String(guests),
+    });
+
+    router.push(`/checkout?${params.toString()}`);
   };
 
   return (
@@ -454,16 +456,6 @@ export function RoomBookingWidget({
             </div>
           )}
         </div>
-
-        {handoffMessage && (
-          <div
-            className="p-3 rounded-xl bg-primary/5 border border-primary/20 text-xs text-primary leading-relaxed flex items-start gap-2"
-            role="status"
-          >
-            <Info className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
-            <span>{handoffMessage}</span>
-          </div>
-        )}
 
         {/* Price Estimation Preview */}
         {nights > 0 && (
