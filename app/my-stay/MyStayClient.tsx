@@ -12,6 +12,7 @@ import {
   DEFAULT_DEVICE_INSTRUCTIONS,
 } from "@/components/tickets/GuestGuide";
 import { TicketModal } from "@/components/tickets/TicketModal";
+import { GuestTicketStatusList } from "@/components/tickets/GuestTicketStatusList";
 import {
   getMyStayBookingDetails,
   type MyStayBookingDetails,
@@ -41,6 +42,7 @@ function MyStayContent() {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isTicketOpen, setIsTicketOpen] = useState(false);
+  const [ticketRefreshKey, setTicketRefreshKey] = useState(0);
 
   // Synchronize state during render when query parameter changes
   const [prevParam, setPrevParam] = useState(trimmedParam);
@@ -359,7 +361,13 @@ function MyStayContent() {
             />
           </section>
 
-          {/* 5. Guest Guide */}
+          {/* 5. Guest Ticket Status List */}
+          <GuestTicketStatusList
+            bookingId={stayData.bookingId}
+            refreshKey={ticketRefreshKey}
+          />
+
+          {/* 6. Guest Guide */}
           <GuestGuide
             propertyName={stayData.propertyName}
             deviceInstructions={DEFAULT_DEVICE_INSTRUCTIONS}
@@ -367,11 +375,12 @@ function MyStayContent() {
             onReportIssueClick={canReportIssue ? handleOpenTicket : undefined}
           />
 
-          {/* 6. Ticket Modal (Chỉ mở khi canReportIssue === true và có bookingId thực) */}
+          {/* 7. Ticket Modal (Chỉ mở khi canReportIssue === true và có bookingId thực) */}
           <TicketModal
             isOpen={isTicketOpen && canReportIssue}
             onClose={() => setIsTicketOpen(false)}
             bookingId={stayData.bookingId}
+            onSuccess={() => setTicketRefreshKey((prev) => prev + 1)}
           />
         </div>
       )}
