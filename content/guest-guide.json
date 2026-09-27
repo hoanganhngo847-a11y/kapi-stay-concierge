@@ -1,0 +1,319 @@
+{
+  "_metadata": {
+    "isDemoData": true,
+    "productionReady": false,
+    "verified": false,
+    "version": "1.0.0-draft",
+    "status": "fixture/content draft only",
+    "wiringStatus": "not wired to production UI (My Stay currently uses DEFAULT_DEVICE_INSTRUCTIONS and localSpots=[])",
+    "notice": "Toàn bộ thông tin địa chỉ, hotline, cơ sở y tế, địa điểm ẩm thực và nội quy trong file này là dữ liệu giả lập (fixture/content draft only), chưa được kết nối vào giao diện production (not wired to production UI), tuyệt đối không được hiển thị như dữ liệu vận hành thực tế (must not be presented as verified operational data).",
+    "uiIntegrationContract": {
+      "targetOwner": "TV6 (Guest Guide / Room Details)",
+      "handlingRule": "File này hiện chưa được production My Stay consume (My Stay đang dùng DEFAULT_DEVICE_INSTRUCTIONS và localSpots=[]). Khi productionReady === false hoặc verified === false, UI frontend không được render các thông tin liên hệ/địa chỉ/nội quy như dữ liệu vận hành thật. Đặc biệt với thiết bị có modelVerified === false, các hướng dẫn thao tác chỉ là hướng dẫn minh họa chung, không được mô tả hướng dẫn model-specific là chính thức và tuyệt đối không đổi modelVerified=true."
+    }
+  },
+  "branches": [
+    {
+      "branchId": "dvn",
+      "branchName": "Kapi House — Đặng Văn Ngữ",
+      "status": "draft",
+      "verified": false,
+      "address": "Số 12 Ngõ 4C Đặng Văn Ngữ, Phường Trung Tự, Quận Đống Đa, Hà Nội",
+      "hotline": "0988 123 456",
+      "checkInTime": "14:00",
+      "checkOutTime": "12:00"
+    },
+    {
+      "branchId": "tay-ho",
+      "branchName": "Kapi House — Tây Hồ",
+      "status": "draft",
+      "verified": false,
+      "address": "Số 28 Ngõ 52 Tô Ngọc Vân, Phường Quảng An, Quận Tây Hồ, Hà Nội",
+      "hotline": "0988 123 457",
+      "checkInTime": "14:00",
+      "checkOutTime": "12:00"
+    },
+    {
+      "branchId": "cau-giay",
+      "branchName": "Kapi House — Cầu Giấy",
+      "status": "draft",
+      "verified": false,
+      "address": "Số 15 Ngõ 68 Cầu Giấy, Phường Quan Hoa, Quận Cầu Giấy, Hà Nội",
+      "hotline": "0988 123 458",
+      "checkInTime": "14:00",
+      "checkOutTime": "12:00"
+    },
+    {
+      "branchId": "hoan-kiem",
+      "branchName": "Kapi House — Hoàn Kiếm",
+      "status": "draft",
+      "verified": false,
+      "address": "Số 36 Ngõ Huyện, Phường Hàng Trống, Quận Hoàn Kiếm, Hà Nội",
+      "hotline": "0988 123 459",
+      "checkInTime": "14:00",
+      "checkOutTime": "12:00"
+    }
+  ],
+  "localFood": [
+    {
+      "branchId": "dvn",
+      "name": "Bún Đậu Mơ Phố",
+      "status": "draft",
+      "verified": false,
+      "nearestBranch": "Kapi House — Đặng Văn Ngữ",
+      "category": "Món ăn truyền thống Hà Nội",
+      "walkingDistance": "150m (khoảng 2 phút đi bộ)",
+      "averagePrice": "45.000đ - 65.000đ/suất",
+      "signatureDish": "Mẹt bún đậu thập cẩm chả cốm giòn rụm kèm nước mơ đá thanh mát"
+    },
+    {
+      "branchId": "dvn",
+      "name": "Cà Phê Sân Vườn Xóm 10",
+      "status": "draft",
+      "verified": false,
+      "nearestBranch": "Kapi House — Đặng Văn Ngữ",
+      "category": "Cà phê & Không gian thư giãn",
+      "walkingDistance": "200m (khoảng 3 phút đi bộ)",
+      "averagePrice": "35.000đ - 55.000đ/món",
+      "signatureDish": "Trà sen vàng macchiato và cà phê cốt dừa thơm béo"
+    },
+    {
+      "branchId": "tay-ho",
+      "name": "Maison de Blanc Bakery & Café",
+      "status": "draft",
+      "verified": false,
+      "nearestBranch": "Kapi House — Tây Hồ",
+      "category": "Cà phê sân vườn & Bánh ngọt Pháp",
+      "walkingDistance": "350m (khoảng 5 phút đi bộ)",
+      "averagePrice": "60.000đ - 120.000đ/món",
+      "signatureDish": "Bánh sừng bò nướng bơ tỏi giòn xốp và Cold Brew cam sả sảng khoái"
+    },
+    {
+      "branchId": "tay-ho",
+      "name": "Quán Ốc Nóng & Ăn Vặt Hồ Tây",
+      "status": "draft",
+      "verified": false,
+      "nearestBranch": "Kapi House — Tây Hồ",
+      "category": "Quán ăn vặt & Ẩm thực đường phố",
+      "walkingDistance": "400m (khoảng 5 phút đi bộ)",
+      "averagePrice": "50.000đ - 90.000đ/món",
+      "signatureDish": "Ốc mít luộc mắm gừng lá chanh và nem chua rán giòn tan"
+    },
+    {
+      "branchId": "cau-giay",
+      "name": "Bánh Cuốn Nóng Bà Xuân",
+      "status": "draft",
+      "verified": false,
+      "nearestBranch": "Kapi House — Cầu Giấy",
+      "category": "Món ăn sáng & Ăn nhẹ truyền thống",
+      "walkingDistance": "180m (khoảng 2 phút đi bộ)",
+      "averagePrice": "35.000đ - 50.000đ/suất",
+      "signatureDish": "Bánh cuốn thịt mộc nhĩ tráng mỏng mềm mượt, rắc hành phi thơm nức kèm chả quế nóng"
+    },
+    {
+      "branchId": "cau-giay",
+      "name": "Bếp Chay An Lạc",
+      "status": "draft",
+      "verified": false,
+      "nearestBranch": "Kapi House — Cầu Giấy",
+      "category": "Ẩm thực chay thanh tịnh",
+      "walkingDistance": "300m (khoảng 4 phút đi bộ)",
+      "averagePrice": "40.000đ - 85.000đ/món",
+      "signatureDish": "Cơm hạt sen thố đá nóng hổi và nem nấm cung đình giòn rụm"
+    },
+    {
+      "branchId": "hoan-kiem",
+      "name": "Cà Phê Loading T",
+      "status": "draft",
+      "verified": false,
+      "nearestBranch": "Kapi House — Hoàn Kiếm",
+      "category": "Quán cà phê cổ điển & Không gian hoài niệm",
+      "walkingDistance": "250m (khoảng 3 phút đi bộ)",
+      "averagePrice": "50.000đ - 70.000đ/món",
+      "signatureDish": "Cà phê trứng béo ngậy chuẩn vị phố cổ và trà hoa cúc mật ong"
+    },
+    {
+      "branchId": "hoan-kiem",
+      "name": "Phở Bò Ấu Triệu",
+      "status": "draft",
+      "verified": false,
+      "nearestBranch": "Kapi House — Hoàn Kiếm",
+      "category": "Đặc sản phở Hà Nội",
+      "walkingDistance": "200m (khoảng 3 phút đi bộ)",
+      "averagePrice": "55.000đ - 80.000đ/bát",
+      "signatureDish": "Phở bò tái lăn nước dùng trong vắt, đậm đà vị ngọt thanh tự nhiên từ xương"
+    }
+  ],
+  "emergencyServices": [
+    {
+      "branchId": "dvn",
+      "name": "Cửa Hàng Tiện Lợi Circle K 24/7",
+      "status": "draft",
+      "verified": false,
+      "category": "Cửa hàng tiện lợi 24/7",
+      "address": "Số 8 Đặng Văn Ngữ, Phường Trung Tự, Quận Đống Đa, Hà Nội",
+      "hotline": "1900 636 726"
+    },
+    {
+      "branchId": "dvn",
+      "name": "Nhà Thuốc FPT Long Châu 24/7",
+      "status": "draft",
+      "verified": false,
+      "category": "Nhà thuốc mở 24/7",
+      "address": "112 Chùa Bộc, Phường Trung Liệt, Quận Đống Đa, Hà Nội",
+      "hotline": "1800 6928"
+    },
+    {
+      "branchId": "dvn",
+      "name": "Cây ATM Đa Năng Vietcombank / BIDV 24/7",
+      "status": "draft",
+      "verified": false,
+      "category": "Cây ATM",
+      "address": "58 Phạm Ngọc Thạch, Phường Kim Liên, Quận Đống Đa, Hà Nội",
+      "hotline": "1900 545 413"
+    },
+    {
+      "branchId": "tay-ho",
+      "name": "Bệnh Viện Đa Khoa Quốc Tế Thu Cúc / Cấp Cứu 115",
+      "status": "draft",
+      "verified": false,
+      "category": "Trạm y tế / Bệnh viện",
+      "address": "286 Thụy Khuê, Phường Bưởi, Quận Tây Hồ, Hà Nội",
+      "hotline": "1900 558 896"
+    },
+    {
+      "branchId": "tay-ho",
+      "name": "Cửa Hàng Tiện Lợi Circle K Quảng An 24/7",
+      "status": "draft",
+      "verified": false,
+      "category": "Cửa hàng tiện lợi 24/7",
+      "address": "Số 32 Tô Ngọc Vân, Phường Quảng An, Quận Tây Hồ, Hà Nội",
+      "hotline": "1900 636 726"
+    },
+    {
+      "branchId": "cau-giay",
+      "name": "Nhà Thuốc Pharmacity 24/7 Cầu Giấy",
+      "status": "draft",
+      "verified": false,
+      "category": "Nhà thuốc mở 24/7",
+      "address": "Số 72 Cầu Giấy, Phường Quan Hoa, Quận Cầu Giấy, Hà Nội",
+      "hotline": "1800 6821"
+    },
+    {
+      "branchId": "cau-giay",
+      "name": "Cây ATM BIDV / Techcombank 24/7 Cầu Giấy",
+      "status": "draft",
+      "verified": false,
+      "category": "Cây ATM",
+      "address": "Số 165 Cầu Giấy, Phường Quan Hoa, Quận Cầu Giấy, Hà Nội",
+      "hotline": "1900 545 415"
+    },
+    {
+      "branchId": "hoan-kiem",
+      "name": "Bệnh Viện Hữu Nghị Việt Đức / Cấp Cứu 115",
+      "status": "draft",
+      "verified": false,
+      "category": "Trạm y tế / Bệnh viện",
+      "address": "40 Tràng Thi, Phường Hàng Bông, Quận Hoàn Kiếm, Hà Nội",
+      "hotline": "1900 1902"
+    },
+    {
+      "branchId": "hoan-kiem",
+      "name": "Cửa Hàng Tiện Lợi Circle K Lý Quốc Sư 24/7",
+      "status": "draft",
+      "verified": false,
+      "category": "Cửa hàng tiện lợi 24/7",
+      "address": "Số 28 Lý Quốc Sư, Phường Hàng Trống, Quận Hoàn Kiếm, Hà Nội",
+      "hotline": "1900 636 726"
+    }
+  ],
+  "houseRules": {
+    "status": "draft",
+    "verified": false,
+    "notice": "Nội quy phòng mang tính chất demo tham khảo hiển thị giao diện, chưa phải policy vận hành chính thức từ Kapi House / TV1.",
+    "rules": [
+      {
+        "id": "hr-01",
+        "rule": "Không hút thuốc trong phòng và khu vực chung của tòa nhà."
+      },
+      {
+        "id": "hr-02",
+        "rule": "Giữ yên lặng sau 22:00 để không ảnh hưởng đến các căn hộ lân cận."
+      },
+      {
+        "id": "hr-03",
+        "rule": "Tắt điều hòa và các thiết bị điện công suất lớn khi ra khỏi phòng."
+      },
+      {
+        "id": "hr-04",
+        "rule": "Không mang thú cưng vào phòng khi chưa đăng ký trước với quản lý."
+      },
+      {
+        "id": "hr-05",
+        "rule": "Bảo quản trang thiết bị; kiểm tra tình trạng tài sản khi nhận và trả phòng."
+      }
+    ]
+  },
+  "deviceGuides": [
+    {
+      "deviceId": "smart-lock",
+      "deviceName": "Khóa cửa điện tử mã số",
+      "status": "draft",
+      "verified": false,
+      "modelVerified": false,
+      "videoUrl": null,
+      "steps": [
+        "Bước 1: Chạm nhẹ vào mặt kính cảm ứng để bàn phím sáng đèn số.",
+        "Bước 2: Nhập dãy mật mã PIN phòng bạn nhận được trong thông tin nhận phòng.",
+        "Bước 3: Nhấn phím '#' (thăng) để xác nhận mở khóa, chờ tín hiệu âm thanh hoặc đèn báo hiệu rồi gạt tay nắm mở cửa.",
+        "Bước 4: Khi ra ngoài, khép chặt cửa và kiểm tra lại để đảm bảo chốt khóa đã đóng an toàn."
+      ],
+      "note": "Tránh nhập sai mã liên tiếp nhiều lần để phòng ngừa kích hoạt cơ chế tự bảo vệ của khóa. Trường hợp khóa báo pin yếu hoặc không nhận mã, vui lòng liên hệ hotline homestay để được hỗ trợ kịp thời."
+    },
+    {
+      "deviceId": "water-heater",
+      "deviceName": "Bình nóng lạnh",
+      "status": "draft",
+      "verified": false,
+      "modelVerified": false,
+      "videoUrl": null,
+      "steps": [
+        "Bước 1: Bật công tắc bình nóng lạnh tại vị trí chỉ định bên ngoài phòng tắm (công tắc có đèn báo).",
+        "Bước 2: Chờ nước được đun nóng đến nhiệt độ phù hợp trước khi sử dụng.",
+        "Bước 3: BẮT BUỘC TẮT công tắc bình nóng lạnh trước khi bước vào phòng tắm để đảm bảo an toàn điện tuyệt đối.",
+        "Bước 4: Gạt tay vòi sen từ từ để điều chỉnh và kiểm tra độ ấm của nước vừa ý."
+      ],
+      "note": "Luôn ngắt công tắc điện bình nóng lạnh trước khi tắm. Tắt bình khi không có nhu cầu sử dụng để tiết kiệm điện năng và phòng ngừa quá nhiệt."
+    },
+    {
+      "deviceId": "induction-cooker",
+      "deviceName": "Bếp từ đôi",
+      "status": "draft",
+      "verified": false,
+      "modelVerified": false,
+      "videoUrl": null,
+      "steps": [
+        "Bước 1: Đặt nồi hoặc chảo có đáy bắt từ phù hợp vào đúng vị trí vùng nấu.",
+        "Bước 2: Nhấn nút Nguồn (Power / On-Off) để khởi động bếp.",
+        "Bước 3: Kiểm tra nút Khóa an toàn (Lock), nếu đang kích hoạt thì chạm giữ nút để mở khóa theo hướng dẫn trên mặt bếp.",
+        "Bước 4: Chọn mức công suất hoặc nhiệt độ nấu phù hợp theo nhu cầu chế biến."
+      ],
+      "note": "Bếp từ chỉ hoạt động khi có dụng cụ nấu chuyên dụng đáy từ đặt bên trên. Sau khi tắt bếp, mặt kính vẫn còn nhiệt dư từ đáy nồi tỏa ra, tránh chạm tay trực tiếp vào mặt bếp."
+    },
+    {
+      "deviceId": "air-conditioner",
+      "deviceName": "Điều hòa nhiệt độ",
+      "status": "draft",
+      "verified": false,
+      "modelVerified": false,
+      "videoUrl": null,
+      "steps": [
+        "Bước 1: Hướng remote điều khiển về phía máy lạnh và nhấn nút Bật/Tắt (ON/OFF).",
+        "Bước 2: Nhấn nút MODE để chọn chế độ làm mát (COOL hoặc biểu tượng bông tuyết).",
+        "Bước 3: Sử dụng các phím điều chỉnh để cài đặt nhiệt độ phòng về mức thoải mái phù hợp.",
+        "Bước 4: Tùy chỉnh tốc độ quạt gió (FAN) và hướng gió (SWING) để khí mát lan tỏa dễ chịu khắp phòng."
+      ],
+      "note": "Khuyến nghị cài đặt nhiệt độ ở mức vừa phải để tạo cảm giác dễ chịu và tiết kiệm điện năng. Vui lòng đóng kín cửa sổ khi bật điều hòa và tắt thiết bị khi rời khỏi phòng."
+    }
+  ]
+}
