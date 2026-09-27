@@ -4,10 +4,12 @@
     "productionReady": false,
     "verified": false,
     "version": "1.0.0-draft",
-    "notice": "Toàn bộ thông tin địa chỉ, hotline, cơ sở y tế, địa điểm ẩm thực và nội quy trong file này là dữ liệu giả lập (fixture/demo), chưa được xác thực vận hành.",
+    "status": "fixture/content draft only",
+    "wiringStatus": "not wired to production UI (My Stay currently uses DEFAULT_DEVICE_INSTRUCTIONS and localSpots=[])",
+    "notice": "Toàn bộ thông tin địa chỉ, hotline, cơ sở y tế, địa điểm ẩm thực và nội quy trong file này là dữ liệu giả lập (fixture/content draft only), chưa được kết nối vào giao diện production (not wired to production UI), tuyệt đối không được hiển thị như dữ liệu vận hành thực tế (must not be presented as verified operational data).",
     "uiIntegrationContract": {
       "targetOwner": "TV6 (Guest Guide / Room Details)",
-      "handlingRule": "Khi productionReady === false hoặc verified === false, UI frontend không được render các thông tin liên hệ/địa chỉ/nội quy như dữ liệu vận hành thật (phải hiển thị nhãn/banner thông báo dữ liệu mẫu). Đặc biệt với thiết bị có modelVerified === false, không render thao tác chi tiết model-specific mà hiển thị thông báo chờ xác minh model thực tế."
+      "handlingRule": "File này hiện chưa được production My Stay consume (My Stay đang dùng DEFAULT_DEVICE_INSTRUCTIONS và localSpots=[]). Khi productionReady === false hoặc verified === false, UI frontend không được render các thông tin liên hệ/địa chỉ/nội quy như dữ liệu vận hành thật. Đặc biệt với thiết bị có modelVerified === false, các hướng dẫn thao tác chỉ là hướng dẫn minh họa chung, không được mô tả hướng dẫn model-specific là chính thức và tuyệt đối không đổi modelVerified=true."
     }
   },
   "branches": [
