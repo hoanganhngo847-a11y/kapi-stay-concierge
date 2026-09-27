@@ -169,6 +169,11 @@ export async function POST(request: Request) {
     const signatureHeader = request.headers.get("x-sepay-signature");
     const timestampHeader = request.headers.get("x-sepay-timestamp");
 
+    console.info("[SePay Webhook][diag] request headers", {
+      hasSignature: Boolean(signatureHeader),
+      hasTimestamp: Boolean(timestampHeader),
+    });
+
     if (!signatureHeader || !timestampHeader) {
       return NextResponse.json(
         { error: "Missing required SePay signature headers" },
@@ -177,7 +182,12 @@ export async function POST(request: Request) {
     }
 
     // 2. Anti-replay verification
-    if (!verifyTimestampSkew(timestampHeader)) {
+    const timestampValid = verifyTimestampSkew(timestampHeader);
+    console.info("[SePay Webhook][diag] timestamp check", {
+      timestampValid,
+    });
+
+    if (!timestampValid) {
       return NextResponse.json(
         { error: "Timestamp skew exceeds allowable window" },
         { status: 401 }
@@ -186,6 +196,10 @@ export async function POST(request: Request) {
 
     // 3. HMAC-SHA256 signature verification
     const webhookSecret = process.env.SEPAY_WEBHOOK_SECRET;
+    console.info("[SePay Webhook][diag] secret configuration", {
+      hasSecret: Boolean(webhookSecret),
+    });
+
     if (!webhookSecret) {
       console.error(
         "[SePay Webhook] SEPAY_WEBHOOK_SECRET environment variable is missing."
@@ -202,6 +216,10 @@ export async function POST(request: Request) {
       signatureHeader,
       webhookSecret
     );
+
+    console.info("[SePay Webhook][diag] signature check", {
+      signatureValid: isValidSignature,
+    });
 
     if (!isValidSignature) {
       return NextResponse.json(
