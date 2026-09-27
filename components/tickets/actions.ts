@@ -8,42 +8,87 @@ export type Ticket = Tables<"tickets">;
 
 export interface CreateGuestTicketInput {
   bookingId: string;
-  roomId: string;
   category: string;
   description: string;
+  roomId?: string;
 }
 
 export type CreateGuestTicketResult =
   | { success: true; ticket: Ticket }
   | { success: false; error: string };
 
+const DOMAIN_ERROR_MESSAGES: Record<string, string> = {
+  UNAUTHORIZED: "Vui lòng đăng nhập để gửi yêu cầu hỗ trợ.",
+  INVALID_BOOKING_ID: "Không tìm thấy thông tin đặt phòng hợp lệ.",
+  INVALID_CATEGORY: "Danh mục yêu cầu không hợp lệ.",
+  DESCRIPTION_TOO_SHORT: "Mô tả cần ít nhất 5 ký tự để lễ tân nắm bắt sự cố.",
+  BOOKING_NOT_FOUND_OR_FORBIDDEN: "Không tìm thấy thông tin đặt phòng hợp lệ.",
+  BOOKING_NOT_ACTIVE: "Đơn đặt phòng chưa được xác nhận hoặc đã bị hủy.",
+  NO_ACTIVE_STAY_CREDENTIAL:
+    "Kỳ lưu trú chưa bắt đầu, đã kết thúc hoặc không có quyền truy cập.",
+};
+
+const GENERIC_ERROR_MESSAGE =
+  "Không thể tạo yêu cầu hỗ trợ lúc này. Vui lòng thử lại sau.";
+
+export type TicketSupabaseClient = {
+  rpc: (
+    fn: string,
+    args?: Record<string, unknown>
+  ) => PromiseLike<{ data: unknown; error: { message: string; [key: string]: unknown } | null }>;
+  from?: (table: string) => {
+    insert?: (payload: unknown) => unknown;
+    select?: (columns?: string) => unknown;
+  };
+};
+
+function isValidPersistedTicket(ticket: unknown): ticket is Ticket {
+  if (!ticket || typeof ticket !== "object") {
+    return false;
+  }
+  const t = ticket as Record<string, unknown>;
+  if (typeof t.id !== "string" || !t.id.trim()) return false;
+  if (typeof t.booking_id !== "string" || !t.booking_id.trim()) return false;
+  if (typeof t.room_id !== "string" || !t.room_id.trim()) return false;
+  if (typeof t.user_id !== "string" || !t.user_id.trim()) return false;
+  if (!isValidTicketCategory(t.category)) return false;
+  if (typeof t.description !== "string") return false;
+  if (
+    !Array.isArray(t.media_paths) ||
+    !t.media_paths.every((item) => typeof item === "string")
+  ) {
+    return false;
+  }
+  if (t.status !== "pending") return false;
+  if (typeof t.created_at !== "string" || !t.created_at.trim()) return false;
+  if (typeof t.updated_at !== "string" || !t.updated_at.trim()) return false;
+
+  return true;
+}
+
 /**
  * Server Action xử lý gửi yêu cầu hỗ trợ (Ticket) từ khách lưu trú.
  *
- * Thực hiện xác thực và phân quyền phía máy chủ (Server-side):
- * 1. Xác thực tham số đầu vào và danh mục sự cố (isValidTicketCategory).
- * 2. Xác thực phiên đăng nhập người dùng (auth.getUser()).
- * 3. Xác thực tính hợp lệ và quyền sở hữu đơn đặt phòng (user_id === user.id && room_id === roomId).
- * 4. Kiểm tra trạng thái booking chuẩn (canonical booking_status === 'confirmed').
- * 5. Xác thực khung giờ lưu trú active qua trusted RPC get_my_stay_credentials (Fail-Closed).
- * 6. Tạo bản ghi ticket an toàn với media_paths = [] và status = 'pending'.
- * 7. Tuyệt đối không để lộ thông báo lỗi thô của cơ sở dữ liệu ra client.
+ * TV6 Core Security Invariants:
+ * 1. Validate sơ bộ input (bookingId, whitelist category, min 5 ký tự description).
+ * 2. Không tin cậy roomId từ client để xác định quyền sở hữu hay phòng lưu trú.
+ * 3. Không direct INSERT vào bảng tickets (quyền INSERT đã bị REVOKE phía DB).
+ * 4. Không tự query bảng bookings hoặc booking_access_credentials để kiểm tra ownership/stay window.
+ * 5. Gọi duy nhất trusted RPC canonical `create_guest_ticket` với media_paths = [].
+ * 6. Validate RPC response fail-closed (toàn bộ field id, status === 'pending', timestamps).
+ * 7. Map các domain error chuẩn sang thông báo tiếng Việt thân thiện, không làm lộ chi tiết lỗi cơ sở dữ liệu.
  */
-export type TicketSupabaseClient = Awaited<ReturnType<typeof createClient>>;
-
 export async function createGuestTicketAction(
   input: CreateGuestTicketInput,
   clientOverride?: TicketSupabaseClient
 ): Promise<CreateGuestTicketResult> {
   try {
-    // 1. Kiểm tra tính hợp lệ của tham số đầu vào
+    // 1. Validate cơ bản trước RPC
     if (
       !input ||
       typeof input !== "object" ||
-      !input.bookingId?.trim() ||
-      !input.roomId?.trim() ||
-      !input.category?.trim() ||
-      !input.description?.trim()
+      typeof input.bookingId !== "string" ||
+      !input.bookingId.trim()
     ) {
       return {
         success: false,
@@ -52,11 +97,11 @@ export async function createGuestTicketAction(
     }
 
     const cleanBookingId = input.bookingId.trim();
-    const cleanRoomId = input.roomId.trim();
-    const cleanCategory = input.category.trim();
-    const cleanDescription = input.description.trim();
+    const cleanCategory =
+      typeof input.category === "string" ? input.category.trim() : "";
+    const cleanDescription =
+      typeof input.description === "string" ? input.description.trim() : "";
 
-    // Validate danh mục sự cố theo whitelist chuẩn (Defect C.6)
     if (!isValidTicketCategory(cleanCategory)) {
       return {
         success: false,
@@ -71,117 +116,93 @@ export async function createGuestTicketAction(
       };
     }
 
-    // 2. Xác thực người dùng phía server
+    // 2. Gọi trusted RPC canonical create_guest_ticket
     const supabase = clientOverride || (await createClient());
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return {
-        success: false,
-        error: "Vui lòng đăng nhập để gửi yêu cầu hỗ trợ.",
-      };
-    }
-
-    // 3. Xác thực quyền sở hữu và tính toàn vẹn của đơn đặt phòng
-    const { data: booking, error: bookingError } = await supabase
-      .from("bookings")
-      .select("id, user_id, room_id, booking_status")
-      .eq("id", cleanBookingId)
-      .maybeSingle();
-
-    if (bookingError || !booking) {
-      if (bookingError) {
-        console.error(
-          `[createGuestTicketAction error]: Lỗi truy vấn booking (${cleanBookingId}):`,
-          bookingError
-        );
-      }
-      return {
-        success: false,
-        error: "Không tìm thấy thông tin đặt phòng hợp lệ.",
-      };
-    }
-
-    if (booking.user_id !== user.id || booking.room_id !== cleanRoomId) {
-      return {
-        success: false,
-        error: "Không tìm thấy thông tin đặt phòng hợp lệ.",
-      };
-    }
-
-    // 4. Kiểm tra trạng thái booking chuẩn (chỉ chấp nhận 'confirmed')
-    const normalizedStatus = (booking.booking_status || "").toLowerCase().trim();
-    if (normalizedStatus !== "confirmed") {
-      return {
-        success: false,
-        error: "Đơn đặt phòng chưa được xác nhận hoặc đã bị hủy.",
-      };
-    }
-
-    // 5. Xác thực thời gian lưu trú bằng trusted RPC get_my_stay_credentials (Defects C.2, C.3, C.4)
-    // Tuyệt đối không query trực tiếp booking_access_credentials và không fallback tính giờ thủ công
     const { data: rawRpcData, error: rpcError } = await supabase.rpc(
-      "get_my_stay_credentials",
-      { p_booking_id: cleanBookingId }
+      "create_guest_ticket",
+      {
+        p_booking_id: cleanBookingId,
+        p_category: cleanCategory,
+        p_description: cleanDescription,
+        p_media_paths: [],
+      }
     );
 
+    // 3. Xử lý lỗi transport/database từ RPC (Fail-Closed, Sanitized)
     if (rpcError) {
       console.error(
-        `[createGuestTicketAction error]: Lỗi khi gọi get_my_stay_credentials (${cleanBookingId}):`,
+        `[createGuestTicketAction error]: Lỗi khi gọi create_guest_ticket (${cleanBookingId}):`,
         rpcError
       );
       return {
         success: false,
-        error: "Không thể xác thực thông tin lưu trú. Vui lòng thử lại sau.",
+        error: GENERIC_ERROR_MESSAGE,
       };
     }
 
-    const rpcResponse = rawRpcData as { success?: boolean; is_active?: boolean } | null;
-    if (!rpcResponse || rpcResponse.success !== true || rpcResponse.is_active !== true) {
-      return {
-        success: false,
-        error: "Kỳ lưu trú chưa bắt đầu, đã kết thúc hoặc không có quyền truy cập.",
-      };
-    }
-
-    // 6. Tạo ticket nguyên tử (Atomic Ticket Creation)
-    const { data: ticket, error: insertError } = await supabase
-      .from("tickets")
-      .insert({
-        user_id: user.id, // Lấy trực tiếp từ auth.getUser(), không tin cậy client
-        booking_id: cleanBookingId,
-        room_id: cleanRoomId,
-        category: cleanCategory,
-        description: cleanDescription,
-        status: "pending",
-        media_paths: [],
-      })
-      .select()
-      .single();
-
-    if (insertError || !ticket) {
+    // 4. Validate cấu trúc phản hồi RPC
+    if (!rawRpcData || typeof rawRpcData !== "object") {
       console.error(
-        `[createGuestTicketAction error]: Lỗi khi thêm ticket vào database:`,
-        insertError
+        `[createGuestTicketAction error]: Phản hồi RPC không hợp lệ (${cleanBookingId}):`,
+        rawRpcData
       );
       return {
         success: false,
-        error: "Không thể tạo yêu cầu hỗ trợ lúc này. Vui lòng thử lại sau.",
+        error: GENERIC_ERROR_MESSAGE,
+      };
+    }
+
+    const rpcResponse = rawRpcData as Record<string, unknown>;
+
+    // 5. Map domain errors từ RPC nếu RPC trả về success === false
+    if (rpcResponse.success === false) {
+      const errorCode =
+        typeof rpcResponse.error === "string" ? rpcResponse.error : "";
+      const mappedMessage =
+        DOMAIN_ERROR_MESSAGES[errorCode] || GENERIC_ERROR_MESSAGE;
+      return {
+        success: false,
+        error: mappedMessage,
+      };
+    }
+
+    if (rpcResponse.success !== true) {
+      console.error(
+        `[createGuestTicketAction error]: Phản hồi RPC không mang trạng thái thành công (${cleanBookingId}):`,
+        rawRpcData
+      );
+      return {
+        success: false,
+        error: GENERIC_ERROR_MESSAGE,
+      };
+    }
+
+    // 6. Validate nghiêm ngặt persisted ticket payload (Fail-Closed)
+    if (
+      typeof rpcResponse.ticket_id !== "string" ||
+      !rpcResponse.ticket_id.trim() ||
+      !isValidPersistedTicket(rpcResponse.ticket) ||
+      rpcResponse.ticket_id !== rpcResponse.ticket.id
+    ) {
+      console.error(
+        `[createGuestTicketAction error]: Phản hồi ticket từ RPC bị thiếu hoặc không đúng định dạng (${cleanBookingId}):`,
+        rawRpcData
+      );
+      return {
+        success: false,
+        error: GENERIC_ERROR_MESSAGE,
       };
     }
 
     return {
       success: true,
-      ticket: ticket as Ticket,
+      ticket: rpcResponse.ticket,
     };
   } catch (err: unknown) {
     console.error("[createGuestTicketAction error]:", err);
     return {
       success: false,
-      error: "Không thể tạo yêu cầu hỗ trợ lúc này. Vui lòng thử lại sau.",
+      error: GENERIC_ERROR_MESSAGE,
     };
   }
 }

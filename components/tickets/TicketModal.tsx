@@ -77,7 +77,6 @@ export function TicketModal({
   isOpen,
   onClose,
   bookingId,
-  roomId,
   onSuccess,
   onSubmit,
 }: TicketModalProps) {
@@ -94,7 +93,7 @@ export function TicketModal({
   const [isSuccess, setIsSuccess] = React.useState(false);
   const [submittedTicket, setSubmittedTicket] = React.useState<Ticket | null>(null);
 
-  const hasStayInfo = Boolean(bookingId?.trim() && roomId?.trim());
+  const hasStayInfo = Boolean(bookingId?.trim());
 
   // Khôi phục trạng thái mặc định khi modal mở lại mà không gây cascading render trong effect
   if (isOpen !== prevIsOpen) {
@@ -126,8 +125,8 @@ export function TicketModal({
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    // 1. Kiểm tra thông tin định danh phòng và booking
-    if (!bookingId?.trim() || !roomId?.trim() || !hasStayInfo) {
+    // 1. Kiểm tra thông tin định danh booking
+    if (!bookingId?.trim() || !hasStayInfo) {
       setSubmitError(INVALID_STAY_ERROR_MESSAGE);
       return;
     }
@@ -157,12 +156,11 @@ export function TicketModal({
 
     try {
       const cleanBookingId = bookingId.trim();
-      const cleanRoomId = roomId.trim();
 
       // C.7: The modal MUST ALWAYS call and await createGuestTicketAction to enforce persistence boundary
+      // Canonical RPC derives room_id server-side from booking; roomId is not sent as authority
       const res = await createGuestTicketAction({
         bookingId: cleanBookingId,
-        roomId: cleanRoomId,
         category,
         description: trimmedDescription,
       });
