@@ -261,7 +261,8 @@ export async function POST(request: Request) {
     // This does NOT create audit rows, bookings, or mutate payment state.
     if (providerEventId === 0) {
       const testClient = createServiceRoleClient();
-      const { error: connectivityError } = await testClient
+      const untypedTestClient = (testClient as unknown) as SupabaseClient;
+      const { error: connectivityError } = await untypedTestClient
         .from("payment_webhook_events")
         .select("id")
         .limit(1);
