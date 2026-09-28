@@ -105,33 +105,25 @@ DECLARE
   v_images TEXT[];
   v_branch_offset INTEGER;
 BEGIN
-  v_branch_offset := 0;
-
+  -- Vòng lặp CHÍNH XÁC 8 demo properties với mapping branch_index cố định 1..8:
+  -- HK = 1, CG = 2, Q1 = 3, BT = 4, DN = 5, DL = 6, NT = 7, HL = 8.
+  -- Khởi tạo cố định từ bảng hằng số VALUES, không truy vấn bảng public.properties.
   FOR v_props IN (
-    SELECT id, name, slug,
-      CASE
-        WHEN slug = 'kapi-stay-ha-noi-hoan-kiem' THEN 'HK'
-        WHEN slug = 'kapi-stay-ha-noi-cau-giay' THEN 'CG'
-        WHEN slug = 'kapi-stay-tphcm-quan-1' THEN 'Q1'
-        WHEN slug = 'kapi-stay-tphcm-binh-thanh' THEN 'BT'
-        WHEN slug = 'kapi-stay-da-nang-my-khe' THEN 'DN'
-        WHEN slug = 'kapi-stay-da-lat-trung-tam' THEN 'DL'
-        WHEN slug = 'kapi-stay-nha-trang-tran-phu' THEN 'NT'
-        WHEN slug = 'kapi-stay-ha-long-bai-chay' THEN 'HL'
-        ELSE 'KP'
-      END AS code_prefix,
-      CASE
-        WHEN slug IN ('kapi-stay-ha-noi-hoan-kiem', 'kapi-stay-tphcm-quan-1') THEN 20000
-        WHEN slug IN ('kapi-stay-da-nang-my-khe', 'kapi-stay-nha-trang-tran-phu') THEN 10000
-        WHEN slug IN ('kapi-stay-da-lat-trung-tam', 'kapi-stay-ha-long-bai-chay') THEN 15000
-        ELSE 0
-      END AS price_premium
-    FROM public.properties
-    WHERE is_active = true
-    ORDER BY id
+    SELECT * FROM (
+      VALUES
+        (1, 'b1000000-0000-0000-0000-000000000001'::uuid, 'HK', 20000), -- 1. Hà Nội - Hoàn Kiếm
+        (2, 'b1000000-0000-0000-0000-000000000002'::uuid, 'CG', 0),     -- 2. Hà Nội - Cầu Giấy
+        (3, 'b1000000-0000-0000-0000-000000000003'::uuid, 'Q1', 20000), -- 3. TP.HCM - Quận 1
+        (4, 'b1000000-0000-0000-0000-000000000004'::uuid, 'BT', 0),     -- 4. TP.HCM - Bình Thạnh
+        (5, 'b1000000-0000-0000-0000-000000000005'::uuid, 'DN', 10000), -- 5. Đà Nẵng - Mỹ Khê
+        (6, 'b1000000-0000-0000-0000-000000000006'::uuid, 'DL', 15000), -- 6. Đà Lạt - Trung Tâm
+        (7, 'b1000000-0000-0000-0000-000000000007'::uuid, 'NT', 10000), -- 7. Nha Trang - Trần Phú
+        (8, 'b1000000-0000-0000-0000-000000000008'::uuid, 'HL', 15000)  -- 8. Hạ Long - Bãi Cháy
+    ) AS t(branch_index, id, code_prefix, price_premium)
+    ORDER BY branch_index ASC
   )
   LOOP
-    v_branch_offset := v_branch_offset + 1;
+    v_branch_offset := v_props.branch_index;
 
     FOR v_i IN 1..20 LOOP
       v_room_num := 100 + v_i;

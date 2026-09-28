@@ -8,6 +8,7 @@ import type {
   RoomOperationRecord,
   AdminTicketRecord,
 } from "@/lib/data/admin";
+import { formatStayDateTime } from "@/lib/utils/stay";
 
 export type StaffDashboardDataPayload = StaffDashboardData;
 
@@ -487,7 +488,9 @@ export default function OperationsDashboardClient({
                     </td>
                     <td className="p-3 font-medium text-gray-900">{item.id || "N/A"}</td>
                     <td className="p-3 text-gray-600 text-xs">
-                      {item.eventType === "checkin" ? item.check_in : item.check_out}
+                      {item.eventType === "checkin"
+                        ? (item.check_in_at ? formatStayDateTime(item.check_in_at) : item.check_in)
+                        : (item.check_out_at ? formatStayDateTime(item.check_out_at) : item.check_out)}
                     </td>
                     <td className="p-3 text-gray-500 text-xs">{item.booking_status || "N/A"}</td>
                   </tr>

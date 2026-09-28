@@ -17,6 +17,7 @@ import {
   getMyStayBookingDetails,
   type MyStayBookingDetails,
 } from "@/lib/data/my-stay";
+import { formatStayDateTime } from "@/lib/utils/stay";
 
 const CANONICAL_PARAM = "bookingId";
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -280,7 +281,9 @@ function MyStayContent() {
               <div className="p-3 bg-dark/2 rounded-xl">
                 <span className="text-dark/50 block text-xs">Thời gian lưu trú</span>
                 <span className="font-medium text-dark mt-0.5 block">
-                  {stayData.checkIn} → {stayData.checkOut}
+                  {stayData.checkInAt && stayData.checkOutAt
+                    ? `${formatStayDateTime(stayData.checkInAt)} → ${formatStayDateTime(stayData.checkOutAt)}`
+                    : `${stayData.checkIn} → ${stayData.checkOut}`}
                 </span>
               </div>
 

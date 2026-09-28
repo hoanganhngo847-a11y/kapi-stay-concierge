@@ -707,3 +707,119 @@ REVOKE ALL ON FUNCTION public.finalize_verified_checkout_atomic(UUID, BIGINT, TE
 REVOKE ALL ON FUNCTION public.finalize_verified_checkout_atomic(UUID, BIGINT, TEXT) FROM anon;
 REVOKE ALL ON FUNCTION public.finalize_verified_checkout_atomic(UUID, BIGINT, TEXT) FROM authenticated;
 GRANT EXECUTE ON FUNCTION public.finalize_verified_checkout_atomic(UUID, BIGINT, TEXT) TO service_role;
+
+-- ----------------------------------------------------------------------------
+-- 5. FUNCTION public.get_staff_dashboard_data (Hourly Upgrade)
+-- Includes check_in_at, check_out_at, exact hourly arrival/departure info
+-- ----------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION public.get_staff_dashboard_data()
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    v_user_id UUID := auth.uid();
+    v_room_ops JSONB;
+    v_tickets JSONB;
+    v_today_bookings JSONB;
+    v_today DATE := (NOW() AT TIME ZONE 'Asia/Ho_Chi_Minh')::DATE;
+BEGIN
+    -- 1. Verify caller is staff or admin
+    IF v_user_id IS NULL OR NOT EXISTS (
+        SELECT 1 FROM public.staff_roles
+        WHERE user_id = v_user_id AND role IN ('staff', 'admin')
+    ) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'FORBIDDEN_STAFF_ONLY');
+    END IF;
+
+    -- 2. Room operations with room information
+    SELECT COALESCE(jsonb_agg(jsonb_build_object(
+        'room_id', r.id,
+        'room_name', r.name,
+        'operational_status', COALESCE(ro.operational_status, 'ready'),
+        'updated_at', ro.updated_at,
+        'updated_by', ro.updated_by
+    ) ORDER BY r.name ASC), '[]'::jsonb)
+    INTO v_room_ops
+    FROM public.rooms r
+    LEFT JOIN public.room_operations ro ON r.id = ro.room_id
+    WHERE r.is_listed = true;
+
+    -- 3. Incident / support tickets from canonical public.tickets
+    SELECT COALESCE(jsonb_agg(jsonb_build_object(
+        'id', t.id,
+        'booking_id', t.booking_id,
+        'room_id', t.room_id,
+        'room_name', r.name,
+        'user_id', t.user_id,
+        'guest_name', p.display_name,
+        'guest_phone', p.phone,
+        'category', t.category,
+        'description', t.description,
+        'media_paths', to_jsonb(t.media_paths),
+        'status', t.status,
+        'created_at', t.created_at,
+        'updated_at', t.updated_at
+    ) ORDER BY t.created_at DESC), '[]'::jsonb)
+    INTO v_tickets
+    FROM public.tickets t
+    LEFT JOIN public.rooms r ON t.room_id = r.id
+    LEFT JOIN public.profiles p ON t.user_id = p.id;
+
+    -- 4. Today arrivals & departures (check-in or check-out today in Asia/Ho_Chi_Minh)
+    SELECT COALESCE(jsonb_agg(jsonb_build_object(
+        'id', b.id,
+        'room_id', b.room_id,
+        'room_name', r.name,
+        'user_id', b.user_id,
+        'guest_name', p.display_name,
+        'guest_phone', p.phone,
+        'check_in', b.check_in,
+        'check_out', b.check_out,
+        'check_in_at', b.check_in_at,
+        'check_out_at', b.check_out_at,
+        'guest_count', b.guest_count,
+        'booking_status', b.booking_status,
+        'payment_status', b.payment_status,
+        'is_checkin_today', (
+            CASE
+                WHEN b.check_in_at IS NOT NULL THEN (b.check_in_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::DATE = v_today
+                ELSE (b.check_in = v_today)
+            END
+        ),
+        'is_checkout_today', (
+            CASE
+                WHEN b.check_out_at IS NOT NULL THEN (b.check_out_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::DATE = v_today
+                ELSE (b.check_out = v_today)
+            END
+        )
+    ) ORDER BY COALESCE(b.check_in_at, (b.check_in::text || ' 14:00:00+07')::timestamptz) ASC), '[]'::jsonb)
+    INTO v_today_bookings
+    FROM public.bookings b
+    LEFT JOIN public.rooms r ON b.room_id = r.id
+    LEFT JOIN public.profiles p ON b.user_id = p.id
+    WHERE (
+        (b.check_in_at IS NOT NULL AND (
+            (b.check_in_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::DATE = v_today
+            OR (b.check_out_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::DATE = v_today
+        ))
+        OR (b.check_in_at IS NULL AND (b.check_in = v_today OR b.check_out = v_today))
+    )
+    AND LOWER(b.booking_status) NOT IN ('cancelled', 'refunded');
+
+    -- 5. Canonical dashboard response
+    RETURN jsonb_build_object(
+        'success', true,
+        'today', v_today,
+        'room_operations', v_room_ops,
+        'tickets', v_tickets,
+        'today_bookings', v_today_bookings
+    );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.get_staff_dashboard_data() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.get_staff_dashboard_data() TO authenticated, service_role;
+

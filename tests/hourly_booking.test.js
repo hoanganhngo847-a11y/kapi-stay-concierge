@@ -18,6 +18,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { calculateStayLifecycle } from "../lib/utils/stay.ts";
 
 // ── Overlap & Availability Logic ──────────────────────────────────────────
 
@@ -408,3 +409,129 @@ test("SQL Artifacts Verification: Migration and Seed Consistency", () => {
   assert.ok(seedSql.includes("b1000000-0000-0000-0000-000000000001"), "Seed must use deterministic property IDs");
   assert.ok(seedSql.includes("room_availability_blocks"), "Seed must populate demo availability blocks");
 });
+
+test("Test Case 11: Seed Regression — Strictly 8 demo properties, no WHERE is_active query, deterministic mapping 1..8", () => {
+  const seedPath = path.resolve("supabase/hourly_demo_seed.sql");
+  const seedSql = fs.readFileSync(seedPath, "utf-8");
+
+  // 1. Must NOT query dynamic properties table
+  assert.equal(
+    seedSql.includes("FROM public.properties\n    WHERE is_active = true"),
+    false,
+    "Seed must NOT use 'FROM public.properties WHERE is_active = true' for room generation"
+  );
+  assert.equal(
+    seedSql.includes("FROM public.properties WHERE is_active = true"),
+    false,
+    "Seed must NOT use 'FROM public.properties WHERE is_active = true'"
+  );
+
+  // 2. Must define exactly the 8 demo properties in VALUES list
+  const expectedDemoProps = [
+    { index: 1, id: "b1000000-0000-0000-0000-000000000001", prefix: "HK" },
+    { index: 2, id: "b1000000-0000-0000-0000-000000000002", prefix: "CG" },
+    { index: 3, id: "b1000000-0000-0000-0000-000000000003", prefix: "Q1" },
+    { index: 4, id: "b1000000-0000-0000-0000-000000000004", prefix: "BT" },
+    { index: 5, id: "b1000000-0000-0000-0000-000000000005", prefix: "DN" },
+    { index: 6, id: "b1000000-0000-0000-0000-000000000006", prefix: "DL" },
+    { index: 7, id: "b1000000-0000-0000-0000-000000000007", prefix: "NT" },
+    { index: 8, id: "b1000000-0000-0000-0000-000000000008", prefix: "HL" },
+  ];
+
+  for (const p of expectedDemoProps) {
+    assert.ok(
+      seedSql.includes(p.id),
+      `Seed must contain demo property ID ${p.id}`
+    );
+    assert.ok(
+      seedSql.includes(`'${p.prefix}'`),
+      `Seed must map branch ${p.index} to prefix ${p.prefix}`
+    );
+  }
+
+  // 3. Exactly 20 rooms per property (1..20)
+  assert.ok(seedSql.includes("FOR v_i IN 1..20 LOOP"), "Must loop 20 rooms per branch");
+});
+
+test("Test Case 12: My Stay Hourly Stay Lifecycle — 14:00-18:00 transition checks", () => {
+  const checkInAt = "2026-09-28T14:00:00+07:00";
+  const checkOutAt = "2026-09-28T18:00:00+07:00";
+  const legacyIn = "2026-09-28";
+  const legacyOut = "2026-09-28";
+
+  // Point A: 13:59 (1 minute before check-in) -> UPCOMING
+  const timeA = new Date("2026-09-28T13:59:00+07:00").getTime();
+  const resA = calculateStayLifecycle(checkInAt, checkOutAt, legacyIn, legacyOut, timeA);
+  assert.equal(resA.stayStatus, "UPCOMING", "At 13:59 stay must be UPCOMING");
+  assert.equal(resA.isActiveStay, false, "At 13:59 stay must NOT be active");
+  assert.equal(resA.isUpcoming, true);
+  assert.equal(resA.isExpired, false);
+
+  // Point B: 14:00 (exact check-in time) -> ACTIVE
+  const timeB = new Date("2026-09-28T14:00:00+07:00").getTime();
+  const resB = calculateStayLifecycle(checkInAt, checkOutAt, legacyIn, legacyOut, timeB);
+  assert.equal(resB.stayStatus, "ACTIVE", "At 14:00 stay must be ACTIVE");
+  assert.equal(resB.isActiveStay, true, "At 14:00 stay must be active");
+  assert.equal(resB.isUpcoming, false);
+  assert.equal(resB.isExpired, false);
+
+  // Point C: 17:00 (mid-stay) -> ACTIVE
+  const timeC = new Date("2026-09-28T17:00:00+07:00").getTime();
+  const resC = calculateStayLifecycle(checkInAt, checkOutAt, legacyIn, legacyOut, timeC);
+  assert.equal(resC.stayStatus, "ACTIVE", "At 17:00 stay must be ACTIVE");
+  assert.equal(resC.isActiveStay, true, "At 17:00 stay must be active");
+
+  // Point D: 18:00 (exact check-out boundary) -> ACTIVE
+  const timeD = new Date("2026-09-28T18:00:00+07:00").getTime();
+  const resD = calculateStayLifecycle(checkInAt, checkOutAt, legacyIn, legacyOut, timeD);
+  assert.equal(resD.stayStatus, "ACTIVE", "At 18:00 stay must be ACTIVE (boundary inclusive)");
+  assert.equal(resD.isActiveStay, true);
+
+  // Point E: 18:01 (1 minute after check-out) -> COMPLETED
+  const timeE = new Date("2026-09-28T18:01:00+07:00").getTime();
+  const resE = calculateStayLifecycle(checkInAt, checkOutAt, legacyIn, legacyOut, timeE);
+  assert.equal(resE.stayStatus, "COMPLETED", "At 18:01 stay must be COMPLETED");
+  assert.equal(resE.isActiveStay, false, "At 18:01 stay must NOT be active");
+  assert.equal(resE.isExpired, true);
+
+  // Point F: Cancelled stay
+  const resCancelled = calculateStayLifecycle(checkInAt, checkOutAt, legacyIn, legacyOut, timeC, "CANCELLED");
+  assert.equal(resCancelled.stayStatus, "CANCELLED", "Cancelled stay must be CANCELLED");
+  assert.equal(resCancelled.isActiveStay, false);
+
+  // Point G: Legacy fallback (no timestamps) -> active whole calendar day
+  const resLegacy = calculateStayLifecycle(null, null, "2026-09-28", "2026-09-28", timeC);
+  assert.equal(resLegacy.isHourly, false);
+  assert.equal(resLegacy.stayStatus, "ACTIVE");
+});
+
+test("Test Case 13: Operations Dashboard RPC Contract — get_staff_dashboard_data hourly fields", () => {
+  const migrationPath = path.resolve("supabase/migrations/20260928120000_hourly_booking_model.sql");
+  const sql = fs.readFileSync(migrationPath, "utf-8");
+
+  assert.ok(
+    sql.includes("CREATE OR REPLACE FUNCTION public.get_staff_dashboard_data()"),
+    "Migration must include CREATE OR REPLACE FUNCTION public.get_staff_dashboard_data()"
+  );
+
+  assert.ok(
+    sql.includes("'check_in_at', b.check_in_at"),
+    "RPC must return check_in_at in today_bookings"
+  );
+
+  assert.ok(
+    sql.includes("'check_out_at', b.check_out_at"),
+    "RPC must return check_out_at in today_bookings"
+  );
+
+  assert.ok(
+    sql.includes("(b.check_in_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::DATE = v_today"),
+    "RPC must derive is_checkin_today from check_in_at in Asia/Ho_Chi_Minh timezone"
+  );
+
+  assert.ok(
+    sql.includes("ORDER BY COALESCE(b.check_in_at"),
+    "RPC must order today_bookings by check_in_at"
+  );
+});
+
