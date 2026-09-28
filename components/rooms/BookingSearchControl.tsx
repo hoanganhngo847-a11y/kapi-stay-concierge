@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Search, MapPin, Calendar, Users } from "lucide-react";
+import { Search, MapPin, Calendar, Users, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 
 export interface PropertyOption {
@@ -118,7 +118,7 @@ export function BookingSearchControl({
   return (
     <form
       onSubmit={handleSearch}
-      className={`w-full max-w-5xl bg-white border border-[#E5E5E5] p-2 sm:p-3 rounded-3xl sm:rounded-full ${className}`}
+      className={`w-full max-w-5xl bg-white border border-[#E5E5E5] hover:border-[#111111] focus-within:border-[#111111] transition-colors duration-200 p-2 sm:p-3 rounded-3xl sm:rounded-full ${className}`}
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 items-center divide-y sm:divide-y-0 sm:divide-x divide-[#E5E5E5]">
         {/* Chi nhánh */}
@@ -208,6 +208,7 @@ export function BookingSearchControl({
             size="md"
             className="shrink-0 px-6 h-11 text-sm font-medium"
             leftIcon={<Search className="w-4 h-4" />}
+            rightIcon={<ArrowRight className="w-4 h-4" />}
           >
             Tìm phòng
           </Button>

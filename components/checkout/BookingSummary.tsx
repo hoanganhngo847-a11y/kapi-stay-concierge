@@ -26,7 +26,7 @@ import {
   Mail,
   BedDouble,
 } from "lucide-react";
-import { Button, Input, Badge } from "@/components/ui";
+import { Button, Input, Badge, Reveal } from "@/components/ui";
 import { formatVND } from "@/lib/utils/format";
 import type {
   CheckoutSessionWithRoom,
@@ -276,352 +276,362 @@ export function BookingSummary({
   return (
     <div className="w-full space-y-6">
       {/* ── Card 1: Tóm tắt đặt phòng ─────────────────────────────────── */}
-      <section
-        className="bg-white border border-[#E5E5E5] p-5 sm:p-6 space-y-5"
-        aria-labelledby="booking-summary-heading"
-      >
-        {/* Header phòng */}
-        <div className="flex items-start gap-4 pb-5 border-b border-[#E5E5E5]">
-          {/* Thumbnail phòng */}
-          {room?.image_paths?.[0] ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={room.image_paths[0]}
-              alt={room.name}
-              className="w-20 h-20 object-cover shrink-0 bg-[#F5F5F5]"
-            />
-          ) : (
-            <div className="w-20 h-20 bg-[#F5F5F5] text-[#707072] flex items-center justify-center shrink-0">
-              <BedDouble
-                className="w-7 h-7"
-                aria-hidden="true"
+      <Reveal distance={12} delay={0}>
+        <section
+          className="bg-white border border-[#E5E5E5] p-5 sm:p-6 space-y-5"
+          aria-labelledby="booking-summary-heading"
+        >
+          {/* Header phòng */}
+          <div className="flex items-start gap-4 pb-5 border-b border-[#E5E5E5]">
+            {/* Thumbnail phòng */}
+            {room?.image_paths?.[0] ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={room.image_paths[0]}
+                alt={room.name}
+                className="w-20 h-20 object-cover shrink-0 bg-[#F5F5F5]"
               />
-            </div>
-          )}
-          <div className="min-w-0 flex-1">
-            <span className="text-[11px] font-medium tracking-widest uppercase text-[#707072] block mb-1">
-              Phòng đã chọn
-            </span>
-            <h2
-              id="booking-summary-heading"
-              className="text-lg font-medium text-[#111111] leading-snug truncate"
-            >
-              {room?.name ?? "Phòng đã chọn"}
-            </h2>
-            {room?.property && (
-              <div className="flex items-center gap-1.5 mt-1 text-xs text-[#707072]">
-                <MapPin
-                  className="w-3.5 h-3.5 shrink-0"
+            ) : (
+              <div className="w-20 h-20 bg-[#F5F5F5] text-[#707072] flex items-center justify-center shrink-0">
+                <BedDouble
+                  className="w-7 h-7"
                   aria-hidden="true"
                 />
-                <p className="truncate">
-                  {room.property.name} · {room.property.address}
-                </p>
               </div>
             )}
-          </div>
-        </div>
-
-        {/* Chi tiết lịch trình: Nhận phòng, Trả phòng, Thời lượng, Khách */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
-          <div>
-            <p className="font-medium text-[#707072] uppercase tracking-wider text-[11px] mb-1">
-              Nhận phòng
-            </p>
-            <p className="text-sm font-medium text-[#111111]">
-              {formatDateTime(session.check_in_at || session.check_in)}
-            </p>
-          </div>
-
-          <div>
-            <p className="font-medium text-[#707072] uppercase tracking-wider text-[11px] mb-1">
-              Trả phòng
-            </p>
-            <p className="text-sm font-medium text-[#111111]">
-              {formatDateTime(session.check_out_at || session.check_out)}
-            </p>
-          </div>
-
-          <div>
-            <p className="font-medium text-[#707072] uppercase tracking-wider text-[11px] mb-1">
-              Thời lượng
-            </p>
-            <p className="text-sm font-medium text-[#111111]">
-              {hours} giờ
-            </p>
-          </div>
-
-          <div>
-            <p className="font-medium text-[#707072] uppercase tracking-wider text-[11px] mb-1">
-              Số khách
-            </p>
-            <p className="text-sm font-medium text-[#111111]">
-              {session.guest_count} khách
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Card 2: Voucher ──────────────────────────────────────────────── */}
-      <section
-        className="bg-white border border-[#E5E5E5] overflow-hidden"
-        aria-labelledby="voucher-section-heading"
-      >
-        <button
-          type="button"
-          id="voucher-section-heading"
-          onClick={() => setShowVoucherPanel((p) => !p)}
-          className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-[#F5F5F5] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[#111111]"
-          aria-expanded={showVoucherPanel}
-          aria-controls="voucher-panel"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-[#F5F5F5] text-[#111111] flex items-center justify-center">
-              <Tag className="w-4 h-4" aria-hidden="true" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-[#111111]">Mã ưu đãi</p>
-              {selectedRedemptionId ? (
-                <p className="text-xs text-[#111111] font-medium mt-0.5">
-                  Đã áp dụng · Tiết kiệm {formatVND(discountAmountVnd)}
-                </p>
-              ) : (
-                <p className="text-xs text-[#707072] mt-0.5">
-                  {availableVouchers.length > 0
-                    ? `Bạn có ${availableVouchers.length} voucher có thể dùng`
-                    : "Không có voucher khả dụng"}
-                </p>
+            <div className="min-w-0 flex-1">
+              <span className="text-[11px] font-medium tracking-widest uppercase text-[#707072] block mb-1">
+                Phòng đã chọn
+              </span>
+              <h2
+                id="booking-summary-heading"
+                className="text-lg font-medium text-[#111111] leading-snug truncate"
+              >
+                {room?.name ?? "Phòng đã chọn"}
+              </h2>
+              {room?.property && (
+                <div className="flex items-center gap-1.5 mt-1 text-xs text-[#707072]">
+                  <MapPin
+                    className="w-3.5 h-3.5 shrink-0"
+                    aria-hidden="true"
+                  />
+                  <p className="truncate">
+                    {room.property.name} · {room.property.address}
+                  </p>
+                </div>
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {selectedRedemptionId && (
-              <Badge variant="primary" size="sm" dot>
-                Đã áp
-              </Badge>
-            )}
-            {showVoucherPanel ? (
-              <ChevronUp className="w-4 h-4 text-[#707072]" aria-hidden="true" />
-            ) : (
-              <ChevronDown
-                className="w-4 h-4 text-[#707072]"
-                aria-hidden="true"
-              />
-            )}
-          </div>
-        </button>
 
-        {/* Panel voucher mở rộng */}
-        {showVoucherPanel && (
-          <div
-            id="voucher-panel"
-            className="px-5 pb-5 border-t border-[#E5E5E5] pt-4 space-y-3"
+          {/* Chi tiết lịch trình: Nhận phòng, Trả phòng, Thời lượng, Khách */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+            <div>
+              <p className="font-medium text-[#707072] uppercase tracking-wider text-[11px] mb-1">
+                Nhận phòng
+              </p>
+              <p className="text-sm font-medium text-[#111111]">
+                {formatDateTime(session.check_in_at || session.check_in)}
+              </p>
+            </div>
+
+            <div>
+              <p className="font-medium text-[#707072] uppercase tracking-wider text-[11px] mb-1">
+                Trả phòng
+              </p>
+              <p className="text-sm font-medium text-[#111111]">
+                {formatDateTime(session.check_out_at || session.check_out)}
+              </p>
+            </div>
+
+            <div>
+              <p className="font-medium text-[#707072] uppercase tracking-wider text-[11px] mb-1">
+                Thời lượng
+              </p>
+              <p className="text-sm font-medium text-[#111111]">
+                {hours} giờ
+              </p>
+            </div>
+
+            <div>
+              <p className="font-medium text-[#707072] uppercase tracking-wider text-[11px] mb-1">
+                Số khách
+              </p>
+              <p className="text-sm font-medium text-[#111111]">
+                {session.guest_count} khách
+              </p>
+            </div>
+          </div>
+        </section>
+      </Reveal>
+
+      {/* ── Card 2: Voucher ──────────────────────────────────────────────── */}
+      <Reveal distance={12} delay={80}>
+        <section
+          className="bg-white border border-[#E5E5E5] overflow-hidden"
+          aria-labelledby="voucher-section-heading"
+        >
+          <button
+            type="button"
+            id="voucher-section-heading"
+            onClick={() => setShowVoucherPanel((p) => !p)}
+            className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-[#F5F5F5] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[#111111]"
+            aria-expanded={showVoucherPanel}
+            aria-controls="voucher-panel"
           >
-            {/* Lỗi voucher */}
-            {voucherError && (
-              <div
-                role="alert"
-                className="flex items-start gap-2.5 bg-[#F5F5F5] border border-[#E5E5E5] p-3.5"
-              >
-                <X
-                  className="w-4 h-4 text-[#111111] shrink-0 mt-0.5"
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-[#F5F5F5] text-[#111111] flex items-center justify-center">
+                <Tag className="w-4 h-4" aria-hidden="true" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-[#111111]">Mã ưu đãi</p>
+                {selectedRedemptionId ? (
+                  <p className="text-xs text-[#111111] font-medium mt-0.5">
+                    Đã áp dụng · Tiết kiệm {formatVND(discountAmountVnd)}
+                  </p>
+                ) : (
+                  <p className="text-xs text-[#707072] mt-0.5">
+                    {availableVouchers.length > 0
+                      ? `Bạn có ${availableVouchers.length} voucher có thể dùng`
+                      : "Không có voucher khả dụng"}
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {selectedRedemptionId && (
+                <Badge variant="primary" size="sm" dot>
+                  Đã áp
+                </Badge>
+              )}
+              {showVoucherPanel ? (
+                <ChevronUp className="w-4 h-4 text-[#707072]" aria-hidden="true" />
+              ) : (
+                <ChevronDown
+                  className="w-4 h-4 text-[#707072]"
                   aria-hidden="true"
                 />
-                <p className="text-sm text-[#111111]">{voucherError}</p>
-              </div>
-            )}
+              )}
+            </div>
+          </button>
 
-            {availableVouchers.length === 0 ? (
-              <div className="text-center py-6">
-                <Ticket
-                  className="w-8 h-8 text-[#9E9EA0] mx-auto mb-2"
-                  aria-hidden="true"
-                />
-                <p className="text-sm text-[#707072]">
-                  Bạn chưa có voucher nào khả dụng.
-                </p>
-                <p className="text-xs text-[#9E9EA0] mt-1">
-                  Tích điểm qua Kapi Rewards để đổi voucher nhé!
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2.5" role="radiogroup" aria-label="Chọn voucher">
-                {availableVouchers.map((item) => (
-                  <VoucherCard
-                    key={item.id}
-                    item={item}
-                    isSelected={selectedRedemptionId === item.id}
-                    grossAmountVnd={gross}
-                    onSelect={handleApply}
-                    disabled={isVoucherLoading || isPending}
+          {/* Panel voucher mở rộng */}
+          {showVoucherPanel && (
+            <div
+              id="voucher-panel"
+              className="px-5 pb-5 border-t border-[#E5E5E5] pt-4 space-y-3"
+            >
+              {/* Lỗi voucher */}
+              {voucherError && (
+                <div
+                  role="alert"
+                  className="flex items-start gap-2.5 bg-[#F5F5F5] border border-[#E5E5E5] p-3.5"
+                >
+                  <X
+                    className="w-4 h-4 text-[#111111] shrink-0 mt-0.5"
+                    aria-hidden="true"
                   />
-                ))}
-              </div>
-            )}
+                  <p className="text-sm text-[#111111]">{voucherError}</p>
+                </div>
+              )}
 
-            {/* Nút hủy voucher đã chọn */}
-            {selectedRedemptionId && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleRelease}
-                isLoading={isVoucherLoading || isPending}
-                className="w-full text-[#707072] hover:text-[#111111] hover:bg-[#F5F5F5] mt-1"
-              >
-                Hủy áp dụng voucher
-              </Button>
-            )}
-          </div>
-        )}
-      </section>
+              {availableVouchers.length === 0 ? (
+                <div className="text-center py-6">
+                  <Ticket
+                    className="w-8 h-8 text-[#9E9EA0] mx-auto mb-2"
+                    aria-hidden="true"
+                  />
+                  <p className="text-sm text-[#707072]">
+                    Bạn chưa có voucher nào khả dụng.
+                  </p>
+                  <p className="text-xs text-[#9E9EA0] mt-1">
+                    Tích điểm qua Kapi Rewards để đổi voucher nhé!
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2.5" role="radiogroup" aria-label="Chọn voucher">
+                  {availableVouchers.map((item) => (
+                    <VoucherCard
+                      key={item.id}
+                      item={item}
+                      isSelected={selectedRedemptionId === item.id}
+                      grossAmountVnd={gross}
+                      onSelect={handleApply}
+                      disabled={isVoucherLoading || isPending}
+                    />
+                  ))}
+                </div>
+              )}
 
-      {/* ── Card 3: Bảng kê chi phí ──────────────────────────────────────── */}
-      <section
-        className="bg-white border border-[#E5E5E5] p-5 sm:p-6 space-y-4"
-        aria-label="Bảng kê chi phí"
-      >
-        <span className="text-[11px] font-medium tracking-widest uppercase text-[#707072] block">
-          Chi phí
-        </span>
-
-        <div className="space-y-2.5">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-[#707072]">
-              {`${formatVND(hourlyPrice)} × ${hours} giờ`}
-            </span>
-            <span className="font-medium text-[#111111]">
-              {formatVND(gross)}
-            </span>
-          </div>
-
-          {discount > 0 && (
-            <div className="flex items-center justify-between text-sm">
-              <div className="flex items-center gap-1.5">
-                <Tag className="w-3.5 h-3.5 text-[#111111]" aria-hidden="true" />
-                <span className="text-[#111111] font-medium">
-                  Giảm giá voucher
-                </span>
-              </div>
-              <span className="font-medium text-[#111111]">
-                -{formatVND(discount)}
-              </span>
+              {/* Nút hủy voucher đã chọn */}
+              {selectedRedemptionId && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleRelease}
+                  isLoading={isVoucherLoading || isPending}
+                  className="w-full text-[#707072] hover:text-[#111111] hover:bg-[#F5F5F5] mt-1"
+                >
+                  Hủy áp dụng voucher
+                </Button>
+              )}
             </div>
           )}
-        </div>
+        </section>
+      </Reveal>
 
-        {/* Divider */}
-        <div className="border-t border-[#E5E5E5] pt-4">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-[#111111]">
-              Tổng thanh toán
-            </span>
-            <span className="text-2xl font-medium tracking-tight text-[#111111]">
-              {formatVND(finalAmount)}
-            </span>
+      {/* ── Card 3: Bảng kê chi phí ──────────────────────────────────────── */}
+      <Reveal distance={12} delay={160}>
+        <section
+          className="bg-white border border-[#E5E5E5] p-5 sm:p-6 space-y-4"
+          aria-label="Bảng kê chi phí"
+        >
+          <span className="text-[11px] font-medium tracking-widest uppercase text-[#707072] block">
+            Chi phí
+          </span>
+
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-[#707072]">
+                {`${formatVND(hourlyPrice)} × ${hours} giờ`}
+              </span>
+              <span className="font-medium text-[#111111]">
+                {formatVND(gross)}
+              </span>
+            </div>
+
+            {discount > 0 && (
+              <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center gap-1.5">
+                  <Tag className="w-3.5 h-3.5 text-[#111111]" aria-hidden="true" />
+                  <span className="text-[#111111] font-medium">
+                    Giảm giá voucher
+                  </span>
+                </div>
+                <span className="font-medium text-[#111111]">
+                  -{formatVND(discount)}
+                </span>
+              </div>
+            )}
           </div>
-          <p className="text-xs text-[#707072] mt-1.5 text-right">
-            Thanh toán 100% qua VietQR · Không hỗ trợ đặt cọc
-          </p>
-        </div>
-      </section>
+
+          {/* Divider */}
+          <div className="border-t border-[#E5E5E5] pt-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-[#111111]">
+                Tổng thanh toán
+              </span>
+              <span className="text-2xl font-medium tracking-tight text-[#111111]">
+                {formatVND(finalAmount)}
+              </span>
+            </div>
+            <p className="text-xs text-[#707072] mt-1.5 text-right">
+              Thanh toán 100% qua VietQR · Không hỗ trợ đặt cọc
+            </p>
+          </div>
+        </section>
+      </Reveal>
 
       {/* ── Card 4: Thông tin khách lưu trú ──────────────────────────────── */}
-      <section
-        className="bg-white border border-[#E5E5E5] p-5 sm:p-6 space-y-5"
-        aria-labelledby="guest-info-heading"
-      >
-        <div>
-          <span className="text-[11px] font-medium tracking-widest uppercase text-[#707072] block mb-1">
-            Thông tin liên hệ
-          </span>
-          <h3
-            id="guest-info-heading"
-            className="text-base font-medium text-[#111111]"
-          >
-            Thông tin khách lưu trú
-          </h3>
-        </div>
+      <Reveal distance={12} delay={240}>
+        <section
+          className="bg-white border border-[#E5E5E5] p-5 sm:p-6 space-y-5"
+          aria-labelledby="guest-info-heading"
+        >
+          <div>
+            <span className="text-[11px] font-medium tracking-widest uppercase text-[#707072] block mb-1">
+              Thông tin liên hệ
+            </span>
+            <h3
+              id="guest-info-heading"
+              className="text-base font-medium text-[#111111]"
+            >
+              Thông tin khách lưu trú
+            </h3>
+          </div>
 
-        <div className="space-y-3.5">
-          <Input
-            id="guest-full-name"
-            label="Họ và tên"
-            placeholder="Nguyễn Văn A"
-            autoComplete="name"
-            value={guestInfo.fullName}
-            onChange={(e) => onGuestInfoChange("fullName", e.target.value)}
-            errorMessage={guestInfoErrors.fullName}
-            startIcon={
-              <User className="w-4 h-4 text-[#707072]" aria-hidden="true" />
-            }
-            required
-          />
+          <div className="space-y-3.5">
+            <Input
+              id="guest-full-name"
+              label="Họ và tên"
+              placeholder="Nguyễn Văn A"
+              autoComplete="name"
+              value={guestInfo.fullName}
+              onChange={(e) => onGuestInfoChange("fullName", e.target.value)}
+              errorMessage={guestInfoErrors.fullName}
+              startIcon={
+                <User className="w-4 h-4 text-[#707072]" aria-hidden="true" />
+              }
+              required
+            />
 
-          <Input
-            id="guest-phone"
-            label="Số điện thoại"
-            type="tel"
-            placeholder="0901 234 567"
-            autoComplete="tel"
-            value={guestInfo.phone}
-            onChange={(e) => onGuestInfoChange("phone", e.target.value)}
-            errorMessage={guestInfoErrors.phone}
-            startIcon={
-              <Phone className="w-4 h-4 text-[#707072]" aria-hidden="true" />
-            }
-            required
-          />
+            <Input
+              id="guest-phone"
+              label="Số điện thoại"
+              type="tel"
+              placeholder="0901 234 567"
+              autoComplete="tel"
+              value={guestInfo.phone}
+              onChange={(e) => onGuestInfoChange("phone", e.target.value)}
+              errorMessage={guestInfoErrors.phone}
+              startIcon={
+                <Phone className="w-4 h-4 text-[#707072]" aria-hidden="true" />
+              }
+              required
+            />
 
-          <Input
-            id="guest-email"
-            label="Email liên hệ"
-            type="email"
-            placeholder="example@email.com"
-            autoComplete="email"
-            value={guestInfo.email}
-            onChange={(e) => onGuestInfoChange("email", e.target.value)}
-            errorMessage={guestInfoErrors.email}
-            startIcon={
-              <Mail className="w-4 h-4 text-[#707072]" aria-hidden="true" />
-            }
-            required
-          />
-        </div>
+            <Input
+              id="guest-email"
+              label="Email liên hệ"
+              type="email"
+              placeholder="example@email.com"
+              autoComplete="email"
+              value={guestInfo.email}
+              onChange={(e) => onGuestInfoChange("email", e.target.value)}
+              errorMessage={guestInfoErrors.email}
+              startIcon={
+                <Mail className="w-4 h-4 text-[#707072]" aria-hidden="true" />
+              }
+              required
+            />
+          </div>
 
-        <p className="text-xs text-[#707072] leading-relaxed">
-          Thông tin trên chỉ dùng để liên hệ xác nhận đặt phòng và không được
-          lưu trữ ngoài mục đích nghiệp vụ.
-        </p>
-      </section>
+          <p className="text-xs text-[#707072] leading-relaxed">
+            Thông tin trên chỉ dùng để liên hệ xác nhận đặt phòng và không được
+            lưu trữ ngoài mục đích nghiệp vụ.
+          </p>
+        </section>
+      </Reveal>
 
       {/* ── CTA: Tiến hành thanh toán ─────────────────────────────────────── */}
-      <Button
-        id="proceed-to-payment-btn"
-        size="lg"
-        variant="primary"
-        className="w-full py-4 text-base tracking-wide"
-        onClick={onProceedToPayment}
-        isLoading={isSubmitting}
-        disabled={isSubmitting}
-        rightIcon={
-          !isSubmitting ? (
-            <svg
-              viewBox="0 0 20 20"
-              fill="currentColor"
-              className="w-5 h-5"
-              aria-hidden="true"
-            >
-              <path
-                fillRule="evenodd"
-                d="M3 10a.75.75 0 01.75-.75h10.638L10.23 5.29a.75.75 0 111.04-1.08l5.5 5.25a.75.75 0 010 1.08l-5.5 5.25a.75.75 0 11-1.04-1.08l4.158-3.96H3.75A.75.75 0 013 10z"
-                clipRule="evenodd"
-              />
-            </svg>
-          ) : undefined
-        }
-      >
-        {isSubmitting ? "Đang xử lý..." : `Thanh toán ${formatVND(finalAmount)}`}
-      </Button>
+      <Reveal distance={12} delay={320}>
+        <Button
+          id="proceed-to-payment-btn"
+          size="lg"
+          variant="primary"
+          className="w-full py-4 text-base tracking-wide"
+          onClick={onProceedToPayment}
+          isLoading={isSubmitting}
+          disabled={isSubmitting}
+          rightIcon={
+            !isSubmitting ? (
+              <svg
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                className="w-5 h-5"
+                aria-hidden="true"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M3 10a.75.75 0 01.75-.75h10.638L10.23 5.29a.75.75 0 111.04-1.08l5.5 5.25a.75.75 0 010 1.08l-5.5 5.25a.75.75 0 11-1.04-1.08l4.158-3.96H3.75A.75.75 0 013 10z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            ) : undefined
+          }
+        >
+          {isSubmitting ? "Đang xử lý..." : `Thanh toán ${formatVND(finalAmount)}`}
+        </Button>
+      </Reveal>
     </div>
   );
 }

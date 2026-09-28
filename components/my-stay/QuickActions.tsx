@@ -29,16 +29,16 @@ export function QuickActions({
           type="button"
           disabled={!canReportIssue}
           onClick={onReportIssue}
-          className="inline-flex items-center justify-center gap-2 px-5 py-3 text-xs sm:text-sm font-medium rounded-full bg-[#111111] text-white hover:bg-black disabled:bg-[#9E9EA0] disabled:cursor-not-allowed transition-colors"
+          className="group inline-flex items-center justify-center gap-2 px-5 py-3 text-xs sm:text-sm font-medium rounded-full bg-[#111111] text-white hover:bg-[#2A2A2A] hover:scale-[1.02] active:scale-[0.98] disabled:bg-[#9E9EA0] disabled:cursor-not-allowed disabled:transform-none transition-all duration-200"
         >
-          <Wrench className="w-4 h-4" />
+          <Wrench className="w-4 h-4 transition-transform duration-200 group-hover:scale-105" />
           <span>Báo sự cố / Yêu cầu hỗ trợ</span>
         </button>
 
         <button
           type="button"
           disabled={!isCheckoutAllowed}
-          className="inline-flex items-center justify-center px-5 py-3 text-xs sm:text-sm font-medium rounded-full border border-[#E5E5E5] text-[#111111] hover:bg-[#F5F5F5] disabled:text-[#9E9EA0] disabled:cursor-not-allowed transition-colors"
+          className="inline-flex items-center justify-center px-5 py-3 text-xs sm:text-sm font-medium rounded-full border border-[#E5E5E5] bg-white text-[#111111] hover:bg-[#F5F5F5] hover:scale-[1.02] active:scale-[0.98] disabled:text-[#9E9EA0] disabled:cursor-not-allowed disabled:transform-none transition-all duration-200"
         >
           Trả phòng 1-Click
         </button>

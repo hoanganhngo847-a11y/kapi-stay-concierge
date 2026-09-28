@@ -29,7 +29,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   }
 
   return (
-    <div className="w-full max-w-md mx-auto py-16 sm:py-24 px-4">
+    <div className="w-full max-w-md mx-auto py-16 sm:py-24 px-4 animate-login-entrance">
       <div className="mb-6">
         <Link
           href="/"

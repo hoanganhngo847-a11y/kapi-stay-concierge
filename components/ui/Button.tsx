@@ -13,7 +13,7 @@ export interface ButtonProps
 
 const buttonVariants: Record<NonNullable<ButtonProps["variant"]>, string> = {
   primary:
-    "bg-[#111111] text-[#FFFFFF] hover:bg-black active:bg-neutral-800 focus-visible:ring-[#111111]/30 disabled:bg-[#9E9EA0] disabled:text-white/80 disabled:cursor-not-allowed",
+    "bg-[#111111] text-[#FFFFFF] hover:bg-[#2A2A2A] active:bg-[#111111] focus-visible:ring-[#111111]/30 disabled:bg-[#9E9EA0] disabled:text-white/80 disabled:cursor-not-allowed",
   inverse:
     "bg-[#FFFFFF] text-[#111111] hover:bg-[#F5F5F5] active:bg-[#E5E5E5] focus-visible:ring-[#FFFFFF]/40 disabled:bg-[#9E9EA0] disabled:text-white disabled:cursor-not-allowed",
   outline:
@@ -60,7 +60,8 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         type={type}
         disabled={isDisabled}
         className={cn(
-          "inline-flex items-center justify-center font-medium transition-colors select-none",
+          "group inline-flex items-center justify-center font-medium transition-all duration-200 ease-out select-none",
+          "hover:scale-[1.02] active:scale-[0.98] disabled:transform-none disabled:hover:scale-100",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
           buttonVariants[variant],
           buttonSizes[size],
@@ -77,7 +78,11 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           leftIcon && <span className="shrink-0">{leftIcon}</span>
         )}
         <span>{children}</span>
-        {rightIcon && <span className="shrink-0">{rightIcon}</span>}
+        {rightIcon && (
+          <span className="shrink-0 transition-transform duration-200 ease-out group-hover:translate-x-[3px]">
+            {rightIcon}
+          </span>
+        )}
       </button>
     );
   }

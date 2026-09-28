@@ -23,7 +23,7 @@ export const KeyCard: React.FC<KeyCardProps> = ({
     statusLabel || (stayStatus === "ACTIVE" ? "Đang lưu trú" : "Mã truy cập");
 
   return (
-    <div className="border border-[#E5E5E5] bg-white p-6">
+    <div className="border border-[#E5E5E5] bg-white p-6 transition-opacity duration-500 animate-in fade-in">
       <div className="flex items-center justify-between mb-4">
         <div>
           <span className="text-[11px] font-medium uppercase tracking-wider text-[#707072] block mb-1">

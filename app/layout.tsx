@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import Link from "next/link";
 import { Phone, ShieldCheck } from "lucide-react";
+import { Header } from "@/components/ui/Header";
 import { AuthNav } from "@/components/auth/AuthNav";
 import "./globals.css";
 
@@ -26,56 +26,7 @@ export default function RootLayout({
     <html lang="vi" className={`${inter.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-white text-[#111111] font-sans selection:bg-[#111111] selection:text-white">
         {/* Header */}
-        <header className="sticky top-0 z-40 w-full bg-white border-b border-[#E5E5E5]">
-          <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 h-17 flex items-center justify-between">
-            {/* Logo KAPI STAY */}
-            <Link
-              href="/"
-              className="flex items-center gap-2 transition-opacity hover:opacity-80"
-            >
-              <span className="font-semibold text-lg sm:text-xl tracking-tight text-[#111111]">
-                KAPI STAY
-              </span>
-            </Link>
-
-            {/* Navigation Links */}
-            <nav className="flex items-center gap-1 sm:gap-2">
-              <Link
-                href="/rooms"
-                className="px-2.5 sm:px-3.5 py-1.5 text-xs sm:text-sm font-medium text-[#707072] hover:text-[#111111] transition-colors"
-              >
-                Phòng
-              </Link>
-              <Link
-                href="/#locations"
-                className="px-2.5 sm:px-3.5 py-1.5 text-xs sm:text-sm font-medium text-[#707072] hover:text-[#111111] transition-colors"
-              >
-                Chi nhánh
-              </Link>
-              <Link
-                href="/#rewards"
-                className="px-2.5 sm:px-3.5 py-1.5 text-xs sm:text-sm font-medium text-[#707072] hover:text-[#111111] transition-colors"
-              >
-                Kapi Rewards
-              </Link>
-              <Link
-                href="/my-stay"
-                className="px-2.5 sm:px-3.5 py-1.5 text-xs sm:text-sm font-medium text-[#707072] hover:text-[#111111] transition-colors"
-              >
-                My Stay
-              </Link>
-              <Link
-                href="/operations"
-                className="hidden lg:inline-block px-3 py-1.5 text-xs font-medium text-[#9E9EA0] hover:text-[#111111] transition-colors"
-              >
-                Vận hành
-              </Link>
-              <div className="ml-1 sm:ml-2">
-                <AuthNav />
-              </div>
-            </nav>
-          </div>
-        </header>
+        <Header authSlot={<AuthNav />} />
 
         {/* Main Content */}
         <main className="flex-1">{children}</main>

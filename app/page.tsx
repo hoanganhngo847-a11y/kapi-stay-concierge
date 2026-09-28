@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowRight, Check } from "lucide-react";
 import { getActiveProperties } from "@/lib/data/rooms";
 import { BookingSearchControl } from "@/components/rooms/BookingSearchControl";
+import { Reveal } from "@/components/ui/Reveal";
 
 export const dynamic = "force-dynamic";
 
@@ -54,16 +55,16 @@ export default async function HomePage() {
   });
 
   return (
-    <div className="w-full flex flex-col bg-white">
+    <div className="w-full flex flex-col bg-white animate-page-entrance">
       {/* ── 1. HERO SECTION (Photography-first, near full viewport) ── */}
       <section className="relative w-full h-[88vh] min-h-[580px] max-h-[920px] flex items-end overflow-hidden">
         {/* Full-bleed background photo */}
-        <div className="absolute inset-0 z-0">
+        <div className="absolute inset-0 z-0 overflow-hidden">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=2000&q=85"
             alt="Kapi Stay Không gian lưu trú cao cấp"
-            className="w-full h-full object-cover select-none"
+            className="w-full h-full object-cover select-none animate-hero-image"
           />
           {/* Subtle gradient overlay strictly for high-contrast typography readability */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/20" />
@@ -71,96 +72,117 @@ export default async function HomePage() {
 
         {/* Hero content */}
         <div className="relative z-10 w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 pb-16 sm:pb-20 text-white">
-          <p className="text-xs sm:text-sm font-medium tracking-[0.2em] uppercase text-white/80 mb-3">
+          <p
+            className="text-xs sm:text-sm font-medium tracking-[0.2em] uppercase text-white/80 mb-3 animate-hero-headline"
+            style={{ animationDelay: "0ms" }}
+          >
             KAPI STAY
           </p>
-          <h1 className="text-4xl sm:text-6xl lg:text-7xl font-normal tracking-tight leading-[1.02] max-w-3xl mb-4">
+          <h1
+            className="text-4xl sm:text-6xl lg:text-7xl font-normal tracking-tight leading-[1.02] max-w-3xl mb-4 animate-hero-headline"
+            style={{ animationDelay: "60ms" }}
+          >
             Không gian riêng.<br />
             Theo giờ của bạn.
           </h1>
-          <p className="text-sm sm:text-base lg:text-lg text-white/90 max-w-xl font-normal leading-relaxed mb-8">
+          <p
+            className="text-sm sm:text-base lg:text-lg text-white/90 max-w-xl font-normal leading-relaxed mb-8 animate-hero-headline"
+            style={{ animationDelay: "120ms" }}
+          >
             Đặt phòng linh hoạt theo giờ, tự check-in và chủ động thời gian lưu trú.
           </p>
 
-          <Link
-            href="#search"
-            className="inline-flex items-center justify-center px-8 py-3.5 rounded-full bg-white text-[#111111] hover:bg-[#F5F5F5] font-medium text-sm sm:text-base transition-colors"
+          <div
+            className="animate-hero-headline"
+            style={{ animationDelay: "220ms" }}
           >
-            Tìm phòng
-          </Link>
+            <Link
+              href="#search"
+              className="inline-flex items-center justify-center px-8 py-3.5 rounded-full bg-white text-[#111111] hover:bg-[#F5F5F5] font-medium text-sm sm:text-base transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+            >
+              Tìm phòng
+            </Link>
+          </div>
         </div>
       </section>
 
       {/* ── 2. QUICK SEARCH SECTION (Booking search control) ── */}
       <section id="search" className="w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
-        <div className="mb-6">
-          <p className="text-xs font-medium uppercase tracking-[0.2em] text-[#707072] mb-1">
-            Tìm phòng nhanh
-          </p>
-          <h2 className="text-2xl sm:text-3xl font-medium tracking-tight text-[#111111]">
-            Chọn điểm đến và khung giờ của bạn
-          </h2>
-        </div>
+        <Reveal>
+          <div className="mb-6">
+            <p className="text-xs font-medium uppercase tracking-[0.2em] text-[#707072] mb-1">
+              Tìm phòng nhanh
+            </p>
+            <h2 className="text-2xl sm:text-3xl font-medium tracking-tight text-[#111111]">
+              Chọn điểm đến và khung giờ của bạn
+            </h2>
+          </div>
 
-        <BookingSearchControl properties={properties} />
+          <BookingSearchControl properties={properties} />
+        </Reveal>
       </section>
 
       {/* ── 3. PROPERTY / LOCATION SECTION (Photography Tiles) ── */}
       <section id="locations" className="w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 border-t border-[#E5E5E5]">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8 sm:mb-12">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-[0.2em] text-[#707072] mb-1">
-              Chi nhánh
-            </p>
-            <h2 className="text-2xl sm:text-3xl font-medium tracking-tight text-[#111111]">
-              Không gian Kapi tại các thành phố
-            </h2>
+        <Reveal>
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8 sm:mb-12">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-[0.2em] text-[#707072] mb-1">
+                Chi nhánh
+              </p>
+              <h2 className="text-2xl sm:text-3xl font-medium tracking-tight text-[#111111]">
+                Không gian Kapi tại các thành phố
+              </h2>
+            </div>
+            <Link
+              href="/rooms"
+              className="group inline-flex items-center gap-1.5 text-sm font-medium text-[#111111] hover:underline underline-offset-4"
+            >
+              <span>Tất cả phòng ({properties.length} chi nhánh)</span>
+              <ArrowRight className="w-4 h-4 transition-transform duration-200 ease-out group-hover:translate-x-[3px]" />
+            </Link>
           </div>
-          <Link
-            href="/rooms"
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-[#111111] hover:underline underline-offset-4"
-          >
-            <span>Tất cả phòng ({properties.length} chi nhánh)</span>
-            <ArrowRight className="w-4 h-4" />
-          </Link>
-        </div>
+        </Reveal>
 
         {/* Editorial Grid: 2 columns on desktop, 1 on mobile */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
           {propertyTiles.map((tile, idx) => {
             const href = tile.propertyId ? `/rooms?property_id=${tile.propertyId}` : "/rooms";
+            const delay = Math.min(360, idx * 60);
+
             return (
-              <Link
-                key={idx}
-                href={href}
-                className="group relative h-80 sm:h-96 w-full overflow-hidden block select-none"
-              >
-                {/* Full-bleed photo with zero radius */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={tile.image}
-                  alt={`${tile.city} – ${tile.area}`}
-                  className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
-                />
-                {/* Subtle dark gradient for legible typography */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent transition-opacity group-hover:opacity-90" />
+              <Reveal key={idx} delay={delay}>
+                <Link
+                  href={href}
+                  className="group relative h-80 sm:h-96 w-full overflow-hidden block select-none"
+                >
+                  {/* Full-bleed photo with zero radius */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={tile.image}
+                    alt={`${tile.city} – ${tile.area}`}
+                    className="w-full h-full object-cover transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.025]"
+                  />
+                  {/* Subtle dark gradient for legible typography */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent transition-opacity duration-300 group-hover:opacity-90" />
 
-                {/* Bottom-left label */}
-                <div className="absolute bottom-6 left-6 right-6 flex items-end justify-between text-white">
-                  <div>
-                    <span className="text-[11px] font-medium tracking-widest uppercase text-white/80 block mb-1">
-                      {tile.city}
+                  {/* Bottom-left label */}
+                  <div className="absolute bottom-6 left-6 right-6 flex items-end justify-between text-white">
+                    <div className="transition-transform duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:-translate-y-[3px]">
+                      <span className="text-[11px] font-medium tracking-widest uppercase text-white/80 block mb-1">
+                        {tile.city}
+                      </span>
+                      <h3 className="text-2xl font-medium tracking-tight text-white">
+                        {tile.area}
+                      </h3>
+                    </div>
+
+                    <span className="inline-flex items-center px-4 py-1.5 rounded-full bg-white text-[#111111] text-xs font-medium opacity-90 group-hover:opacity-100 transition-all duration-400 hover:scale-[1.02]">
+                      Khám phá
                     </span>
-                    <h3 className="text-2xl font-medium tracking-tight text-white">
-                      {tile.area}
-                    </h3>
                   </div>
-
-                  <span className="inline-flex items-center px-4 py-1.5 rounded-full bg-white text-[#111111] text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-                    Khám phá
-                  </span>
-                </div>
-              </Link>
+                </Link>
+              </Reveal>
             );
           })}
         </div>
@@ -170,96 +192,100 @@ export default async function HomePage() {
       <section id="rewards" className="w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20 border-t border-[#E5E5E5]">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
           <div className="lg:col-span-6 space-y-4">
-            <p className="text-xs font-medium uppercase tracking-[0.2em] text-[#707072]">
-              Kapi Rewards
-            </p>
-            <h2 className="text-3xl sm:text-4xl font-normal tracking-tight text-[#111111]">
-              Tích lũy điểm.<br />Nhận ưu đãi kỳ nghỉ.
-            </h2>
-            <p className="text-sm sm:text-base text-[#707072] leading-relaxed max-w-lg">
-              Mỗi giờ lưu trú tại Kapi đều tích lũy điểm thưởng. Sử dụng điểm để quy đổi voucher giảm giá 40% trực tiếp khi đặt phòng.
-            </p>
+            <Reveal>
+              <p className="text-xs font-medium uppercase tracking-[0.2em] text-[#707072]">
+                Kapi Rewards
+              </p>
+              <h2 className="text-3xl sm:text-4xl font-normal tracking-tight text-[#111111] mt-2">
+                Tích lũy điểm.<br />Nhận ưu đãi kỳ nghỉ.
+              </h2>
+              <p className="text-sm sm:text-base text-[#707072] leading-relaxed max-w-lg mt-3">
+                Mỗi giờ lưu trú tại Kapi đều tích lũy điểm thưởng. Sử dụng điểm để quy đổi voucher giảm giá 40% trực tiếp khi đặt phòng.
+              </p>
 
-            <div className="pt-4 space-y-3">
-              <div className="flex items-start gap-3">
-                <div className="w-5 h-5 rounded-full border border-[#111111] flex items-center justify-center shrink-0 mt-0.5">
-                  <Check className="w-3 h-3 text-[#111111]" />
+              <div className="pt-4 space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-5 h-5 rounded-full border border-[#111111] flex items-center justify-center shrink-0 mt-0.5">
+                    <Check className="w-3 h-3 text-[#111111]" />
+                  </div>
+                  <div className="text-sm">
+                    <strong className="font-medium text-[#111111]">500 điểm = 1 Voucher 40%</strong>
+                    <p className="text-xs text-[#707072]">Giảm tối đa 400.000đ, áp dụng cho mọi phòng.</p>
+                  </div>
                 </div>
-                <div className="text-sm">
-                  <strong className="font-medium text-[#111111]">500 điểm = 1 Voucher 40%</strong>
-                  <p className="text-xs text-[#707072]">Giảm tối đa 400.000đ, áp dụng cho mọi phòng.</p>
+
+                <div className="flex items-start gap-3">
+                  <div className="w-5 h-5 rounded-full border border-[#111111] flex items-center justify-center shrink-0 mt-0.5">
+                    <Check className="w-3 h-3 text-[#111111]" />
+                  </div>
+                  <div className="text-sm">
+                    <strong className="font-medium text-[#111111]">Điểm danh mỗi ngày +5 điểm</strong>
+                    <p className="text-xs text-[#707072]">Chỉ cần đăng nhập và xác nhận một chạm.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <div className="w-5 h-5 rounded-full border border-[#111111] flex items-center justify-center shrink-0 mt-0.5">
+                    <Check className="w-3 h-3 text-[#111111]" />
+                  </div>
+                  <div className="text-sm">
+                    <strong className="font-medium text-[#111111]">1 VND = 0.00025 điểm</strong>
+                    <p className="text-xs text-[#707072]">Tích điểm tự động sau khi thanh toán thành công.</p>
+                  </div>
                 </div>
               </div>
-
-              <div className="flex items-start gap-3">
-                <div className="w-5 h-5 rounded-full border border-[#111111] flex items-center justify-center shrink-0 mt-0.5">
-                  <Check className="w-3 h-3 text-[#111111]" />
-                </div>
-                <div className="text-sm">
-                  <strong className="font-medium text-[#111111]">Điểm danh mỗi ngày +5 điểm</strong>
-                  <p className="text-xs text-[#707072]">Chỉ cần đăng nhập và xác nhận một chạm.</p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <div className="w-5 h-5 rounded-full border border-[#111111] flex items-center justify-center shrink-0 mt-0.5">
-                  <Check className="w-3 h-3 text-[#111111]" />
-                </div>
-                <div className="text-sm">
-                  <strong className="font-medium text-[#111111]">1 VND = 0.00025 điểm</strong>
-                  <p className="text-xs text-[#707072]">Tích điểm tự động sau khi thanh toán thành công.</p>
-                </div>
-              </div>
-            </div>
+            </Reveal>
           </div>
 
           {/* Loyalty card presentation */}
           <div className="lg:col-span-6">
-            <div className="border border-[#E5E5E5] bg-white p-6 sm:p-8">
-              <div className="flex items-center justify-between pb-6 border-b border-[#E5E5E5]">
-                <div>
-                  <span className="text-xs uppercase tracking-widest text-[#707072]">
-                    Điểm thành viên
-                  </span>
-                  <div className="flex items-baseline gap-2 mt-1">
-                    <span className="text-4xl sm:text-5xl font-normal text-[#111111]">
-                      425
-                    </span>
+            <Reveal delay={120}>
+              <div className="border border-[#E5E5E5] bg-white p-6 sm:p-8">
+                <div className="flex items-center justify-between pb-6 border-b border-[#E5E5E5]">
+                  <div>
                     <span className="text-xs uppercase tracking-widest text-[#707072]">
-                      POINTS
+                      Điểm thành viên
                     </span>
+                    <div className="flex items-baseline gap-2 mt-1">
+                      <span className="text-4xl sm:text-5xl font-normal text-[#111111]">
+                        425
+                      </span>
+                      <span className="text-xs uppercase tracking-widest text-[#707072]">
+                        POINTS
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <span className="text-xs font-mono text-[#707072]">425 / 500</span>
+                    <div className="w-32 h-1.5 bg-[#F5F5F5] rounded-full overflow-hidden mt-2">
+                      <div className="w-[85%] h-full bg-[#111111]" />
+                    </div>
                   </div>
                 </div>
 
-                <div className="text-right">
-                  <span className="text-xs font-mono text-[#707072]">425 / 500</span>
-                  <div className="w-32 h-1.5 bg-[#F5F5F5] rounded-full overflow-hidden mt-2">
-                    <div className="w-[85%] h-full bg-[#111111]" />
-                  </div>
+                <div className="py-6 border-b border-[#E5E5E5]">
+                  <p className="text-xs sm:text-sm text-[#707072]">
+                    Còn <strong>75 điểm</strong> để nhận voucher giảm giá 40% tiếp theo
+                  </p>
+                </div>
+
+                <div className="pt-6 flex flex-col sm:flex-row items-center gap-3">
+                  <Link
+                    href="/login"
+                    className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 rounded-full bg-[#111111] text-white text-xs sm:text-sm font-medium hover:bg-[#2A2A2A] transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    Đăng nhập để xem ưu đãi
+                  </Link>
+                  <Link
+                    href="/rooms"
+                    className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 rounded-full border border-[#E5E5E5] text-[#111111] text-xs sm:text-sm font-medium hover:bg-[#F5F5F5] transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    Khám phá phòng ngay
+                  </Link>
                 </div>
               </div>
-
-              <div className="py-6 border-b border-[#E5E5E5]">
-                <p className="text-xs sm:text-sm text-[#707072]">
-                  Còn <strong>75 điểm</strong> để nhận voucher giảm giá 40% tiếp theo
-                </p>
-              </div>
-
-              <div className="pt-6 flex flex-col sm:flex-row items-center gap-3">
-                <Link
-                  href="/login"
-                  className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 rounded-full bg-[#111111] text-white text-xs sm:text-sm font-medium hover:bg-black transition-colors"
-                >
-                  Đăng nhập để xem ưu đãi
-                </Link>
-                <Link
-                  href="/rooms"
-                  className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 rounded-full border border-[#E5E5E5] text-[#111111] text-xs sm:text-sm font-medium hover:bg-[#F5F5F5] transition-colors"
-                >
-                  Khám phá phòng ngay
-                </Link>
-              </div>
-            </div>
+            </Reveal>
           </div>
         </div>
       </section>
@@ -267,29 +293,33 @@ export default async function HomePage() {
       {/* ── 5. THREE CORE SERVICE PRINCIPLES (Minimal typography rows) ── */}
       <section className="w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20 border-t border-[#E5E5E5]">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 sm:gap-12">
-          <div className="space-y-2">
-            <span className="text-xs font-mono text-[#707072]">01</span>
-            <h3 className="text-lg font-medium text-[#111111]">Tự nhận phòng 24/7</h3>
-            <p className="text-sm text-[#707072] leading-relaxed">
-              Mã mở cửa Digital Key được cấp tự động cho kỳ nghỉ của bạn. Đến và nhận phòng bất kỳ khung giờ nào mà không cần gặp lễ tân.
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <span className="text-xs font-mono text-[#707072]">02</span>
-            <h3 className="text-lg font-medium text-[#111111]">Không gian riêng biệt</h3>
-            <p className="text-sm text-[#707072] leading-relaxed">
-              Thiết kế tối giản, sạch sẽ, yên tĩnh và tiện nghi. Đảm bảo trải nghiệm nghỉ ngơi trọn vẹn và an tâm tuyệt đối.
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <span className="text-xs font-mono text-[#707072]">03</span>
-            <h3 className="text-lg font-medium text-[#111111]">Hỗ trợ kỹ thuật trực tuyến</h3>
-            <p className="text-sm text-[#707072] leading-relaxed">
-              Hệ thống Concierge và tổng đài trực tuyến hỗ trợ liên tục qua Hotline và tin nhắn, giải quyết thắc mắc tức thì.
-            </p>
-          </div>
+          {[
+            {
+              num: "01",
+              title: "Tự nhận phòng 24/7",
+              desc: "Mã mở cửa Digital Key được cấp tự động cho kỳ nghỉ của bạn. Đến và nhận phòng bất kỳ khung giờ nào mà không cần gặp lễ tân.",
+            },
+            {
+              num: "02",
+              title: "Không gian riêng biệt",
+              desc: "Thiết kế tối giản, sạch sẽ, yên tĩnh và tiện nghi. Đảm bảo trải nghiệm nghỉ ngơi trọn vẹn và an tâm tuyệt đối.",
+            },
+            {
+              num: "03",
+              title: "Hỗ trợ kỹ thuật trực tuyến",
+              desc: "Hệ thống Concierge và tổng đài trực tuyến hỗ trợ liên tục qua Hotline và tin nhắn, giải quyết thắc mắc tức thì.",
+            },
+          ].map((principle, idx) => (
+            <Reveal key={principle.num} delay={idx * 80}>
+              <div className="space-y-2">
+                <span className="text-xs font-mono text-[#707072]">{principle.num}</span>
+                <h3 className="text-lg font-medium text-[#111111]">{principle.title}</h3>
+                <p className="text-sm text-[#707072] leading-relaxed">
+                  {principle.desc}
+                </p>
+              </div>
+            </Reveal>
+          ))}
         </div>
       </section>
     </div>

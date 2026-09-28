@@ -118,7 +118,7 @@ export function Gallery({ imagePaths, roomName }: GalleryProps) {
           <img
             src={singleImage}
             alt={`Ảnh phòng ${roomName}`}
-            className="w-full h-full object-cover group-hover:scale-[1.01] transition-transform duration-500 ease-out"
+            className="w-full h-full object-cover group-hover:scale-[1.015] transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] animate-in fade-in duration-400"
             onError={() => handleImageError(singleImage)}
           />
 
@@ -183,7 +183,7 @@ export function Gallery({ imagePaths, roomName }: GalleryProps) {
             <img
               src={heroImage}
               alt={`Ảnh chính phòng ${roomName}`}
-              className="w-full h-full object-cover group-hover:scale-[1.01] transition-transform duration-500 ease-out"
+              className="w-full h-full object-cover group-hover:scale-[1.015] transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] animate-in fade-in duration-400"
               onError={() => handleImageError(heroImage)}
             />
 
@@ -222,7 +222,7 @@ export function Gallery({ imagePaths, roomName }: GalleryProps) {
                   <img
                     src={src}
                     alt={`Ảnh ${actualIndex + 1} phòng ${roomName}`}
-                    className="w-full h-full object-cover group-hover:scale-[1.01] transition-transform duration-500 ease-out"
+                    className="w-full h-full object-cover group-hover:scale-[1.015] transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] animate-in fade-in duration-400"
                     onError={() => handleImageError(src)}
                   />
 
@@ -380,7 +380,7 @@ function LightboxModal({
                 onClick={() => onSelectIndex(idx)}
                 aria-label={`Chuyển đến ảnh ${idx + 1}`}
                 className={cn(
-                  "w-12 h-12 sm:w-14 sm:h-14 overflow-hidden shrink-0 border transition-all",
+                  "w-12 h-12 sm:w-14 sm:h-14 overflow-hidden shrink-0 border transition-all duration-200",
                   idx === currentIndex
                     ? "border-[#111111] opacity-100"
                     : "border-transparent opacity-40 hover:opacity-100"

@@ -92,7 +92,7 @@ export const Modal: React.FC<ModalProps> = ({
     >
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/40 transition-opacity duration-200 animate-in fade-in"
+        className="fixed inset-0 bg-black/40 transition-opacity duration-250 animate-in fade-in"
         onClick={closeOnOverlayClick ? onClose : undefined}
         aria-hidden="true"
       />
@@ -101,7 +101,7 @@ export const Modal: React.FC<ModalProps> = ({
       <div
         className={cn(
           "relative w-full bg-white text-[#111111] border border-[#E5E5E5] overflow-hidden z-10",
-          "transform transition-all duration-200 animate-in fade-in zoom-in-95",
+          "transform transition-all duration-250 ease-[cubic-bezier(0.16,1,0.3,1)] animate-in fade-in zoom-in-[0.98] slide-in-from-bottom-2",
           modalSizes[size],
           className
         )}

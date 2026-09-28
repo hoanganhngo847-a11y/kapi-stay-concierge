@@ -458,30 +458,30 @@ export function RoomBookingWidget({
         )}
 
         {/* Availability UI (Neutral, minimal, no huge green box) */}
-        <div className="text-xs leading-relaxed py-1">
+        <div className="text-xs leading-relaxed py-1 min-h-[28px] flex items-center">
           {availability.status === "IDLE" && (
-            <div className="flex items-center gap-2 text-[#707072]">
+            <div className="flex items-center gap-2 text-[#707072] transition-opacity duration-200">
               <Info className="w-3.5 h-3.5 text-[#707072] shrink-0" aria-hidden="true" />
               <span>Chọn giờ nhận và trả phòng (tối thiểu 2 giờ).</span>
             </div>
           )}
 
           {availability.status === "CHECKING" && (
-            <div className="flex items-center gap-2 text-[#707072]">
+            <div className="flex items-center gap-2 text-[#707072] transition-opacity duration-200">
               <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0 text-[#111111]" aria-hidden="true" />
               <span>Đang kiểm tra tình trạng phòng...</span>
             </div>
           )}
 
           {availability.status === "AVAILABLE" && (
-            <div className="flex items-center gap-2 text-[#111111]">
+            <div className="flex items-center gap-2 text-[#111111] animate-in fade-in slide-in-from-bottom-1 duration-250 ease-out">
               <CheckCircle2 className="w-3.5 h-3.5 text-[#111111] shrink-0" aria-hidden="true" />
               <span className="font-normal">Phòng còn trống trong khung giờ này.</span>
             </div>
           )}
 
           {availability.status === "UNAVAILABLE" && (
-            <div className="flex items-start gap-2 text-rose-600">
+            <div className="flex items-start gap-2 text-rose-600 animate-in fade-in duration-200">
               <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" aria-hidden="true" />
               <div>
                 <span className="font-medium block">Phòng không còn trống trong khung giờ này.</span>
@@ -493,7 +493,7 @@ export function RoomBookingWidget({
           )}
 
           {availability.status === "ERROR" && (
-            <div className="flex items-start gap-2 text-[#707072]">
+            <div className="flex items-start gap-2 text-[#707072] animate-in fade-in duration-200">
               <AlertTriangle className="w-3.5 h-3.5 text-[#707072] shrink-0 mt-0.5" aria-hidden="true" />
               <span>{availability.message || "Không thể kiểm tra tình trạng phòng lúc này."}</span>
             </div>
@@ -502,7 +502,7 @@ export function RoomBookingWidget({
 
         {/* Price Estimation Preview */}
         {hours > 0 && (
-          <div className="pt-3 pb-1 text-xs space-y-2 text-[#707072] border-t border-[#E5E5E5]">
+          <div className="pt-3 pb-1 text-xs space-y-2 text-[#707072] border-t border-[#E5E5E5] transition-opacity duration-200">
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-[#707072]" />
@@ -524,7 +524,7 @@ export function RoomBookingWidget({
           type="submit"
           disabled={availability.status !== "AVAILABLE"}
           isLoading={availability.status === "CHECKING"}
-          className="w-full h-12 text-sm font-medium justify-center rounded-full"
+          className="w-full h-12 text-sm font-medium justify-center rounded-full transition-all duration-200"
           rightIcon={<ArrowRight className="w-4 h-4" aria-hidden="true" />}
         >
           {availability.status === "AVAILABLE"

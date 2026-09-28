@@ -31,7 +31,7 @@ export default function WifiWidget({ ssid, password }: WifiWidgetProps) {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       timeoutRef.current = setTimeout(() => {
         setCopied(false);
-      }, 2000);
+      }, 1500);
     } catch {
       setCopied(false);
       setCopyError("Không thể sao chép tự động. Vui lòng sao chép thủ công.");
@@ -65,9 +65,11 @@ export default function WifiWidget({ ssid, password }: WifiWidgetProps) {
       <button
         type="button"
         onClick={handleCopy}
-        className="w-full mt-4 py-3 bg-[#111111] hover:bg-black text-white rounded-full text-xs sm:text-sm font-medium transition-colors"
+        className="w-full mt-4 py-3 bg-[#111111] hover:bg-[#2A2A2A] text-white rounded-full text-xs sm:text-sm font-medium transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
       >
-        {copied ? "✓ Đã sao chép mật khẩu" : "Sao chép mật khẩu Wi-Fi"}
+        <span className="inline-block transition-transform duration-200">
+          {copied ? "✓ Đã sao chép mật khẩu" : "Sao chép mật khẩu Wi-Fi"}
+        </span>
       </button>
 
       {copyError && (

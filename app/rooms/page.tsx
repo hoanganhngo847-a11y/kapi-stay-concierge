@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { RoomCard } from "@/components/rooms/RoomCard";
 import { RoomFilters } from "@/components/rooms/RoomFilters";
 import { getPublicRooms, getActiveProperties } from "@/lib/data/rooms";
+import { Reveal } from "@/components/ui/Reveal";
 
 export const metadata = {
   title: "Danh sách phòng | Kapi Stay Concierge",
@@ -125,7 +126,7 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
   const activePropertyName = propertiesList.find((p) => p.id === propertyId)?.name;
 
   return (
-    <div className="w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16">
+    <div className="w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16 animate-page-entrance">
       {/* Tiêu đề & Điều hướng */}
       <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-4 mb-8">
         <div>
@@ -225,7 +226,7 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
           ) : (
             /* Render danh sách phòng: Desktop 3 cols, Tablet 2 cols, Mobile 1 col */
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-10 sm:gap-x-8 sm:gap-y-12">
-              {roomsList.map((room) => {
+              {roomsList.map((room, idx) => {
                 const bedType =
                   room.amenities.find(
                     (a) =>
@@ -244,18 +245,21 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
                   room.property?.address ||
                   "Chưa cập nhật";
 
+                const delay = Math.min(360, idx * 60);
+
                 return (
-                  <RoomCard
-                    key={room.id}
-                    id={room.id}
-                    coverImage={coverImage}
-                    name={room.name || "Chưa cập nhật"}
-                    location={locationName}
-                    maxGuests={room.capacity}
-                    bedType={bedType}
-                    price={room.hourly_price_vnd}
-                    room={room}
-                  />
+                  <Reveal key={room.id} delay={delay}>
+                    <RoomCard
+                      id={room.id}
+                      coverImage={coverImage}
+                      name={room.name || "Chưa cập nhật"}
+                      location={locationName}
+                      maxGuests={room.capacity}
+                      bedType={bedType}
+                      price={room.hourly_price_vnd}
+                      room={room}
+                    />
+                  </Reveal>
                 );
               })}
             </div>

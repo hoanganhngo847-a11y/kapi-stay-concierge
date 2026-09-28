@@ -55,7 +55,7 @@ export function GoogleSignInButton({ next, className }: GoogleSignInButtonProps)
         size="lg"
         onClick={handleSignIn}
         isLoading={isLoading}
-        className={`w-full justify-center gap-3 border-dark/15 hover:border-dark/30 hover:bg-dark/[0.02] active:bg-dark/[0.05] transition-all font-medium text-dark ${
+        className={`w-full justify-center gap-3 border-[#E5E5E5] hover:border-[#111111] hover:bg-[#F5F5F5] hover:scale-[1.015] active:scale-[0.985] transition-all duration-200 font-medium text-[#111111] ${
           className || ""
         }`}
         leftIcon={
