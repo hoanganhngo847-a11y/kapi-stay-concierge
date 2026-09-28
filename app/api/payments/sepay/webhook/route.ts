@@ -256,10 +256,32 @@ export async function POST(request: Request) {
         : NaN;
 
     // SePay's dashboard "Gửi thử" request uses event id 0.
-    // At this point the request has already passed timestamp + HMAC validation,
-    // so acknowledge the test without touching Supabase or payment state.
+    // At this point the request has already passed timestamp + HMAC validation.
+    // Perform a read-only Supabase connectivity check, then acknowledge the test.
+    // This does NOT create audit rows, bookings, or mutate payment state.
     if (providerEventId === 0) {
-      console.info("[SePay Webhook][diag] authenticated SePay test payload accepted");
+      const testClient = createServiceRoleClient();
+      const { error: connectivityError } = await testClient
+        .from("payment_webhook_events")
+        .select("id")
+        .limit(1);
+
+      const supabaseConnectivityValid = !connectivityError;
+      console.info("[SePay Webhook][diag] authenticated SePay test payload", {
+        supabaseConnectivityValid,
+      });
+
+      if (connectivityError) {
+        console.error(
+          "[SePay Webhook] Supabase connectivity test failed:",
+          connectivityError.message
+        );
+        return NextResponse.json(
+          { error: "Supabase connectivity test failed" },
+          { status: 500 }
+        );
+      }
+
       return NextResponse.json({ success: true }, { status: 200 });
     }
 
