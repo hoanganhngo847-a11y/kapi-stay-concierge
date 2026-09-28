@@ -3,13 +3,11 @@
 import * as React from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { DoorOpen, Users, ArrowRight, MapPin, KeyRound, BedDouble } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+import { DoorOpen } from "lucide-react";
 import { formatVND } from "@/lib/utils/format";
 import type { PublicRoom } from "@/lib/data/rooms";
 
 export interface RoomCardProps {
-  // Thông tin tĩnh của phòng theo đúng yêu cầu
   id?: string;
   coverImage?: string;
   name?: string;
@@ -17,8 +15,6 @@ export interface RoomCardProps {
   maxGuests?: number;
   bedType?: string;
   price?: number;
-
-  // Hỗ trợ truyền theo đối tượng room (nếu có)
   room?: PublicRoom;
 }
 
@@ -31,11 +27,6 @@ export function RoomCard(props: RoomCardProps) {
     name = room?.name || "Chưa cập nhật",
     location = room?.property?.name || room?.property?.address || "Chưa cập nhật",
     maxGuests = room?.capacity ?? 0,
-    bedType = room?.amenities?.find((a) =>
-      a.toLowerCase().includes("giường") ||
-      a.toLowerCase().includes("đệm") ||
-      a.toLowerCase().includes("bed")
-    ) || "Chưa cập nhật",
     price = room?.hourly_price_vnd ?? room?.nightly_price_vnd ?? 0,
   } = props;
 
@@ -69,7 +60,7 @@ export function RoomCard(props: RoomCardProps) {
     searchParams?.get("guests") ??
     "";
 
-  // Nối các tham số lọc vào đường dẫn detailHref để khách không bị mất dữ liệu lọc
+  // Nối các tham số lọc vào đường dẫn detailHref
   const queryParams = new URLSearchParams();
   if (propertyId) queryParams.set("property_id", propertyId);
   if (checkIn) {
@@ -87,15 +78,18 @@ export function RoomCard(props: RoomCardProps) {
   const detailHref = queryString ? `${basePath}?${queryString}` : basePath;
 
   return (
-    <div className="bg-white rounded-2xl border border-dark/10 overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col group">
-      {/* Khung ảnh Cover với Badge "Self check-in" */}
-      <div className="h-52 bg-light/70 border-b border-dark/10 flex items-center justify-center relative overflow-hidden">
+    <Link
+      href={detailHref}
+      className="group block select-none transition-opacity hover:opacity-95"
+    >
+      {/* Khung ảnh Cover: full bleed, zero radius, no border, no shadow */}
+      <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#F5F5F5]">
         {hasImage ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={rawCover}
             alt={name}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
             onError={(e) => {
               e.currentTarget.style.display = "none";
               const parent = e.currentTarget.parentElement;
@@ -107,95 +101,37 @@ export function RoomCard(props: RoomCardProps) {
           />
         ) : null}
 
-        {/* Placeholder dự phòng */}
+        {/* Neutral Placeholder dự phòng */}
         <div
-          className={`room-placeholder w-full h-full flex flex-col items-center justify-center gap-2 p-6 text-center ${hasImage ? "hidden" : "flex"
-            }`}
+          className={`room-placeholder w-full h-full flex flex-col items-center justify-center gap-2 p-6 text-center ${
+            hasImage ? "hidden" : "flex"
+          }`}
         >
-          <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-            <DoorOpen className="w-6 h-6" />
+          <div className="w-10 h-10 rounded-full bg-[#E5E5E5] text-[#707072] flex items-center justify-center">
+            <DoorOpen className="w-5 h-5" />
           </div>
-          <span className="text-xs text-dark/40 font-medium tracking-wide">
-            Kapi Stay Concierge
+          <span className="text-xs text-[#707072] font-medium tracking-wide">
+            KAPI STAY
           </span>
         </div>
-
-        {/* Badge "Self check-in" bắt buộc theo yêu cầu */}
-        <div className="absolute top-3 left-3 z-10">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-700/90 text-white backdrop-blur-md shadow-sm">
-            <KeyRound className="w-3 h-3" />
-            <span>Self check-in</span>
-          </span>
-        </div>
-
-        {/* Badge số khách tối đa */}
-        {maxGuests > 0 && (
-          <div className="absolute top-3 right-3 z-10">
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-dark/70 text-white backdrop-blur-md shadow-sm">
-              <Users className="w-3 h-3" />
-              <span>Tối đa {maxGuests} khách</span>
-            </span>
-          </div>
-        )}
       </div>
 
-      {/* Nội dung thông tin tĩnh của thẻ */}
-      <div className="p-5 sm:p-6 flex flex-col flex-1">
-        {/* Vị trí phòng */}
-        {location && (
-          <div className="flex items-center gap-1.5 text-xs text-primary font-medium mb-1.5">
-            <MapPin className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">{location}</span>
-          </div>
-        )}
-
-        {/* Tên phòng */}
-        <h2 className="text-lg font-bold text-dark mb-2 group-hover:text-primary transition-colors">
-          <Link href={detailHref}>{name}</Link>
+      {/* Information Hierarchy */}
+      <div className="pt-3 pb-1">
+        <h2 className="text-base sm:text-lg font-medium text-[#111111] group-hover:underline underline-offset-4 line-clamp-1">
+          {name}
         </h2>
-
-        {/* Thông tin số khách và loại giường */}
-        <div className="grid grid-cols-2 gap-2 my-3 py-2.5 px-3 rounded-xl bg-light/50 border border-dark/5 text-xs text-dark/80">
-          <div className="flex items-center gap-1.5">
-            <Users className="w-3.5 h-3.5 text-primary shrink-0" />
-            <span className="truncate font-medium">
-              {maxGuests > 0 ? `${maxGuests} khách` : "Chưa cập nhật"}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <BedDouble className="w-3.5 h-3.5 text-secondary shrink-0" />
-            <span className="truncate font-medium">{bedType || "Chưa cập nhật"}</span>
-          </div>
-        </div>
-
-        {/* Giá tiền và Nút Xem chi tiết */}
-        <div className="pt-4 border-t border-dark/10 flex items-center justify-between mt-auto gap-3">
-          <div>
-            <span className="text-xs text-dark/50 block font-medium">Giá phòng</span>
-            <div>
-              {price > 0 ? (
-                <>
-                  <span className="text-lg font-bold text-primary">
-                    {formatVND(price)}
-                  </span>
-                  <span className="text-xs text-dark/60"> / giờ</span>
-                </>
-              ) : (
-                <span className="text-base font-semibold text-dark/60">
-                  Chưa cập nhật
-                </span>
-              )}
-            </div>
-          </div>
-
-          <Link href={detailHref}>
-            <Button size="sm" rightIcon={<ArrowRight className="w-3.5 h-3.5" />}>
-              Xem chi tiết
-            </Button>
-          </Link>
-        </div>
+        <p className="text-xs sm:text-sm text-[#707072] mt-0.5 line-clamp-1">
+          {location}
+        </p>
+        <p className="text-xs sm:text-sm text-[#707072] mt-0.5">
+          {maxGuests > 0 ? `${maxGuests} khách` : "Chưa cập nhật"}
+        </p>
+        <p className="text-sm sm:text-base font-medium text-[#111111] mt-2">
+          {price > 0 ? `${formatVND(price)} / giờ` : "Chưa cập nhật"}
+        </p>
       </div>
-    </div>
+    </Link>
   );
 }
 
