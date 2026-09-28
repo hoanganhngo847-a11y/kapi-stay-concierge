@@ -96,6 +96,8 @@ export type Database = {
           booking_status: string
           check_in: string
           check_out: string
+          check_in_at: string | null
+          check_out_at: string | null
           checkout_session_id: string | null
           created_at: string
           discount_amount_vnd: number
@@ -110,8 +112,10 @@ export type Database = {
         }
         Insert: {
           booking_status: string
-          check_in: string
-          check_out: string
+          check_in?: string | null
+          check_out?: string | null
+          check_in_at?: string | null
+          check_out_at?: string | null
           checkout_session_id?: string | null
           created_at?: string
           discount_amount_vnd?: number
@@ -126,8 +130,10 @@ export type Database = {
         }
         Update: {
           booking_status?: string
-          check_in?: string
-          check_out?: string
+          check_in?: string | null
+          check_out?: string | null
+          check_in_at?: string | null
+          check_out_at?: string | null
           checkout_session_id?: string | null
           created_at?: string
           discount_amount_vnd?: number
@@ -168,6 +174,8 @@ export type Database = {
         Row: {
           check_in: string
           check_out: string
+          check_in_at: string | null
+          check_out_at: string | null
           created_at: string
           discount_amount_vnd: number
           expires_at: string
@@ -182,8 +190,10 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          check_in: string
-          check_out: string
+          check_in?: string | null
+          check_out?: string | null
+          check_in_at?: string | null
+          check_out_at?: string | null
           created_at?: string
           discount_amount_vnd?: number
           expires_at: string
@@ -198,8 +208,10 @@ export type Database = {
           user_id: string
         }
         Update: {
-          check_in?: string
-          check_out?: string
+          check_in?: string | null
+          check_out?: string | null
+          check_in_at?: string | null
+          check_out_at?: string | null
           created_at?: string
           discount_amount_vnd?: number
           expires_at?: string
@@ -451,12 +463,48 @@ export type Database = {
           },
         ]
       }
+      room_availability_blocks: {
+        Row: {
+          created_at: string
+          ends_at: string
+          id: string
+          reason: string
+          room_id: string
+          starts_at: string
+        }
+        Insert: {
+          created_at?: string
+          ends_at: string
+          id?: string
+          reason: string
+          room_id: string
+          starts_at: string
+        }
+        Update: {
+          created_at?: string
+          ends_at?: string
+          id?: string
+          reason?: string
+          room_id?: string
+          starts_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "room_availability_blocks_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rooms: {
         Row: {
           amenities: string[]
           capacity: number
           created_at: string
           description: string | null
+          hourly_price_vnd: number
           id: string
           image_paths: string[]
           is_listed: boolean
@@ -470,11 +518,12 @@ export type Database = {
           capacity: number
           created_at?: string
           description?: string | null
+          hourly_price_vnd: number
           id?: string
           image_paths?: string[]
           is_listed?: boolean
           name: string
-          nightly_price_vnd: number
+          nightly_price_vnd?: number
           property_id: string
           updated_at?: string
         }
@@ -483,6 +532,7 @@ export type Database = {
           capacity?: number
           created_at?: string
           description?: string | null
+          hourly_price_vnd?: number
           id?: string
           image_paths?: string[]
           is_listed?: boolean
@@ -697,10 +747,27 @@ export type Database = {
         }
         Returns: boolean
       }
+      check_room_availability_hourly: {
+        Args: {
+          p_check_in_at: string
+          p_check_out_at: string
+          p_room_id: string
+        }
+        Returns: boolean
+      }
       create_checkout_session_atomic: {
         Args: {
           p_check_in: string
           p_check_out: string
+          p_guest_count: number
+          p_room_id: string
+        }
+        Returns: Json
+      }
+      create_hourly_checkout_session_atomic: {
+        Args: {
+          p_check_in_at: string
+          p_check_out_at: string
           p_guest_count: number
           p_room_id: string
         }
