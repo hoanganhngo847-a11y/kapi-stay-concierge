@@ -36,7 +36,7 @@ export function RoomCard(props: RoomCardProps) {
       a.toLowerCase().includes("đệm") ||
       a.toLowerCase().includes("bed")
     ) || "Chưa cập nhật",
-    price = room?.nightly_price_vnd ?? 0,
+    price = room?.hourly_price_vnd ?? room?.nightly_price_vnd ?? 0,
   } = props;
 
   const rawCover =
@@ -50,11 +50,15 @@ export function RoomCard(props: RoomCardProps) {
   // Đọc các query params hiện tại để giữ nguyên context khi đi sang Room Detail
   const propertyId = searchParams?.get("property_id") ?? "";
   const checkIn =
+    searchParams?.get("check_in_at") ??
+    searchParams?.get("checkInAt") ??
     searchParams?.get("check_in") ??
     searchParams?.get("check-in") ??
     searchParams?.get("checkin") ??
     "";
   const checkOut =
+    searchParams?.get("check_out_at") ??
+    searchParams?.get("checkOutAt") ??
     searchParams?.get("check_out") ??
     searchParams?.get("check-out") ??
     searchParams?.get("checkout") ??
@@ -68,8 +72,14 @@ export function RoomCard(props: RoomCardProps) {
   // Nối các tham số lọc vào đường dẫn detailHref để khách không bị mất dữ liệu lọc
   const queryParams = new URLSearchParams();
   if (propertyId) queryParams.set("property_id", propertyId);
-  if (checkIn) queryParams.set("check_in", checkIn);
-  if (checkOut) queryParams.set("check_out", checkOut);
+  if (checkIn) {
+    queryParams.set("check_in", checkIn);
+    queryParams.set("check_in_at", checkIn);
+  }
+  if (checkOut) {
+    queryParams.set("check_out", checkOut);
+    queryParams.set("check_out_at", checkOut);
+  }
   if (capacityParam) queryParams.set("capacity", capacityParam);
 
   const queryString = queryParams.toString();
@@ -168,7 +178,7 @@ export function RoomCard(props: RoomCardProps) {
                   <span className="text-lg font-bold text-primary">
                     {formatVND(price)}
                   </span>
-                  <span className="text-xs text-dark/60"> / đêm</span>
+                  <span className="text-xs text-dark/60"> / giờ</span>
                 </>
               ) : (
                 <span className="text-base font-semibold text-dark/60">

@@ -77,12 +77,16 @@ export default async function RoomDetailPage({
 
   const propertyId = getFirstParam(resolvedSearchParams.property_id);
   const checkIn = getFirstParam(
-    resolvedSearchParams.check_in ??
+    resolvedSearchParams.check_in_at ??
+      resolvedSearchParams.checkInAt ??
+      resolvedSearchParams.check_in ??
       resolvedSearchParams["check-in"] ??
       resolvedSearchParams.checkin
   );
   const checkOut = getFirstParam(
-    resolvedSearchParams.check_out ??
+    resolvedSearchParams.check_out_at ??
+      resolvedSearchParams.checkOutAt ??
+      resolvedSearchParams.check_out ??
       resolvedSearchParams["check-out"] ??
       resolvedSearchParams.checkout
   );
@@ -93,11 +97,13 @@ export default async function RoomDetailPage({
   );
 
   const todayVN = getTodayInVietnam();
-  const hasValidDatePair =
-    isValidCalendarDate(checkIn) &&
-    isValidCalendarDate(checkOut) &&
-    checkIn >= todayVN &&
-    checkOut > checkIn;
+  const isHourly = checkIn.includes("T") || checkIn.includes(":");
+  const hasValidDatePair = isHourly
+    ? Boolean(checkIn && checkOut && checkOut > checkIn)
+    : isValidCalendarDate(checkIn) &&
+      isValidCalendarDate(checkOut) &&
+      checkIn >= todayVN &&
+      checkOut > checkIn;
 
   const capacityNum = /^\d+$/.test(capacityRaw) ? Number(capacityRaw) : 0;
   const initialGuests =

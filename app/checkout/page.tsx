@@ -60,6 +60,8 @@ interface CheckoutPageProps {
     roomId?: string;
     checkIn?: string;
     checkOut?: string;
+    checkInAt?: string;
+    checkOutAt?: string;
     guests?: string;
     sessionId?: string;
   }>;
@@ -72,14 +74,27 @@ interface CheckoutPageProps {
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
-
 function isValidUUID(v: unknown): v is string {
   return typeof v === "string" && UUID_REGEX.test(v);
 }
 
-function isValidDate(v: unknown): v is string {
-  return typeof v === "string" && DATE_REGEX.test(v);
+function parseToVietnamTimestamp(v: unknown, defaultHour: string = "14:00"): number | null {
+  if (typeof v !== "string" || !v.trim()) return null;
+  const trimmed = v.trim();
+  // Format: YYYY-MM-DDTHH:mm
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(trimmed)) {
+    const withOffset = trimmed.length === 16 ? `${trimmed}:00+07:00` : `${trimmed}+07:00`;
+    const d = new Date(withOffset);
+    return isNaN(d.getTime()) ? null : d.getTime();
+  }
+  // Format: YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    const withOffset = `${trimmed}T${defaultHour}:00+07:00`;
+    const d = new Date(withOffset);
+    return isNaN(d.getTime()) ? null : d.getTime();
+  }
+  const d = new Date(trimmed);
+  return isNaN(d.getTime()) ? null : d.getTime();
 }
 
 // ---------------------------------------------------------------------------
@@ -90,23 +105,34 @@ export default async function CheckoutPage({
   searchParams,
 }: CheckoutPageProps) {
   // ── 1. Đọc searchParams TRƯỚC để xây dựng returnUrl đầy đủ ──────────────────
-  //    Bảo lưu toàn bộ query params (roomId, checkIn, checkOut, guests)
+  //    Bảo lưu toàn bộ query params (roomId, checkIn, checkOut, checkInAt, checkOutAt, guests)
   //    vào returnUrl trước khi gọi auth. Nếu user chưa đăng nhập,
-  //    sau login sẽ redirect đúng về phòng và ngày đã chọn.
+  //    sau login sẽ redirect đúng về phòng và thời gian đã chọn.
   const params = await searchParams;
   const {
     roomId,
-    checkIn,
-    checkOut,
+    checkIn: rawCheckIn,
+    checkOut: rawCheckOut,
+    checkInAt: rawCheckInAt,
+    checkOutAt: rawCheckOutAt,
     guests: guestsStr,
     sessionId: existingSessionId,
   } = params;
 
+  const checkIn = rawCheckInAt || rawCheckIn;
+  const checkOut = rawCheckOutAt || rawCheckOut;
+
   // Xây dựng returnUrl chứa đủ query params để sau login quay lại đúng trang
   const rawQuery = new URLSearchParams();
   if (roomId) rawQuery.set("roomId", roomId);
-  if (checkIn) rawQuery.set("checkIn", checkIn);
-  if (checkOut) rawQuery.set("checkOut", checkOut);
+  if (checkIn) {
+    rawQuery.set("checkIn", checkIn);
+    rawQuery.set("checkInAt", checkIn);
+  }
+  if (checkOut) {
+    rawQuery.set("checkOut", checkOut);
+    rawQuery.set("checkOutAt", checkOut);
+  }
   if (guestsStr) rawQuery.set("guests", guestsStr);
   if (existingSessionId) rawQuery.set("sessionId", existingSessionId);
   const returnUrl =
@@ -235,13 +261,16 @@ export default async function CheckoutPage({
     );
   }
 
-  // Validate ngày
-  if (!isValidDate(checkIn) || !isValidDate(checkOut)) {
+  // Validate thời gian nhận và trả phòng
+  const tIn = parseToVietnamTimestamp(checkIn, "14:00");
+  const tOut = parseToVietnamTimestamp(checkOut, "18:00");
+
+  if (!tIn || !tOut) {
     return (
       <CheckoutPageLayout>
         <CheckoutError
-          title="Ngày lưu trú không hợp lệ"
-          message="Ngày nhận phòng hoặc trả phòng không đúng định dạng. Vui lòng quay lại và chọn ngày lại."
+          title="Thời gian lưu trú không hợp lệ"
+          message="Thời gian nhận phòng hoặc trả phòng không đúng định dạng. Vui lòng quay lại và chọn thời gian lại."
           backHref={`/rooms/${roomId}`}
           backLabel="Quay lại trang phòng"
         />
@@ -249,19 +278,13 @@ export default async function CheckoutPage({
     );
   }
 
-  // Validate logic ngày
-  // [RE-REVIEW #2 — Điểm 5] Tính ngày hôm nay theo múi giờ Asia/Ho_Chi_Minh.
-  // Dùng Intl.DateTimeFormat để tránh lỗi lệch ngày ở khung giờ 00:00–06:59 VN
-  // khi server chạy UTC (new Date().toISOString().split("T")[0] sẽ trả ngày hôm qua).
-  const today = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Ho_Chi_Minh",
-  }).format(new Date()); // → "YYYY-MM-DD"
-  if (checkIn < today) {
+
+  if (tOut <= tIn) {
     return (
       <CheckoutPageLayout>
         <CheckoutError
-          title="Ngày nhận phòng không hợp lệ"
-          message="Ngày nhận phòng không thể ở trong quá khứ. Vui lòng chọn ngày từ hôm nay trở đi."
+          title="Thời gian trả phòng không hợp lệ"
+          message="Thời gian trả phòng phải sau thời gian nhận phòng."
           backHref={`/rooms/${roomId}`}
           backLabel="Quay lại trang phòng"
         />
@@ -269,12 +292,26 @@ export default async function CheckoutPage({
     );
   }
 
-  if (checkOut <= checkIn) {
+  const durationHours = Math.ceil((tOut - tIn) / (60 * 60 * 1000));
+  if (durationHours < 2) {
     return (
       <CheckoutPageLayout>
         <CheckoutError
-          title="Ngày trả phòng không hợp lệ"
-          message="Ngày trả phòng phải sau ngày nhận phòng ít nhất 1 đêm."
+          title="Thời lượng thuê không hợp lệ"
+          message="Thời lượng thuê phòng theo giờ tối thiểu là 2 giờ."
+          backHref={`/rooms/${roomId}`}
+          backLabel="Quay lại trang phòng"
+        />
+      </CheckoutPageLayout>
+    );
+  }
+
+  if (durationHours > 24) {
+    return (
+      <CheckoutPageLayout>
+        <CheckoutError
+          title="Thời lượng thuê vượt quá giới hạn"
+          message="Thời lượng đặt phòng tối đa là 24 giờ cho mỗi phiên."
           backHref={`/rooms/${roomId}`}
           backLabel="Quay lại trang phòng"
         />
@@ -286,8 +323,8 @@ export default async function CheckoutPage({
   const guestCount = Math.max(1, parseInt(guestsStr ?? "1", 10) || 1);
 
   // Tải thông tin phòng để hiển thị tên và kiểm tra capacity phía client.
-  // gross_amount_vnd được tính server-side bởi RPC create_checkout_session_atomic
-  // (nightly_price_vnd × số đêm) — không cần tính ở đây nữa.
+  // gross_amount_vnd được tính server-side bởi RPC create_hourly_checkout_session_atomic
+  // (hourly_price_vnd × số giờ) — không cần tính ở đây nữa.
   const { data: room, error: roomError } = await getPublicRoomById(roomId);
 
   if (roomError || !room) {
@@ -315,13 +352,12 @@ export default async function CheckoutPage({
     );
   }
 
-  // Tạo checkout session mới qua RPC (gross_amount_vnd được tính server-side).
-  // Không truyền grossAmountVnd — RPC tự tính từ nightly_price_vnd × số đêm.
+  // Tạo checkout session mới qua RPC (gross_amount_vnd được tính server-side từ hourly_price_vnd × số giờ)
   const { sessionId: newSessionId, error: createError } =
     await createCheckoutSession({
       roomId: room.id,
-      checkIn,
-      checkOut,
+      checkInAt: new Date(tIn).toISOString(),
+      checkOutAt: new Date(tOut).toISOString(),
       guestCount,
     });
 

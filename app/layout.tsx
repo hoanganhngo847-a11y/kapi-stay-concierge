@@ -61,7 +61,7 @@ export default function RootLayout({
                 Kỳ nghỉ của tôi
               </Link>
               <Link
-                href="/admin/dashboard"
+                href="/operations"
                 className="hidden md:inline-block px-3 py-1.5 text-sm font-medium text-dark/60 hover:text-dark hover:bg-dark/5 rounded-lg transition-colors"
               >
                 Dành cho Quản lý

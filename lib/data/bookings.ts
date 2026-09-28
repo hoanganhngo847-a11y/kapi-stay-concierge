@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { normalizeToVietnamISO } from "@/lib/utils/format";
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -153,6 +154,99 @@ export async function checkRoomAvailability(
   } catch (err) {
     console.error(
       "[checkRoomAvailability] Availability check failed:",
+      err
+    );
+    throw new Error(
+      "Không thể kiểm tra tình trạng phòng lúc này. Vui lòng thử lại."
+    );
+  }
+}
+
+
+/**
+ * Kiểm tra tính khả dụng của phòng theo khoảng thời gian giờ nhận và trả phòng.
+ *
+ * @param roomId - Mã định danh UUID của phòng
+ * @param checkInAt - Thời gian nhận phòng định dạng ISO hoặc YYYY-MM-DDTHH:mm
+ * @param checkOutAt - Thời gian trả phòng (phải sau check-in ít nhất 2 giờ)
+ * @returns Promise<boolean> - true nếu phòng còn trống
+ */
+export async function checkRoomAvailabilityHourly(
+  roomId: string,
+  checkInAt: string,
+  checkOutAt: string
+): Promise<boolean> {
+  if (!roomId || typeof roomId !== "string" || !UUID_REGEX.test(roomId.trim())) {
+    return false;
+  }
+
+  const isoIn = normalizeToVietnamISO(checkInAt);
+  const isoOut = normalizeToVietnamISO(checkOutAt);
+
+  if (!isoIn || !isoOut) {
+    return false;
+  }
+
+  const tIn = new Date(isoIn).getTime();
+  const tOut = new Date(isoOut).getTime();
+
+  // checkOutAt phải sau checkInAt
+  if (tOut <= tIn) {
+    return false;
+  }
+
+  // Minimum booking: 2 hours (7,200,000 ms)
+  if ((tOut - tIn) < 2 * 60 * 60 * 1000) {
+    return false;
+  }
+
+  // Không cho phép đặt phòng trong quá khứ (5 phút dung sai)
+  if (tIn < Date.now() - 5 * 60 * 1000) {
+    return false;
+  }
+
+  try {
+    const supabase = await createClient();
+
+    const { data: publicRoom, error: publicRoomError } = await supabase
+      .from("rooms")
+      .select("id, properties!inner(id)")
+      .eq("id", roomId.trim())
+      .eq("is_listed", true)
+      .eq("properties.is_active", true)
+      .maybeSingle();
+
+    if (publicRoomError) {
+      throw publicRoomError;
+    }
+
+    if (!publicRoom) {
+      return false;
+    }
+
+    const { data, error } = await supabase.rpc(
+      "check_room_availability_hourly",
+      {
+        p_room_id: roomId.trim(),
+        p_check_in_at: isoIn,
+        p_check_out_at: isoOut,
+      }
+    );
+
+    if (error) {
+      throw error;
+    }
+
+    if (typeof data !== "boolean") {
+      throw new Error(
+        "Unexpected non-boolean response from hourly availability check"
+      );
+    }
+
+    return data;
+  } catch (err) {
+    console.error(
+      "[checkRoomAvailabilityHourly] Availability check failed:",
       err
     );
     throw new Error(

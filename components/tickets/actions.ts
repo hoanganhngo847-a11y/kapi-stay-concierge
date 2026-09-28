@@ -206,3 +206,178 @@ export async function createGuestTicketAction(
     };
   }
 }
+
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export const CANONICAL_TICKET_STATUSES = [
+  "pending",
+  "in_progress",
+  "resolved",
+] as const;
+
+export type GuestTicketCanonicalStatus =
+  (typeof CANONICAL_TICKET_STATUSES)[number];
+
+export interface GuestTicketStatusRecord {
+  id: string;
+  booking_id: string;
+  category: string;
+  description: string;
+  status: GuestTicketCanonicalStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export type GetGuestTicketsResult =
+  | { success: true; data: GuestTicketStatusRecord[] }
+  | { success: false; error: string };
+
+const GENERIC_FETCH_ERROR_MESSAGE =
+  "Không thể tải danh sách yêu cầu hỗ trợ lúc này. Vui lòng thử lại sau.";
+
+/**
+ * Server Action đọc danh sách ticket của một booking từ góc nhìn khách lưu trú.
+ *
+ * Security & Integrity Invariants:
+ * 1. Validate bookingId là UUID hợp lệ trước khi query.
+ * 2. Không nhận userId từ client; RLS (user_id = auth.uid()) là authority cuối cùng.
+ * 3. Dùng createClient() hiện có từ @/lib/supabase/server (không dùng service_role).
+ * 4. Query public.tickets:
+ *    select id, booking_id, category, description, status, created_at, updated_at
+ *    eq("booking_id", cleanBookingId)
+ *    order("created_at", { ascending: false })
+ * 5. Fail-closed: Validate status trả về chỉ thuộc whitelist canonical (pending, in_progress, resolved).
+ * 6. Lỗi được log server-side, client chỉ nhận thông báo generic đã sanitized.
+ */
+export async function getGuestTicketsAction(
+  bookingId: string,
+  clientOverride?: {
+    from: (table: string) => {
+      select: (columns: string) => {
+        eq: (column: string, value: unknown) => {
+          order: (
+            column: string,
+            options?: { ascending?: boolean }
+          ) => PromiseLike<{ data: unknown; error: unknown }>;
+        };
+      };
+    };
+  }
+): Promise<GetGuestTicketsResult> {
+  try {
+    if (
+      !bookingId ||
+      typeof bookingId !== "string" ||
+      !UUID_REGEX.test(bookingId.trim())
+    ) {
+      return {
+        success: false,
+        error: "Mã đặt phòng không đúng định dạng.",
+      };
+    }
+
+    const cleanBookingId = bookingId.trim();
+    const supabase = clientOverride || (await createClient());
+
+    const { data, error } = await supabase
+      .from("tickets")
+      .select("id, booking_id, category, description, status, created_at, updated_at")
+      .eq("booking_id", cleanBookingId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error(
+        `[getGuestTicketsAction error]: Lỗi khi truy vấn tickets (${cleanBookingId}):`,
+        error
+      );
+      return {
+        success: false,
+        error: GENERIC_FETCH_ERROR_MESSAGE,
+      };
+    }
+
+    if (!Array.isArray(data)) {
+      console.error(
+        `[getGuestTicketsAction error]: Dữ liệu trả về không phải là mảng (${cleanBookingId}):`,
+        data
+      );
+      return {
+        success: false,
+        error: GENERIC_FETCH_ERROR_MESSAGE,
+      };
+    }
+
+    const tickets: GuestTicketStatusRecord[] = [];
+
+    for (const item of data) {
+      if (!item || typeof item !== "object") {
+        console.error(
+          `[getGuestTicketsAction error]: Bản ghi ticket không hợp lệ (${cleanBookingId}):`,
+          item
+        );
+        return {
+          success: false,
+          error: GENERIC_FETCH_ERROR_MESSAGE,
+        };
+      }
+
+      const t = item as Record<string, unknown>;
+
+      if (
+        typeof t.id !== "string" ||
+        !t.id.trim() ||
+        typeof t.booking_id !== "string" ||
+        !t.booking_id.trim() ||
+        typeof t.category !== "string" ||
+        typeof t.description !== "string" ||
+        typeof t.created_at !== "string" ||
+        typeof t.updated_at !== "string"
+      ) {
+        console.error(
+          `[getGuestTicketsAction error]: Cấu trúc ticket bị thiếu trường bắt buộc (${cleanBookingId}):`,
+          t
+        );
+        return {
+          success: false,
+          error: GENERIC_FETCH_ERROR_MESSAGE,
+        };
+      }
+
+      if (
+        typeof t.status !== "string" ||
+        !(CANONICAL_TICKET_STATUSES as readonly string[]).includes(t.status)
+      ) {
+        console.error(
+          `[getGuestTicketsAction error]: Trạng thái ticket không thuộc canonical whitelist (${cleanBookingId}, status=${String(t.status)}):`,
+          t
+        );
+        return {
+          success: false,
+          error: GENERIC_FETCH_ERROR_MESSAGE,
+        };
+      }
+
+      tickets.push({
+        id: t.id,
+        booking_id: t.booking_id,
+        category: t.category,
+        description: t.description,
+        status: t.status as GuestTicketCanonicalStatus,
+        created_at: t.created_at,
+        updated_at: t.updated_at,
+      });
+    }
+
+    return {
+      success: true,
+      data: tickets,
+    };
+  } catch (err: unknown) {
+    console.error("[getGuestTicketsAction error]:", err);
+    return {
+      success: false,
+      error: GENERIC_FETCH_ERROR_MESSAGE,
+    };
+  }
+}

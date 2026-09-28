@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { calculateStayLifecycle } from "@/lib/utils/stay";
 
 export interface MyStayCredentialsRpcResponse {
   success: boolean;
@@ -21,6 +22,8 @@ export interface MyStayBookingDetails {
   roomId: string;
   checkIn: string;
   checkOut: string;
+  checkInAt?: string | null;
+  checkOutAt?: string | null;
   guestCount: number;
   finalPaidAmount: number;
   bookingStatus: string;
@@ -205,6 +208,8 @@ export async function getMyStayBookingDetails(
       room_id,
       check_in,
       check_out,
+      check_in_at,
+      check_out_at,
       guest_count,
       gross_amount_vnd,
       discount_amount_vnd,
@@ -293,32 +298,24 @@ export async function getMyStayBookingDetails(
   const roomImages = Array.isArray(room.image_paths) ? room.image_paths : [];
   const roomAmenities = Array.isArray(room.amenities) ? room.amenities : [];
 
-  // 6. Time-window calculation for lifecycle UX only (Asia/Ho_Chi_Minh: UTC+7)
-  const checkInDateStr = booking.check_in.includes("T")
-    ? booking.check_in.split("T")[0].trim()
-    : booking.check_in.trim();
-  const checkOutDateStr = booking.check_out.includes("T")
-    ? booking.check_out.split("T")[0].trim()
-    : booking.check_out.trim();
+  // 6. Time-window calculation for lifecycle UX (Asia/Ho_Chi_Minh)
+  const lifecycle = calculateStayLifecycle(
+    booking.check_in_at,
+    booking.check_out_at,
+    booking.check_in,
+    booking.check_out,
+    Date.now(),
+    booking.booking_status
+  );
 
-  // Check-in day starts at 00:00:00 UTC+7; Check-out day ends at 23:59:59.999 UTC+7
-  const checkInStartTime = new Date(`${checkInDateStr}T00:00:00+07:00`).getTime();
-  const checkOutEndTime = new Date(`${checkOutDateStr}T23:59:59.999+07:00`).getTime();
-  const now = Date.now();
-
-  const isCancelled = booking.booking_status.toLowerCase() === "cancelled";
-  const isUpcoming = now < checkInStartTime;
-  const isExpired = now > checkOutEndTime;
-  const isActiveStay = !isCancelled && now >= checkInStartTime && now <= checkOutEndTime;
-
-  let stayStatus: "ACTIVE" | "UPCOMING" | "COMPLETED" | "CANCELLED" = "ACTIVE";
-  if (isCancelled) {
-    stayStatus = "CANCELLED";
-  } else if (isUpcoming) {
-    stayStatus = "UPCOMING";
-  } else if (isExpired) {
-    stayStatus = "COMPLETED";
-  }
+  const {
+    stayStatus,
+    isActiveStay,
+    isUpcoming,
+    isExpired,
+    isCancelled,
+    isHourly,
+  } = lifecycle;
 
   // 7. Security: Call trusted RPC get_my_stay_credentials
   let passcode: string | null = null;
@@ -395,7 +392,9 @@ export async function getMyStayBookingDetails(
   let activationNotice: string | null = null;
   if (!hasActiveCredential) {
     if (isUpcoming) {
-      activationNotice = "Mã khóa và Wi-Fi sẽ kích hoạt vào ngày nhận phòng";
+      activationNotice = isHourly
+        ? "Mã khóa và Wi-Fi sẽ kích hoạt khi đến giờ nhận phòng."
+        : "Mã khóa và Wi-Fi sẽ kích hoạt vào ngày nhận phòng.";
     } else if (isExpired) {
       activationNotice = "Kỳ nghỉ đã kết thúc. Mã khóa và Wi-Fi đã hết hiệu lực.";
     } else if (isCancelled) {
@@ -411,6 +410,8 @@ export async function getMyStayBookingDetails(
     roomId: booking.room_id,
     checkIn: booking.check_in,
     checkOut: booking.check_out,
+    checkInAt: booking.check_in_at,
+    checkOutAt: booking.check_out_at,
     guestCount: booking.guest_count,
     finalPaidAmount: Number(booking.final_paid_amount_vnd) || 0,
     bookingStatus: booking.booking_status,

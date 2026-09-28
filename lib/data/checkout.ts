@@ -36,6 +36,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import type { Tables } from "@/lib/database.types";
+import { normalizeToVietnamISO } from "@/lib/utils/format";
 
 // ---------------------------------------------------------------------------
 // Re-export kiểu tiện dụng để component có thể import từ một nơi duy nhất
@@ -53,6 +54,7 @@ export interface CheckoutSessionWithRoom extends CheckoutSession {
   room: {
     id: string;
     name: string;
+    hourly_price_vnd: number;
     nightly_price_vnd: number;
     capacity: number;
     image_paths: string[];
@@ -68,12 +70,14 @@ export interface CheckoutSessionWithRoom extends CheckoutSession {
 /**
  * Dữ liệu đầu vào để tạo checkout session.
  * gross_amount_vnd KHÔNG được truyền vào — RPC tự tính server-side
- * từ nightly_price_vnd × số đêm để đảm bảo giá trị không bị giả mạo.
+ * từ hourly_price_vnd × số giờ để đảm bảo giá trị không bị giả mạo.
  */
 export interface CreateCheckoutSessionInput {
   roomId: string;
-  checkIn: string;   // ISO date string: "YYYY-MM-DD"
-  checkOut: string;  // ISO date string: "YYYY-MM-DD"
+  checkIn?: string;    // legacy YYYY-MM-DD
+  checkOut?: string;   // legacy YYYY-MM-DD
+  checkInAt?: string;  // ISO datetime string
+  checkOutAt?: string; // ISO datetime string
   guestCount: number;
 }
 
@@ -92,15 +96,18 @@ export interface VoucherValidationResult {
 // ---------------------------------------------------------------------------
 
 const RPC_ERROR_MESSAGES: Record<string, string> = {
-  // create_checkout_session_atomic
+  // create_checkout_session_atomic / create_hourly_checkout_session_atomic
   UNAUTHORIZED: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
-  INVALID_DATE_RANGE: "Ngày nhận / trả phòng không hợp lệ.",
+  INVALID_DATE_RANGE: "Thời gian nhận / trả phòng không hợp lệ.",
+  MINIMUM_BOOKING_DURATION_2_HOURS: "Thời lượng đặt phòng tối thiểu là 2 giờ.",
+  MAXIMUM_BOOKING_DURATION_24_HOURS: "Thời lượng đặt phòng tối đa là 24 giờ cho mỗi lượt.",
+  CANNOT_BOOK_IN_PAST: "Thời gian nhận phòng không thể ở trong quá khứ.",
   INVALID_GUEST_COUNT: "Số khách không hợp lệ.",
   ROOM_NOT_FOUND_OR_UNLISTED:
     "Phòng không tồn tại hoặc hiện không còn nhận đặt phòng.",
   GUEST_COUNT_EXCEEDS_CAPACITY: "Số khách vượt quá sức chứa của phòng.",
   ROOM_NOT_AVAILABLE:
-    "Phòng đã được đặt trong khoảng thời gian này. Vui lòng chọn ngày khác.",
+    "Phòng đã được đặt trong khoảng thời gian này. Vui lòng chọn khung giờ khác.",
 
   // reserve_checkout_voucher_atomic
   CHECKOUT_SESSION_NOT_FOUND: "Không tìm thấy phiên đặt phòng.",
@@ -119,7 +126,6 @@ const RPC_ERROR_MESSAGES: Record<string, string> = {
   // release_checkout_voucher_atomic
   NO_RESERVED_VOUCHER_ATTACHED:
     "Không có voucher nào đang được gắn vào phiên này.",
-
 };
 
 function mapRpcError(errorCode: string | undefined | null, fallback: string): string {
@@ -149,14 +155,43 @@ export async function createCheckoutSession(
   input: CreateCheckoutSessionInput
 ): Promise<{ sessionId: string | null; error: string | null }> {
   try {
+    const rawCheckIn = input.checkInAt ?? input.checkIn;
+    const rawCheckOut = input.checkOutAt ?? input.checkOut;
+
+    if (!rawCheckIn || !rawCheckOut) {
+      return { sessionId: null, error: "Vui lòng chọn thời gian nhận và trả phòng." };
+    }
+
+    const isoIn = normalizeToVietnamISO(rawCheckIn);
+    const isoOut = normalizeToVietnamISO(rawCheckOut);
+
+    if (!isoIn || !isoOut) {
+      return { sessionId: null, error: "Thời gian nhận / trả phòng không hợp lệ." };
+    }
+
+    const tIn = new Date(isoIn).getTime();
+    const tOut = new Date(isoOut).getTime();
+
+    if (tIn < Date.now() - 5 * 60 * 1000) {
+      return { sessionId: null, error: "Thời gian nhận phòng không thể ở trong quá khứ." };
+    }
+
+    if (tOut <= tIn) {
+      return { sessionId: null, error: "Thời gian trả phòng phải sau thời gian nhận phòng." };
+    }
+
+    if ((tOut - tIn) < 2 * 60 * 60 * 1000) {
+      return { sessionId: null, error: "Thời lượng đặt phòng tối thiểu là 2 giờ." };
+    }
+
     const supabase = await createClient();
 
     const { data, error } = await supabase.rpc(
-      "create_checkout_session_atomic",
+      "create_hourly_checkout_session_atomic",
       {
         p_room_id: input.roomId,
-        p_check_in: input.checkIn,
-        p_check_out: input.checkOut,
+        p_check_in_at: isoIn,
+        p_check_out_at: isoOut,
         p_guest_count: input.guestCount,
       }
     );
@@ -228,6 +263,8 @@ export async function getCheckoutSession(
         id,
         user_id,
         room_id,
+        check_in_at,
+        check_out_at,
         check_in,
         check_out,
         guest_count,
@@ -242,6 +279,7 @@ export async function getCheckoutSession(
         rooms (
           id,
           name,
+          hourly_price_vnd,
           nightly_price_vnd,
           capacity,
           image_paths,
@@ -276,6 +314,7 @@ export async function getCheckoutSession(
       const r = roomObj as {
         id: string;
         name: string;
+        hourly_price_vnd?: number;
         nightly_price_vnd: number;
         capacity: number;
         image_paths: string[];
@@ -288,6 +327,7 @@ export async function getCheckoutSession(
       room = {
         id: r.id,
         name: r.name,
+        hourly_price_vnd: Number(r.hourly_price_vnd) || Math.round((Number(r.nightly_price_vnd) || 0) / 5) || 120000,
         nightly_price_vnd: Number(r.nightly_price_vnd) || 0,
         capacity: Number(r.capacity) || 1,
         image_paths: Array.isArray(r.image_paths) ? r.image_paths : [],
@@ -307,6 +347,8 @@ export async function getCheckoutSession(
       id: data.id,
       user_id: data.user_id,
       room_id: data.room_id,
+      check_in_at: data.check_in_at,
+      check_out_at: data.check_out_at,
       check_in: data.check_in,
       check_out: data.check_out,
       guest_count: data.guest_count,

@@ -1,5 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
-import { checkRoomAvailability } from "@/lib/data/bookings";
+import {
+  checkRoomAvailability,
+  checkRoomAvailabilityHourly,
+} from "@/lib/data/bookings";
+import { normalizeToVietnamISO } from "@/lib/utils/format";
 
 export const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -52,8 +56,6 @@ export function getTodayInVietnam(): string {
   return `${year}-${month}-${day}`;
 }
 
-
-
 export interface PublicProperty {
   id: string;
   name: string;
@@ -67,6 +69,7 @@ export interface PublicRoom {
   property_id: string;
   name: string;
   description: string | null;
+  hourly_price_vnd: number;
   nightly_price_vnd: number;
   capacity: number;
   amenities: string[];
@@ -120,6 +123,10 @@ export interface RoomCatalogFilters {
   "check-out"?: string | string[];
   checkIn?: string | string[];
   checkOut?: string | string[];
+  check_in_at?: string | string[];
+  check_out_at?: string | string[];
+  checkInAt?: string | string[];
+  checkOutAt?: string | string[];
   [key: string]: unknown;
 }
 
@@ -182,13 +189,16 @@ export async function getPublicRooms(filters?: RoomCatalogFilters): Promise<{
       }
     }
 
-    // (C) Validate check-in / check-out:
-    // Ưu tiên cao nhất key chuẩn (canonical) check_in và check_out. Chỉ fallback sang alias khi undefined.
+    // (C) Validate check-in / check-out (supports datetime and date):
     const rawCheckIn =
+      filters?.check_in_at ??
+      filters?.checkInAt ??
       filters?.check_in ??
       filters?.["check-in"] ??
       filters?.checkIn;
     const rawCheckOut =
+      filters?.check_out_at ??
+      filters?.checkOutAt ??
       filters?.check_out ??
       filters?.["check-out"] ??
       filters?.checkOut;
@@ -206,32 +216,65 @@ export async function getPublicRooms(filters?: RoomCatalogFilters): Promise<{
           ? rawCheckOut[0].trim()
           : "";
 
-    // Partial Date: Nếu URL chỉ có checkIn hoặc chỉ có checkOut (có 1 mà thiếu 1), return ngay { data: [], error: 'Vui lòng chọn đầy đủ ngày nhận và trả phòng' }. Không được bỏ qua filter.
+    // Partial Date: Nếu URL chỉ có checkIn hoặc chỉ có checkOut (có 1 mà thiếu 1)
     if ((checkIn && !checkOut) || (!checkIn && checkOut)) {
       return {
         data: [],
-        error: "Vui lòng chọn đầy đủ ngày nhận và trả phòng",
+        error: "Vui lòng chọn đầy đủ thời gian nhận và trả phòng",
       };
     }
 
+    const isHourlyInterval = checkIn.includes("T") || checkIn.includes(":") || checkOut.includes("T") || checkOut.includes(":");
+
     if (checkIn && checkOut) {
-      // 1. Kiểm tra phải đúng định dạng YYYY-MM-DD và là ngày hợp lệ theo lịch
-      if (!isValidCalendarDate(checkIn) || !isValidCalendarDate(checkOut)) {
-        return { data: [], error: "Ngày check-in/check-out không hợp lệ" };
-      }
+      if (isHourlyInterval) {
+        const isoIn = normalizeToVietnamISO(checkIn);
+        const isoOut = normalizeToVietnamISO(checkOut);
 
-      // 2. Quá khứ: Nếu có đủ 2 ngày hợp lệ, phải lấy ngày hiện tại (today) ép theo múi giờ Asia/Ho_Chi_Minh (đưa giờ về 00:00:00). Nếu checkIn nhỏ hơn ngày hiện tại, return ngay { data: [], error: 'Ngày nhận phòng không được nằm trong quá khứ' }.
-      const todayVNStr = getTodayInVietnam();
-      if (checkIn < todayVNStr) {
-        return {
-          data: [],
-          error: "Ngày nhận phòng không được nằm trong quá khứ",
-        };
-      }
+        if (!isoIn || !isoOut) {
+          return { data: [], error: "Thời gian nhận/trả phòng không hợp lệ" };
+        }
 
-      // 3. Kiểm tra checkOut phải lớn hơn checkIn
-      if (checkOut <= checkIn) {
-        return { data: [], error: "Ngày check-in/check-out không hợp lệ" };
+        const tIn = new Date(isoIn).getTime();
+        const tOut = new Date(isoOut).getTime();
+
+        if (tIn < Date.now() - 5 * 60 * 1000) {
+          return {
+            data: [],
+            error: "Thời gian nhận phòng không được nằm trong quá khứ",
+          };
+        }
+
+        if (tOut <= tIn) {
+          return {
+            data: [],
+            error: "Thời gian trả phòng phải sau thời gian nhận phòng",
+          };
+        }
+
+        if ((tOut - tIn) < 2 * 60 * 60 * 1000) {
+          return {
+            data: [],
+            error: "Thời lượng đặt phòng tối thiểu là 2 giờ",
+          };
+        }
+      } else {
+        // Fallback validation cho legacy calendar date (YYYY-MM-DD)
+        if (!isValidCalendarDate(checkIn) || !isValidCalendarDate(checkOut)) {
+          return { data: [], error: "Ngày check-in/check-out không hợp lệ" };
+        }
+
+        const todayVNStr = getTodayInVietnam();
+        if (checkIn < todayVNStr) {
+          return {
+            data: [],
+            error: "Ngày nhận phòng không được nằm trong quá khứ",
+          };
+        }
+
+        if (checkOut <= checkIn) {
+          return { data: [], error: "Ngày check-in/check-out không hợp lệ" };
+        }
       }
     }
 
@@ -248,6 +291,7 @@ export async function getPublicRooms(filters?: RoomCatalogFilters): Promise<{
         property_id,
         name,
         description,
+        hourly_price_vnd,
         nightly_price_vnd,
         capacity,
         amenities,
@@ -269,12 +313,11 @@ export async function getPublicRooms(filters?: RoomCatalogFilters): Promise<{
       query = query.eq("property_id", propertyId);
     }
 
-    // Đảm bảo biến capacity nếu được truyền vào DB query phải luôn là số nguyên dương hợp lệ
     if (Number.isInteger(capacityNum) && capacityNum > 0) {
       query = query.gte("capacity", capacityNum);
     }
 
-    query = query.order("nightly_price_vnd", { ascending: true });
+    query = query.order("hourly_price_vnd", { ascending: true });
 
     const { data, error } = await query;
 
@@ -298,6 +341,7 @@ export async function getPublicRooms(filters?: RoomCatalogFilters): Promise<{
         property_id: item.property_id,
         name: item.name,
         description: item.description,
+        hourly_price_vnd: Number(item.hourly_price_vnd) || Math.round((Number(item.nightly_price_vnd) || 0) / 5) || 120000,
         nightly_price_vnd: Number(item.nightly_price_vnd) || 0,
         capacity: Number(item.capacity) || 0,
         amenities: parseAmenities(item.amenities),
@@ -308,19 +352,15 @@ export async function getPublicRooms(filters?: RoomCatalogFilters): Promise<{
     });
 
     // =========================================================================
-    // 3. TÍNH TOÁN AVAILABILITY CHO KHOẢNG NGÀY ĐÃ ĐƯỢC VALIDATE HỢP LỆ
+    // 3. TÍNH TOÁN AVAILABILITY CHO KHOẢNG THỜI GIAN ĐÃ ĐƯỢC VALIDATE HỢP LỆ
     // =========================================================================
     if (checkIn && checkOut) {
       try {
-        // KHÔNG ĐƯỢC catch lỗi hệ thống/RPC rồi return null bên trong mapper để tránh UI hiểu nhầm là hết phòng.
-        // Để exception văng ra ngoài cho catch block xử lý và trả về error rõ ràng.
         const availabilityResults = await Promise.all(
           rooms.map(async (room) => {
-            const isAvailable = await checkRoomAvailability(
-              room.id,
-              checkIn,
-              checkOut
-            );
+            const isAvailable = isHourlyInterval
+              ? await checkRoomAvailabilityHourly(room.id, checkIn, checkOut)
+              : await checkRoomAvailability(room.id, checkIn, checkOut);
             return isAvailable ? room : null;
           })
         );
@@ -408,6 +448,7 @@ export async function getPublicRoomById(id: string): Promise<{
         property_id,
         name,
         description,
+        hourly_price_vnd,
         nightly_price_vnd,
         capacity,
         amenities,
@@ -443,6 +484,7 @@ export async function getPublicRoomById(id: string): Promise<{
         property_id: data.property_id,
         name: data.name,
         description: data.description,
+        hourly_price_vnd: Number(data.hourly_price_vnd) || Math.round((Number(data.nightly_price_vnd) || 0) / 5) || 120000,
         nightly_price_vnd: Number(data.nightly_price_vnd) || 0,
         capacity: Number(data.capacity) || 0,
         amenities: parseAmenities(data.amenities),

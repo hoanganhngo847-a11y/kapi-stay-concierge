@@ -69,9 +69,9 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
   }
 
   // Lấy tham số check-in và check-out từ URL:
-  // Ưu tiên cao nhất key chuẩn (canonical) check_in và check_out (dấu gạch dưới).
-  // Chỉ fallback sang alias cũ (check-in, check-out) khi param chuẩn bị undefined.
   const rawCheckIn =
+    resolvedParams.check_in_at ??
+    resolvedParams.checkInAt ??
     resolvedParams.check_in ??
     resolvedParams["check-in"] ??
     resolvedParams.checkin;
@@ -83,6 +83,8 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
         : "";
 
   const rawCheckOut =
+    resolvedParams.check_out_at ??
+    resolvedParams.checkOutAt ??
     resolvedParams.check_out ??
     resolvedParams["check-out"] ??
     resolvedParams.checkout;
@@ -102,6 +104,8 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
         capacity: capacity > 0 ? capacity : undefined,
         check_in: checkIn || undefined,
         check_out: checkOut || undefined,
+        check_in_at: checkIn || undefined,
+        check_out_at: checkOut || undefined,
       }),
     getActiveProperties(),
   ]);
@@ -133,10 +137,10 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
             <span>Quay lại trang chủ</span>
           </Link>
           <h1 className="text-2xl sm:text-3xl font-bold text-dark tracking-tight">
-            Danh sách phòng tại Kapi House
+            Danh sách phòng theo giờ tại Kapi Stay
           </h1>
           <p className="text-sm text-dark/60 mt-1">
-            Tất cả các phòng đều được trang bị hệ thống tự check-in 24/7 bằng mã khóa riêng biệt.
+            Thuê phòng theo giờ linh hoạt, tự check-in 24/7 với 8 chi nhánh trên toàn quốc.
           </p>
         </div>
       </div>
@@ -204,7 +208,7 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
               <p className="text-sm text-dark/60 mb-6 leading-relaxed">
                 {hasActiveFilters
                   ? `Không có phòng nào đáp ứng tiêu chí lọc${activePropertyName ? ` tại "${activePropertyName}"` : ""
-                  }${capacity > 0 ? ` cho từ ${capacity} khách` : ""}${checkIn && checkOut ? ` trong khoảng ngày ${checkIn} - ${checkOut}` : ""
+                  }${capacity > 0 ? ` cho từ ${capacity} khách` : ""}${checkIn && checkOut ? ` trong khoảng thời gian ${checkIn} - ${checkOut}` : ""
                   }. Quý khách vui lòng thử chọn cơ sở khác hoặc điều chỉnh thời gian lưu trú.`
                   : "Không tìm thấy phòng phù hợp trên hệ thống. Quý khách vui lòng quay lại sau."}
               </p>
@@ -247,7 +251,7 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
                     location={locationName}
                     maxGuests={room.capacity}
                     bedType={bedType}
-                    price={room.nightly_price_vnd}
+                    price={room.hourly_price_vnd}
                     room={room}
                   />
                 );

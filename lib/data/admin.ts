@@ -309,6 +309,8 @@ export interface StaffDashboardData {
     guest_phone?: string | null;
     check_in: string;
     check_out: string;
+    check_in_at?: string | null;
+    check_out_at?: string | null;
     guest_count: number;
     booking_status: string;
     payment_status: string;
@@ -809,6 +811,8 @@ export function validateStaffDashboardBoundary(data: unknown): StaffDashboardDat
     const guestPhone = validateOptionalString(b.guest_phone);
     const checkIn = validateRequiredDate(b.check_in, "check_in", context);
     const checkOut = validateRequiredDate(b.check_out, "check_out", context);
+    const checkInAt = validateOptionalTimestamp(b.check_in_at, "check_in_at", context);
+    const checkOutAt = validateOptionalTimestamp(b.check_out_at, "check_out_at", context);
     const guestCount = validatePositiveInteger(b.guest_count, "guest_count", context);
     const bookingStatus = validateRequiredString(b.booking_status, "booking_status", context);
     const paymentStatus = validateRequiredString(b.payment_status, "payment_status", context);
@@ -836,6 +840,8 @@ export function validateStaffDashboardBoundary(data: unknown): StaffDashboardDat
       guest_phone: guestPhone,
       check_in: checkIn,
       check_out: checkOut,
+      check_in_at: checkInAt,
+      check_out_at: checkOutAt,
       guest_count: guestCount,
       booking_status: bookingStatus,
       payment_status: paymentStatus,

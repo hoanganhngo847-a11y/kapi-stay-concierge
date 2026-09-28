@@ -20,10 +20,11 @@ export function GoogleSignInButton({ next, className }: GoogleSignInButtonProps)
 
       const supabase = createClient();
 
-      // Resolve callback origin from site URL or browser origin
+      // Resolve callback origin: prefer browser origin so preview and production redirect correctly
       const siteUrl =
-        process.env.NEXT_PUBLIC_SITE_URL ||
-        (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
+        typeof window !== "undefined"
+          ? window.location.origin
+          : process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
       const callbackUrl = new URL("/auth/callback", siteUrl);
       if (next) {
