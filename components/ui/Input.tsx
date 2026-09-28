@@ -43,7 +43,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           <label
             htmlFor={inputId}
             className={cn(
-              "text-sm font-medium text-dark/90",
+              "text-xs font-medium uppercase tracking-wider text-[#707072]",
               disabled && "opacity-60 cursor-not-allowed",
               labelClassName
             )}
@@ -54,7 +54,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
 
         <div className="relative flex items-center">
           {startIcon && (
-            <div className="absolute left-3.5 top-1/2 -translate-y-1/2 flex items-center justify-center text-dark/40 pointer-events-none shrink-0">
+            <div className="absolute left-3.5 top-1/2 -translate-y-1/2 flex items-center justify-center text-[#707072] pointer-events-none shrink-0">
               {startIcon}
             </div>
           )}
@@ -69,13 +69,13 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
               hasError ? errorId : helperText ? helperId : undefined
             }
             className={cn(
-              "w-full h-11 px-3.5 text-sm bg-white text-dark rounded-lg border transition-colors",
-              "placeholder:text-dark/40",
-              "focus:outline-none focus:ring-2",
+              "w-full h-11 px-4 text-sm bg-white text-[#111111] border transition-colors",
+              "placeholder:text-[#707072]",
+              "focus:outline-none focus:ring-1 focus:ring-[#111111] focus:border-[#111111]",
               hasError
                 ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20 text-rose-950"
-                : "border-dark/20 focus:border-primary focus:ring-primary/20",
-              disabled && "bg-dark/5 text-dark/40 cursor-not-allowed border-dark/10",
+                : "border-[#E5E5E5]",
+              disabled && "bg-[#F5F5F5] text-[#9E9EA0] cursor-not-allowed border-[#E5E5E5]",
               startIcon && "pl-10",
               endIcon && "pr-10",
               className
@@ -84,7 +84,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           />
 
           {endIcon && (
-            <div className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center justify-center text-dark/40 pointer-events-none shrink-0">
+            <div className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center justify-center text-[#707072] pointer-events-none shrink-0">
               {endIcon}
             </div>
           )}
@@ -95,7 +95,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             {errorMessage}
           </p>
         ) : helperText ? (
-          <p id={helperId} className="text-xs text-dark/60">
+          <p id={helperId} className="text-xs text-[#707072]">
             {helperText}
           </p>
         ) : null}

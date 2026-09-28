@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { User as UserIcon, LogOut, LogIn } from "lucide-react";
+import { User as UserIcon, LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -17,9 +17,8 @@ export async function AuthNav() {
     return (
       <Link
         href="/login"
-        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-sm font-medium text-primary bg-primary/10 hover:bg-primary/15 rounded-lg transition-colors"
+        className="inline-flex items-center gap-1.5 px-4 py-1.5 text-xs sm:text-sm font-medium text-white bg-[#111111] hover:bg-black rounded-full transition-colors"
       >
-        <LogIn className="w-4 h-4" />
         <span>Đăng nhập</span>
       </Link>
     );
@@ -37,9 +36,9 @@ export async function AuthNav() {
     "Thành viên";
 
   return (
-    <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-3 border-l border-dark/10">
-      <div className="flex items-center gap-1.5 text-xs sm:text-sm font-medium text-dark/80 max-w-[130px] sm:max-w-[160px] truncate">
-        <UserIcon className="w-4 h-4 text-primary shrink-0" />
+    <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-3 border-l border-[#E5E5E5]">
+      <div className="flex items-center gap-1.5 text-xs sm:text-sm font-medium text-[#111111] max-w-[130px] sm:max-w-[160px] truncate">
+        <UserIcon className="w-4 h-4 text-[#111111] shrink-0" />
         <span className="truncate">{displayName}</span>
       </div>
 
@@ -47,7 +46,7 @@ export async function AuthNav() {
         <button
           type="submit"
           title="Đăng xuất"
-          className="p-1.5 sm:px-2.5 sm:py-1.5 inline-flex items-center gap-1 text-xs font-medium text-dark/60 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+          className="p-1.5 sm:px-2.5 sm:py-1.5 inline-flex items-center gap-1 text-xs font-medium text-[#707072] hover:text-[#111111] hover:bg-[#F5F5F5] rounded-full transition-colors"
         >
           <LogOut className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">Đăng xuất</span>

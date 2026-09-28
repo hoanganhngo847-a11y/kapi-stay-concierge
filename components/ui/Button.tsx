@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "primary" | "outline" | "ghost" | "secondary";
+  variant?: "primary" | "outline" | "ghost" | "secondary" | "inverse";
   size?: "sm" | "md" | "lg";
   isLoading?: boolean;
   leftIcon?: React.ReactNode;
@@ -13,19 +13,21 @@ export interface ButtonProps
 
 const buttonVariants: Record<NonNullable<ButtonProps["variant"]>, string> = {
   primary:
-    "bg-primary text-white shadow-sm hover:bg-primary-600 active:bg-primary-700 focus-visible:ring-primary/40 disabled:bg-primary-300 disabled:cursor-not-allowed",
+    "bg-[#111111] text-[#FFFFFF] hover:bg-black active:bg-neutral-800 focus-visible:ring-[#111111]/30 disabled:bg-[#9E9EA0] disabled:text-white/80 disabled:cursor-not-allowed",
+  inverse:
+    "bg-[#FFFFFF] text-[#111111] hover:bg-[#F5F5F5] active:bg-[#E5E5E5] focus-visible:ring-[#FFFFFF]/40 disabled:bg-[#9E9EA0] disabled:text-white disabled:cursor-not-allowed",
   outline:
-    "border border-dark/20 text-dark bg-transparent hover:bg-dark/5 active:bg-dark/10 focus-visible:ring-dark/20 disabled:border-dark/10 disabled:text-dark/40 disabled:cursor-not-allowed",
+    "border border-[#E5E5E5] text-[#111111] bg-transparent hover:bg-[#F5F5F5] active:bg-[#E5E5E5] focus-visible:ring-[#111111]/20 disabled:border-[#E5E5E5] disabled:text-[#9E9EA0] disabled:cursor-not-allowed",
   ghost:
-    "bg-transparent text-dark hover:bg-dark/5 active:bg-dark/10 focus-visible:ring-dark/20 disabled:text-dark/40 disabled:cursor-not-allowed",
+    "bg-transparent text-[#111111] hover:bg-[#F5F5F5] active:bg-[#E5E5E5] focus-visible:ring-[#111111]/20 disabled:text-[#9E9EA0] disabled:cursor-not-allowed",
   secondary:
-    "bg-secondary text-white shadow-sm hover:bg-secondary-600 active:bg-secondary-700 focus-visible:ring-secondary/40 disabled:bg-secondary-300 disabled:cursor-not-allowed",
+    "bg-[#F5F5F5] text-[#111111] hover:bg-[#E5E5E5] active:bg-[#D4D4D4] focus-visible:ring-[#111111]/20 disabled:bg-[#F5F5F5] disabled:text-[#9E9EA0] disabled:cursor-not-allowed",
 };
 
 const buttonSizes: Record<NonNullable<ButtonProps["size"]>, string> = {
-  sm: "h-8 px-3 text-xs rounded-md gap-1.5",
-  md: "h-10 px-4 text-sm rounded-lg gap-2",
-  lg: "h-12 px-6 text-base rounded-xl gap-2.5",
+  sm: "h-8 px-4 text-xs rounded-full gap-1.5",
+  md: "h-11 px-5 text-sm rounded-full gap-2",
+  lg: "h-13 px-7 text-base rounded-full gap-2.5",
 };
 
 const spinnerSizes: Record<NonNullable<ButtonProps["size"]>, string> = {

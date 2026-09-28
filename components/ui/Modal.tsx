@@ -90,9 +90,9 @@ export const Modal: React.FC<ModalProps> = ({
       aria-modal="true"
       className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
     >
-      {/* Backdrop làm mờ nền */}
+      {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-dark/60 backdrop-blur-sm transition-opacity duration-200 animate-in fade-in"
+        className="fixed inset-0 bg-black/40 transition-opacity duration-200 animate-in fade-in"
         onClick={closeOnOverlayClick ? onClose : undefined}
         aria-hidden="true"
       />
@@ -100,7 +100,7 @@ export const Modal: React.FC<ModalProps> = ({
       {/* Modal Dialog Content */}
       <div
         className={cn(
-          "relative w-full bg-white text-dark rounded-2xl shadow-2xl border border-dark/10 overflow-hidden z-10",
+          "relative w-full bg-white text-[#111111] border border-[#E5E5E5] overflow-hidden z-10",
           "transform transition-all duration-200 animate-in fade-in zoom-in-95",
           modalSizes[size],
           className
@@ -108,14 +108,14 @@ export const Modal: React.FC<ModalProps> = ({
       >
         {/* Header */}
         {(title || description) && (
-          <div className="px-6 pt-6 pb-4 border-b border-dark/10 pr-14">
+          <div className="px-6 pt-6 pb-4 border-b border-[#E5E5E5] pr-14">
             {title && (
-              <h3 className="text-lg font-semibold text-dark leading-none">
+              <h3 className="text-lg font-semibold text-[#111111] leading-none">
                 {title}
               </h3>
             )}
             {description && (
-              <p className="text-sm text-dark/60 mt-1.5 leading-relaxed">
+              <p className="text-sm text-[#707072] mt-2 leading-relaxed">
                 {description}
               </p>
             )}
@@ -127,7 +127,7 @@ export const Modal: React.FC<ModalProps> = ({
           type="button"
           onClick={onClose}
           aria-label="Đóng hộp thoại"
-          className="absolute top-4 right-4 p-2 rounded-lg text-dark/50 hover:text-dark hover:bg-dark/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+          className="absolute top-4 right-4 p-2 rounded-full text-[#707072] hover:text-[#111111] hover:bg-[#F5F5F5] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111111]/30"
         >
           <X className="w-5 h-5" aria-hidden="true" />
         </button>
@@ -139,7 +139,7 @@ export const Modal: React.FC<ModalProps> = ({
 
         {/* Footer */}
         {footer && (
-          <div className="px-6 py-4 bg-dark/2 border-t border-dark/10 flex items-center justify-end gap-3">
+          <div className="px-6 py-4 bg-[#F5F5F5]/60 border-t border-[#E5E5E5] flex items-center justify-end gap-3">
             {footer}
           </div>
         )}
