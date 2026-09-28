@@ -15,7 +15,6 @@ import React, { useState, useTransition } from "react";
 import {
   CalendarDays,
   Users,
-  Moon,
   MapPin,
   Tag,
   ChevronDown,
@@ -85,17 +84,44 @@ export interface BookingSummaryProps {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Tính số đêm giữa 2 ngày ISO (YYYY-MM-DD) */
-function calcNights(checkIn: string, checkOut: string): number {
-  const a = new Date(checkIn).getTime();
-  const b = new Date(checkOut).getTime();
-  return Math.max(1, Math.round((b - a) / 86_400_000));
+/** Tính số giờ giữa 2 mốc thời gian (check_in_at / check_out_at hoặc legacy check_in / check_out) */
+function calcHours(
+  checkInAt?: string | null,
+  checkOutAt?: string | null,
+  checkIn?: string | null,
+  checkOut?: string | null
+): number {
+  const startStr = checkInAt || (checkIn ? (checkIn.includes("T") ? checkIn : `${checkIn}T14:00:00+07:00`) : "");
+  const endStr = checkOutAt || (checkOut ? (checkOut.includes("T") ? checkOut : `${checkOut}T18:00:00+07:00`) : "");
+  if (!startStr || !endStr) return 2;
+  const a = new Date(startStr).getTime();
+  const b = new Date(endStr).getTime();
+  const diffMinutes = Math.max(0, (b - a) / (1000 * 60));
+  return Math.max(2, Math.ceil(diffMinutes / 60));
 }
 
-/** Format ngày từ ISO sang dd/MM/yyyy */
-function formatDate(iso: string): string {
-  const [y, m, d] = iso.split("-");
-  return `${d}/${m}/${y}`;
+/** Format thời gian hiển thị thân thiện (HH:mm dd/MM/yyyy hoặc dd/MM/yyyy) */
+function formatDateTime(isoOrDateStr?: string | null): string {
+  if (!isoOrDateStr) return "—";
+  try {
+    const d = new Date(isoOrDateStr);
+    if (isNaN(d.getTime())) return isoOrDateStr;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(isoOrDateStr)) {
+      const [y, m, day] = isoOrDateStr.split("-");
+      return `${day}/${m}/${y}`;
+    }
+    return new Intl.DateTimeFormat("vi-VN", {
+      timeZone: "Asia/Ho_Chi_Minh",
+      hour: "2-digit",
+      minute: "2-digit",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour12: false,
+    }).format(d);
+  } catch {
+    return isoOrDateStr;
+  }
 }
 
 /** Format thời gian hết hạn voucher còn lại */
@@ -222,12 +248,20 @@ export function BookingSummary({
   const [showVoucherPanel, setShowVoucherPanel] = useState(false);
   const [isPending, startTransition] = useTransition();
 
-  const nights = calcNights(session.check_in, session.check_out);
+  const hours = calcHours(
+    session.check_in_at,
+    session.check_out_at,
+    session.check_in,
+    session.check_out
+  );
   const gross = session.gross_amount_vnd;
   const discount = discountAmountVnd;
   const finalAmount = Math.max(0, gross - discount);
 
   const room = session.room;
+  const hourlyPrice =
+    room?.hourly_price_vnd ??
+    (room?.nightly_price_vnd ? Math.round(room.nightly_price_vnd / 5) : Math.round(gross / hours));
 
   function handleApply(redemptionId: string) {
     startTransition(() => {
@@ -306,7 +340,7 @@ export function BookingSummary({
                 Nhận phòng
               </p>
               <p className="text-sm font-semibold text-dark mt-0.5">
-                {formatDate(session.check_in)}
+                {formatDateTime(session.check_in_at || session.check_in)}
               </p>
             </div>
           </div>
@@ -323,21 +357,21 @@ export function BookingSummary({
                 Trả phòng
               </p>
               <p className="text-sm font-semibold text-dark mt-0.5">
-                {formatDate(session.check_out)}
+                {formatDateTime(session.check_out_at || session.check_out)}
               </p>
             </div>
           </div>
 
           <div className="flex items-start gap-3">
             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-              <Moon className="w-4 h-4 text-primary" aria-hidden="true" />
+              <Clock className="w-4 h-4 text-primary" aria-hidden="true" />
             </div>
             <div>
               <p className="text-xs text-dark/50 font-medium uppercase tracking-wide">
-                Số đêm
+                Thời lượng
               </p>
               <p className="text-sm font-semibold text-dark mt-0.5">
-                {nights} đêm
+                {hours} giờ
               </p>
             </div>
           </div>
@@ -483,9 +517,7 @@ export function BookingSummary({
         <div className="space-y-2.5">
           <div className="flex items-center justify-between">
             <span className="text-sm text-dark/70">
-              {room?.nightly_price_vnd
-                ? `${formatVND(room.nightly_price_vnd)} × ${nights} đêm`
-                : "Tổng tiền phòng"}
+              {`${formatVND(hourlyPrice)} × ${hours} giờ`}
             </span>
             <span className="text-sm font-medium text-dark">
               {formatVND(gross)}
