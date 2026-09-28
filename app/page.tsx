@@ -76,30 +76,18 @@ export default async function HomePage() {
 
         {/* Hero content */}
         <div className="relative z-10 w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 pb-16 sm:pb-20 text-white">
-          <p
-            className="text-xs sm:text-sm font-medium tracking-[0.2em] uppercase text-white/80 mb-3 animate-hero-headline"
-            style={{ animationDelay: "0ms" }}
-          >
+          <p className="text-xs sm:text-sm font-medium tracking-[0.2em] uppercase text-white/80 mb-3 animate-hero-eyebrow">
             KAPI STAY
           </p>
-          <h1
-            className="text-4xl sm:text-6xl lg:text-7xl font-normal tracking-tight leading-[1.02] max-w-3xl mb-4 animate-hero-headline"
-            style={{ animationDelay: "60ms" }}
-          >
+          <h1 className="text-4xl sm:text-6xl lg:text-7xl font-normal tracking-tight leading-[1.02] max-w-3xl mb-4 animate-hero-headline">
             Không gian riêng.<br />
             Theo giờ của bạn.
           </h1>
-          <p
-            className="text-sm sm:text-base lg:text-lg text-white/90 max-w-xl font-normal leading-relaxed mb-8 animate-hero-headline"
-            style={{ animationDelay: "120ms" }}
-          >
+          <p className="text-sm sm:text-base lg:text-lg text-white/90 max-w-xl font-normal leading-relaxed mb-8 animate-hero-subtitle">
             Đặt phòng linh hoạt theo giờ, tự check-in và chủ động thời gian lưu trú.
           </p>
 
-          <div
-            className="animate-hero-headline"
-            style={{ animationDelay: "220ms" }}
-          >
+          <div className="animate-hero-cta">
             <Link
               href="#search"
               className="inline-flex items-center justify-center px-8 py-3.5 rounded-full bg-white text-[#111111] hover:bg-[#F5F5F5] font-medium text-sm sm:text-base transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
@@ -112,9 +100,9 @@ export default async function HomePage() {
 
       {/* ── HOMEPAGE CONTENT LAYER (Transparent sections revealing the fixed background video) ── */}
       <div className="relative z-10 w-full bg-transparent">
-        {/* ── 2. QUICK SEARCH SECTION (Booking search control) ── */}
+        {/* ── 2. QUICK SEARCH SECTION (Booking search control with 30px fade-up) ── */}
         <section id="search" className="relative w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 bg-transparent">
-          <Reveal>
+          <Reveal duration={800} distance={30}>
             <div className="mb-6 inline-block bg-white/85 backdrop-blur-[4px] px-5 py-3 border border-[#E5E5E5]">
               <p className="text-xs font-medium uppercase tracking-[0.2em] text-[#707072] mb-1">
                 Tìm phòng nhanh
@@ -132,21 +120,27 @@ export default async function HomePage() {
         <section id="locations" className="relative w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20 border-t border-[#E5E5E5]/60 bg-transparent">
           <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-8 gap-4">
             <div className="inline-block bg-white/85 backdrop-blur-[4px] px-5 py-3 border border-[#E5E5E5]">
-              <p className="text-xs font-medium uppercase tracking-[0.2em] text-[#707072] mb-1">
-                Điểm đến
-              </p>
-              <h2 className="text-3xl sm:text-4xl font-normal tracking-tight text-[#111111]">
-                Hệ thống Kapi Stay
-              </h2>
+              <Reveal variant="fade-up" duration={500}>
+                <p className="text-xs font-medium uppercase tracking-[0.2em] text-[#707072] mb-1">
+                  Điểm đến
+                </p>
+              </Reveal>
+              <Reveal variant="fade-up" delay={80} duration={700}>
+                <h2 className="text-3xl sm:text-4xl font-normal tracking-tight text-[#111111]">
+                  Hệ thống Kapi Stay
+                </h2>
+              </Reveal>
             </div>
 
-            <Link
-              href="/rooms"
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-[#111111] hover:underline underline-offset-4 bg-white/85 backdrop-blur-[4px] px-4 py-2 border border-[#E5E5E5] w-fit"
-            >
-              <span>Xem tất cả phòng</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
+            <Reveal variant="fade-up" delay={240}>
+              <Link
+                href="/rooms"
+                className="group inline-flex items-center gap-1.5 text-xs font-medium text-[#111111] hover:underline underline-offset-4 bg-white/85 backdrop-blur-[4px] px-4 py-2 border border-[#E5E5E5] w-fit"
+              >
+                <span>Xem tất cả phòng</span>
+                <ArrowRight className="w-3.5 h-3.5 transition-transform duration-200 group-hover:translate-x-[3px]" />
+              </Link>
+            </Reveal>
           </div>
 
           {/* 4-column responsive grid */}
@@ -155,13 +149,13 @@ export default async function HomePage() {
               const href = tile.propertyId ? `/rooms?property_id=${tile.propertyId}` : "/rooms";
 
               return (
-                <Reveal key={tile.city + tile.area} delay={Math.min(300, idx * 60)}>
+                <Reveal key={tile.city + tile.area} delay={Math.min(350, idx * 70)}>
                   <Link
                     href={href}
                     className="group block relative overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111111]"
                   >
                     {/* Aspect ratio container */}
-                    <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#F5F5F5] group">
+                    <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#F5F5F5]">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={tile.image}
@@ -172,7 +166,7 @@ export default async function HomePage() {
                     </div>
 
                     {/* Content overlay */}
-                    <div className="absolute inset-0 p-5 flex flex-col justify-between pointer-events-none transition-transform duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:-translate-y-1">
+                    <div className="absolute inset-0 p-5 flex flex-col justify-between pointer-events-none transition-transform duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:-translate-y-[3px]">
                       <div>
                         <span className="text-[11px] font-medium tracking-widest uppercase text-white/80 block mb-1">
                           {tile.city}
@@ -182,7 +176,7 @@ export default async function HomePage() {
                         </h3>
                       </div>
 
-                      <span className="inline-flex items-center px-4 py-1.5 rounded-full bg-white text-[#111111] text-xs font-medium opacity-90 group-hover:opacity-100 transition-all duration-400 hover:scale-[1.02]">
+                      <span className="inline-flex items-center px-4 py-1.5 rounded-full bg-white text-[#111111] text-xs font-medium opacity-85 group-hover:opacity-100 transition-all duration-400 hover:scale-[1.02]">
                         Khám phá
                       </span>
                     </div>
@@ -193,11 +187,12 @@ export default async function HomePage() {
           </div>
         </section>
 
-        {/* ── 4. KAPI REWARDS PRESENTATION ── */}
+        {/* ── 4. KAPI REWARDS PRESENTATION (2-column horizontal drift over video) ── */}
         <section id="rewards" className="relative w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20 border-t border-[#E5E5E5]/60 bg-transparent">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+            {/* Left Block: fade-right (20px max) */}
             <div className="lg:col-span-6">
-              <Reveal>
+              <Reveal variant="fade-right" distance={20} duration={750}>
                 <div className="p-6 sm:p-8 bg-white/85 backdrop-blur-[4px] border border-[#E5E5E5] space-y-4">
                   <p className="text-xs font-medium uppercase tracking-[0.2em] text-[#707072]">
                     Kapi Rewards
@@ -244,9 +239,9 @@ export default async function HomePage() {
               </Reveal>
             </div>
 
-            {/* Loyalty card presentation */}
+            {/* Right Block: fade-left (20px max) */}
             <div className="lg:col-span-6">
-              <Reveal delay={120}>
+              <Reveal variant="fade-left" distance={20} delay={120} duration={750}>
                 <div className="border border-[#E5E5E5] bg-white p-6 sm:p-8">
                   <div className="flex items-center justify-between pb-6 border-b border-[#E5E5E5]">
                     <div>
@@ -317,7 +312,7 @@ export default async function HomePage() {
                 desc: "Hệ thống Concierge và tổng đài trực tuyến hỗ trợ liên tục qua Hotline và tin nhắn, giải quyết thắc mắc tức thì.",
               },
             ].map((principle, idx) => (
-              <Reveal key={principle.num} delay={idx * 80}>
+              <Reveal key={principle.num} delay={idx * 70} duration={700}>
                 <div className="p-6 sm:p-8 bg-white/85 backdrop-blur-[4px] border border-[#E5E5E5] space-y-2 h-full">
                   <span className="text-xs font-mono text-[#707072]">{principle.num}</span>
                   <h3 className="text-lg font-medium text-[#111111]">{principle.title}</h3>

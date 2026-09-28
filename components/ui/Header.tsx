@@ -52,10 +52,10 @@ export function Header({ authSlot }: HeaderProps) {
             <Link
               key={link.href}
               href={link.href}
-              className={`relative px-2.5 sm:px-3.5 py-1.5 text-xs sm:text-sm font-medium transition-colors after:content-[''] after:absolute after:bottom-0.5 after:left-2.5 after:right-2.5 after:h-[1.5px] after:bg-[#111111] after:transition-transform after:duration-250 after:ease-out after:origin-left ${
+              className={`relative px-2.5 sm:px-3.5 py-1.5 text-xs sm:text-sm font-medium transition-opacity duration-200 after:content-[''] after:absolute after:bottom-0.5 after:left-2.5 after:right-2.5 after:h-[1.5px] after:bg-[#111111] after:transition-transform after:duration-[220ms] after:ease-[cubic-bezier(0.16,1,0.3,1)] after:origin-left ${
                 link.isActive
-                  ? "text-[#111111] after:scale-x-100"
-                  : "text-[#707072] hover:text-[#111111] after:scale-x-0 hover:after:scale-x-100"
+                  ? "text-[#111111] opacity-100 after:scale-x-100"
+                  : "text-[#111111] opacity-65 hover:opacity-100 after:scale-x-0 hover:after:scale-x-100"
               }`}
             >
               {link.label}

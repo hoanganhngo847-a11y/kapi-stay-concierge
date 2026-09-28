@@ -3,12 +3,21 @@
 import React, { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { cn } from "@/lib/utils";
 
+export type RevealVariant =
+  | "fade-up"
+  | "fade-in"
+  | "fade-left"
+  | "fade-right"
+  | "scale-in";
+
 export interface RevealProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
-  delay?: number; // Delay in milliseconds
+  variant?: RevealVariant; // default: "fade-up"
+  delay?: number; // Delay in milliseconds (default: 0)
   duration?: number; // Duration in milliseconds (default: 700)
-  distance?: number; // Distance in pixels (default: 20)
+  distance?: number; // Distance in pixels (default: 24 on desktop, 14 on mobile)
   threshold?: number; // Intersection threshold (default: 0.15)
+  triggerOnce?: boolean; // Trigger only once (default: true)
   className?: string;
   as?: React.ElementType;
 }
@@ -29,16 +38,34 @@ function getReducedMotionServerSnapshot() {
   return false;
 }
 
+function subscribeMobile(callback: () => void) {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener("resize", callback);
+  return () => window.removeEventListener("resize", callback);
+}
+
+function getMobileSnapshot() {
+  if (typeof window === "undefined") return false;
+  return window.innerWidth < 768;
+}
+
+function getMobileServerSnapshot() {
+  return false;
+}
+
 /**
- * Lightweight Scroll Reveal component using IntersectionObserver.
- * Triggers once when scrolled into view and respects prefers-reduced-motion.
+ * Editorial Scroll Reveal Component.
+ * Supports fade-up, fade-in, fade-left, fade-right, scale-in variants.
+ * Adapts distance and duration for mobile, strictly respects prefers-reduced-motion.
  */
 export function Reveal({
   children,
+  variant = "fade-up",
   delay = 0,
   duration = 700,
-  distance = 20,
+  distance,
   threshold = 0.15,
+  triggerOnce = true,
   className,
   style,
   as: Component = "div",
@@ -46,27 +73,35 @@ export function Reveal({
 }: RevealProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [isVisible, setIsVisible] = useState(false);
+
   const prefersReducedMotion = useSyncExternalStore(
     subscribeReducedMotion,
     getReducedMotionSnapshot,
     getReducedMotionServerSnapshot
   );
 
+  const isMobile = useSyncExternalStore(
+    subscribeMobile,
+    getMobileSnapshot,
+    getMobileServerSnapshot
+  );
+
   useEffect(() => {
-    if (prefersReducedMotion) {
-      return;
-    }
+    if (prefersReducedMotion) return;
 
     const element = ref.current;
     if (!element) return;
 
-    // Use IntersectionObserver with single trigger
     const observer = new IntersectionObserver(
       (entries) => {
         const [entry] = entries;
         if (entry.isIntersecting) {
           setIsVisible(true);
-          observer.disconnect();
+          if (triggerOnce) {
+            observer.disconnect();
+          }
+        } else if (!triggerOnce) {
+          setIsVisible(false);
         }
       },
       {
@@ -80,26 +115,72 @@ export function Reveal({
     return () => {
       observer.disconnect();
     };
-  }, [threshold, prefersReducedMotion]);
+  }, [threshold, triggerOnce, prefersReducedMotion]);
+
+  const shouldShow = isVisible || prefersReducedMotion;
+
+  // Compute mobile-adjusted distance and duration
+  const actualDistance =
+    distance !== undefined
+      ? distance
+      : isMobile
+      ? 14
+      : variant === "fade-left" || variant === "fade-right"
+      ? 20
+      : 24;
+
+  const actualDuration = prefersReducedMotion
+    ? 0.01
+    : isMobile
+    ? Math.min(duration, 550)
+    : duration;
+
+  const actualDelay = prefersReducedMotion
+    ? 0
+    : isMobile
+    ? Math.min(delay, 240)
+    : delay;
+
+  // Compute transform based on variant
+  let hiddenTransform = "none";
+  switch (variant) {
+    case "fade-up":
+      hiddenTransform = `translateY(${actualDistance}px)`;
+      break;
+    case "fade-left":
+      hiddenTransform = `translateX(-${actualDistance}px)`;
+      break;
+    case "fade-right":
+      hiddenTransform = `translateX(${actualDistance}px)`;
+      break;
+    case "scale-in":
+      hiddenTransform = "scale(0.98)";
+      break;
+    case "fade-in":
+    default:
+      hiddenTransform = "none";
+      break;
+  }
 
   const Tag = Component as React.ElementType;
 
   return (
     <Tag
       ref={ref}
+      data-reveal={shouldShow ? "visible" : "hidden"}
       className={cn(className)}
       style={{
-        opacity: isVisible || prefersReducedMotion ? 1 : 0,
+        opacity: shouldShow ? 1 : 0,
         transform: prefersReducedMotion
           ? "none"
-          : isVisible
-          ? "translateY(0)"
-          : `translateY(${distance}px)`,
+          : shouldShow
+          ? "none"
+          : hiddenTransform,
         transitionProperty: "opacity, transform",
-        transitionDuration: prefersReducedMotion ? "0.01ms" : `${duration}ms`,
+        transitionDuration: `${actualDuration}ms`,
         transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
-        transitionDelay: prefersReducedMotion ? "0ms" : `${delay}ms`,
-        willChange: isVisible ? "auto" : "opacity, transform",
+        transitionDelay: `${actualDelay}ms`,
+        willChange: shouldShow ? "auto" : "opacity, transform",
         ...style,
       }}
       {...props}

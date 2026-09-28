@@ -85,7 +85,7 @@ body {
 @keyframes header-entrance {
   from {
     opacity: 0;
-    transform: translateY(-8px);
+    transform: translateY(-12px);
   }
   to {
     opacity: 1;
@@ -96,7 +96,7 @@ body {
 @keyframes hero-image-entrance {
   from {
     opacity: 0.92;
-    transform: scale(1.03);
+    transform: scale(1.025);
   }
   to {
     opacity: 1;
@@ -104,14 +104,56 @@ body {
   }
 }
 
-@keyframes hero-headline-entrance {
+@keyframes hero-eyebrow-entrance {
   from {
     opacity: 0;
-    transform: translateY(24px);
+    transform: translateY(14px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes hero-headline-entrance {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes hero-subtitle-entrance {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes hero-cta-entrance {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes divider-expand {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
   }
 }
 
@@ -120,15 +162,27 @@ body {
 }
 
 .animate-header-entrance {
-  animation: header-entrance 450ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: header-entrance 500ms cubic-bezier(0.16, 1, 0.3, 1) 100ms both;
 }
 
 .animate-hero-image {
   animation: hero-image-entrance 1100ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+.animate-hero-eyebrow {
+  animation: hero-eyebrow-entrance 600ms cubic-bezier(0.16, 1, 0.3, 1) 150ms both;
+}
+
 .animate-hero-headline {
-  animation: hero-headline-entrance 800ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: hero-headline-entrance 800ms cubic-bezier(0.16, 1, 0.3, 1) 250ms both;
+}
+
+.animate-hero-subtitle {
+  animation: hero-subtitle-entrance 700ms cubic-bezier(0.16, 1, 0.3, 1) 400ms both;
+}
+
+.animate-hero-cta {
+  animation: hero-cta-entrance 700ms cubic-bezier(0.16, 1, 0.3, 1) 550ms both;
 }
 
 @keyframes login-entrance {
@@ -143,7 +197,12 @@ body {
 }
 
 .animate-login-entrance {
-  animation: login-entrance 650ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: login-entrance 600ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-divider-expand {
+  transform-origin: left;
+  animation: divider-expand 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 /* Accessibility: Full reduced motion support across CSS transitions and animations */
@@ -157,6 +216,12 @@ body {
     scroll-behavior: auto !important;
   }
 
+  [data-reveal] {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+
   .hover\:scale-\[1\.02\]:hover,
   .hover\:scale-\[1\.035\]:hover,
   .hover\:scale-\[1\.025\]:hover,
@@ -164,8 +229,12 @@ body {
   .group:hover .group-hover\:scale-\[1\.035\],
   .group:hover .group-hover\:scale-\[1\.025\],
   .group:hover .group-hover\:scale-\[1\.015\],
+  .group:hover .group-hover\:-translate-y-\[3px\],
+  .group:hover .group-hover\:translate-x-\[2px\],
+  .group:hover .group-hover\:translate-x-\[3px\],
   .group:hover .group-hover\:scale-105 {
     transform: none !important;
   }
 }
+
 

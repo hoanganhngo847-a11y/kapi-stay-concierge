@@ -101,7 +101,7 @@ export const Modal: React.FC<ModalProps> = ({
       <div
         className={cn(
           "relative w-full bg-white text-[#111111] border border-[#E5E5E5] overflow-hidden z-10",
-          "transform transition-all duration-250 ease-[cubic-bezier(0.16,1,0.3,1)] animate-in fade-in zoom-in-[0.98] slide-in-from-bottom-2",
+          "transform transition-all duration-[240ms] ease-[cubic-bezier(0.16,1,0.3,1)] animate-in fade-in zoom-in-[0.98] slide-in-from-bottom-2",
           modalSizes[size],
           className
         )}

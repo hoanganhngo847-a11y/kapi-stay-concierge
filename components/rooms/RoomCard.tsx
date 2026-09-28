@@ -89,7 +89,7 @@ export function RoomCard(props: RoomCardProps) {
           <img
             src={rawCover}
             alt={name}
-            className="w-full h-full object-cover transition-transform duration-600 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.035] animate-in fade-in duration-400"
+            className="w-full h-full object-cover transition-transform duration-[550ms] ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.035] animate-in fade-in duration-400"
             onError={(e) => {
               e.currentTarget.style.display = "none";
               const parent = e.currentTarget.parentElement;
@@ -118,7 +118,7 @@ export function RoomCard(props: RoomCardProps) {
 
       {/* Information Hierarchy */}
       <div className="pt-3 pb-1">
-        <h2 className="relative inline-block text-base sm:text-lg font-medium text-[#111111] line-clamp-1 transition-transform duration-300 ease-out group-hover:translate-x-[2px] after:content-[''] after:absolute after:bottom-0 after:left-0 after:h-[1px] after:w-full after:bg-[#111111] after:scale-x-0 group-hover:after:scale-x-100 after:transition-transform after:duration-300 after:ease-out after:origin-left">
+        <h2 className="relative inline-block text-base sm:text-lg font-medium text-[#111111] line-clamp-1 transition-transform duration-200 ease-out group-hover:translate-x-[2px] after:content-[''] after:absolute after:bottom-0 after:left-0 after:h-[1px] after:w-full after:bg-[#111111] after:scale-x-0 group-hover:after:scale-x-100 after:transition-transform after:duration-[220ms] after:ease-out after:origin-left">
           {name}
         </h2>
         <p className="text-xs sm:text-sm text-[#707072] mt-0.5 line-clamp-1">
