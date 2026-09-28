@@ -255,6 +255,14 @@ export async function POST(request: Request) {
         ? parseInt(rawId, 10)
         : NaN;
 
+    // SePay's dashboard "Gửi thử" request uses event id 0.
+    // At this point the request has already passed timestamp + HMAC validation,
+    // so acknowledge the test without touching Supabase or payment state.
+    if (providerEventId === 0) {
+      console.info("[SePay Webhook][diag] authenticated SePay test payload accepted");
+      return NextResponse.json({ success: true }, { status: 200 });
+    }
+
     const rawGateway = payload.gateway;
     const rawAccountNumber = payload.accountNumber ?? payload.account_number;
     const rawTransferType = payload.transferType ?? payload.transfer_type;
