@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
 
 export interface HeaderProps {
   authSlot?: React.ReactNode;
@@ -29,11 +30,19 @@ export function Header({ authSlot }: HeaderProps) {
     { href: "/my-stay", label: "My Stay", isActive: pathname.startsWith("/my-stay") },
   ];
 
+  const isHomepage = pathname === "/";
+  const headerBgClass = isHomepage
+    ? isScrolled
+      ? "bg-white/95 border-b border-[#E5E5E5] backdrop-blur-[2px]"
+      : "bg-transparent border-b border-transparent"
+    : "bg-white/95 border-b border-[#E5E5E5] backdrop-blur-[2px]";
+
   return (
     <header
-      className={`sticky top-0 z-40 w-full bg-white/95 backdrop-blur-[2px] transition-colors duration-300 animate-header-entrance ${
-        isScrolled ? "border-b border-[#E5E5E5]" : "border-b border-transparent"
-      }`}
+      className={cn(
+        "sticky top-0 z-40 w-full transition-all duration-300 animate-header-entrance",
+        headerBgClass
+      )}
     >
       <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 h-17 flex items-center justify-between">
         {/* Logo KAPI STAY */}

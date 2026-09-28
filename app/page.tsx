@@ -5,6 +5,7 @@ import { ArrowRight, Check } from "lucide-react";
 import { getActiveProperties } from "@/lib/data/rooms";
 import { BookingSearchControl } from "@/components/rooms/BookingSearchControl";
 import { Reveal } from "@/components/ui/Reveal";
+import { HeroCinematic } from "@/components/home/HeroCinematic";
 
 export const dynamic = "force-dynamic";
 
@@ -56,55 +57,8 @@ export default async function HomePage() {
 
   return (
     <div className="w-full flex flex-col bg-white animate-page-entrance">
-      {/* ── 1. HERO SECTION (Photography-first, near full viewport) ── */}
-      <section className="relative w-full h-[88vh] min-h-[580px] max-h-[920px] flex items-end overflow-hidden">
-        {/* Full-bleed background photo */}
-        <div className="absolute inset-0 z-0 overflow-hidden">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=2000&q=85"
-            alt="Kapi Stay Không gian lưu trú cao cấp"
-            className="w-full h-full object-cover select-none animate-hero-image"
-          />
-          {/* Subtle gradient overlay strictly for high-contrast typography readability */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/20" />
-        </div>
-
-        {/* Hero content */}
-        <div className="relative z-10 w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 pb-16 sm:pb-20 text-white">
-          <p
-            className="text-xs sm:text-sm font-medium tracking-[0.2em] uppercase text-white/80 mb-3 animate-hero-headline"
-            style={{ animationDelay: "0ms" }}
-          >
-            KAPI STAY
-          </p>
-          <h1
-            className="text-4xl sm:text-6xl lg:text-7xl font-normal tracking-tight leading-[1.02] max-w-3xl mb-4 animate-hero-headline"
-            style={{ animationDelay: "60ms" }}
-          >
-            Không gian riêng.<br />
-            Theo giờ của bạn.
-          </h1>
-          <p
-            className="text-sm sm:text-base lg:text-lg text-white/90 max-w-xl font-normal leading-relaxed mb-8 animate-hero-headline"
-            style={{ animationDelay: "120ms" }}
-          >
-            Đặt phòng linh hoạt theo giờ, tự check-in và chủ động thời gian lưu trú.
-          </p>
-
-          <div
-            className="animate-hero-headline"
-            style={{ animationDelay: "220ms" }}
-          >
-            <Link
-              href="#search"
-              className="inline-flex items-center justify-center px-8 py-3.5 rounded-full bg-white text-[#111111] hover:bg-[#F5F5F5] font-medium text-sm sm:text-base transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-            >
-              Tìm phòng
-            </Link>
-          </div>
-        </div>
-      </section>
+      {/* ── 1. HERO SECTION (Cinematic Video Background) ── */}
+      <HeroCinematic />
 
       {/* ── 2. QUICK SEARCH SECTION (Booking search control) ── */}
       <section id="search" className="w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
