@@ -32,7 +32,7 @@ export default function RootLayout({
         <main className="flex-1">{children}</main>
 
         {/* Footer */}
-        <footer className="w-full bg-white border-t border-[#E5E5E5] py-12 mt-auto">
+        <footer className="relative z-10 w-full bg-white border-t border-[#E5E5E5] py-12 mt-auto">
           <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
             <div className="flex flex-col gap-1.5">
               <span className="font-semibold text-sm tracking-tight text-[#111111]">
