@@ -164,23 +164,26 @@ function MyStayContent() {
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+    <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 py-10 sm:py-14 space-y-8">
       {/* Form tra cứu đơn đặt phòng */}
-      <section className="bg-white rounded-2xl border border-dark/10 p-5 sm:p-6 shadow-sm space-y-4">
+      <section className="bg-white border border-[#E5E5E5] p-6 sm:p-8 space-y-5">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-dark tracking-tight">
+          <span className="text-[11px] font-medium tracking-widest uppercase text-[#707072] block mb-1">
+            Quản lý kỳ nghỉ
+          </span>
+          <h1 className="text-2xl sm:text-3xl font-normal text-[#111111] tracking-tight">
             Kỳ nghỉ của tôi
           </h1>
-          <p className="text-xs sm:text-sm text-dark/60 mt-1">
-            Tra cứu thông tin nhận phòng, mã khóa thông minh và hướng dẫn tiện ích lưu trú.
+          <p className="text-xs sm:text-sm text-[#707072] mt-1.5 leading-relaxed">
+            Tra cứu thông tin nhận phòng, mã khóa thông minh và hướng dẫn tiện ích lưu trú tại Kapi Stay.
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3">
-          <label htmlFor="bookingCode" className="block text-sm font-medium text-dark">
+          <label htmlFor="bookingCode" className="block text-xs font-medium uppercase tracking-wider text-[#707072]">
             Mã đặt phòng (Booking ID)
           </label>
-          <div className="flex flex-col sm:flex-row gap-2">
+          <div className="flex flex-col sm:flex-row gap-2.5">
             <input
               id="bookingCode"
               type="text"
@@ -190,17 +193,17 @@ function MyStayContent() {
                 if (errorMessage) setErrorMessage(null);
               }}
               placeholder="Nhập UUID đơn đặt phòng (VD: 123e4567-e89b-12d3-a456-426614174000)"
-              className="flex-1 px-3.5 py-2.5 border border-dark/20 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors font-mono"
+              className="flex-1 px-4 py-2.5 border border-[#E5E5E5] text-sm text-[#111111] focus:outline-none focus:border-[#111111] font-mono transition-colors"
             />
             <button
               type="submit"
               disabled={isLoading}
-              className="px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary-600 disabled:opacity-50 transition-colors shrink-0"
+              className="px-6 py-2.5 bg-[#111111] text-white rounded-full text-sm font-medium hover:bg-black disabled:bg-[#9E9EA0] disabled:cursor-not-allowed transition-colors shrink-0"
             >
               {isLoading ? "Đang tra cứu..." : "Tra cứu"}
             </button>
           </div>
-          <p className="text-xs text-dark/50">
+          <p className="text-[11px] text-[#707072]">
             Vui lòng nhập mã định danh đơn hàng (Booking ID) được cấp trong xác nhận đặt phòng của bạn.
           </p>
         </form>
@@ -208,7 +211,7 @@ function MyStayContent() {
         {errorMessage && (
           <div
             role="alert"
-            className="p-3.5 text-xs sm:text-sm text-rose-800 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between animate-in fade-in"
+            className="p-4 text-xs sm:text-sm text-[#111111] bg-[#F5F5F5] border border-rose-300 flex items-center justify-between"
           >
             <span>{errorMessage}</span>
             {errorMessage.includes("đăng nhập") && (
@@ -218,7 +221,7 @@ function MyStayContent() {
                     ? `/login?next=${encodeURIComponent(`/my-stay?${CANONICAL_PARAM}=${encodeURIComponent(bookingInput.trim())}`)}`
                     : "/login?next=/my-stay"
                 }
-                className="text-xs font-semibold underline ml-2 text-primary hover:text-primary-700 whitespace-nowrap"
+                className="text-xs font-medium underline ml-2 text-[#111111] hover:opacity-80 whitespace-nowrap"
               >
                 Đăng nhập ngay
               </a>
@@ -229,19 +232,19 @@ function MyStayContent() {
 
       {/* Thông tin kỳ nghỉ khi đã lookup thành công */}
       {stayData && (
-        <div className="space-y-6 animate-in fade-in duration-200">
+        <div className="space-y-6">
           {/* 1. Room & Property Info */}
-          <section className="bg-white rounded-2xl border border-dark/10 p-5 sm:p-6 shadow-sm space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-dark/10">
+          <section className="bg-white border border-[#E5E5E5] p-6 sm:p-8 space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-3 pb-5 border-b border-[#E5E5E5]">
               <div>
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-primary" />
-                  <h2 className="text-xl sm:text-2xl font-bold text-dark tracking-tight">
-                    {stayData.propertyName}
-                  </h2>
-                </div>
-                <p className="text-xs sm:text-sm text-dark/60 mt-1 flex items-start gap-1">
-                  <MapPin className="w-4 h-4 text-dark/40 shrink-0 mt-0.5" />
+                <span className="text-[11px] font-medium tracking-widest uppercase text-[#707072] block mb-1">
+                  Thông tin điểm đến
+                </span>
+                <h2 className="text-xl sm:text-2xl font-normal text-[#111111] tracking-tight">
+                  {stayData.propertyName}
+                </h2>
+                <p className="text-xs sm:text-sm text-[#707072] mt-1 flex items-start gap-1">
+                  <MapPin className="w-3.5 h-3.5 text-[#707072] shrink-0 mt-0.5" />
                   <span>{stayData.propertyAddress}</span>
                 </p>
               </div>
@@ -250,12 +253,10 @@ function MyStayContent() {
                 <Badge
                   variant={
                     stayData.stayStatus === "ACTIVE"
-                      ? "success"
+                      ? "primary"
                       : stayData.stayStatus === "UPCOMING"
                       ? "primary"
-                      : stayData.stayStatus === "COMPLETED"
-                      ? "neutral"
-                      : "danger"
+                      : "neutral"
                   }
                   size="md"
                 >
@@ -271,26 +272,26 @@ function MyStayContent() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs sm:text-sm">
-              <div className="p-3 bg-dark/2 rounded-xl">
-                <span className="text-dark/50 block text-xs">Phòng đã đặt</span>
-                <span className="font-semibold text-dark text-base mt-0.5 block">
+              <div className="p-4 bg-[#F5F5F5] border border-[#E5E5E5]">
+                <span className="text-[#707072] block text-[11px] uppercase tracking-wider mb-1">Phòng đã đặt</span>
+                <span className="font-medium text-[#111111] text-base block">
                   {stayData.roomName}
                 </span>
               </div>
 
-              <div className="p-3 bg-dark/2 rounded-xl">
-                <span className="text-dark/50 block text-xs">Thời gian lưu trú</span>
-                <span className="font-medium text-dark mt-0.5 block">
+              <div className="p-4 bg-[#F5F5F5] border border-[#E5E5E5]">
+                <span className="text-[#707072] block text-[11px] uppercase tracking-wider mb-1">Thời gian lưu trú</span>
+                <span className="font-medium text-[#111111] block">
                   {stayData.checkInAt && stayData.checkOutAt
                     ? `${formatStayDateTime(stayData.checkInAt)} → ${formatStayDateTime(stayData.checkOutAt)}`
                     : `${stayData.checkIn} → ${stayData.checkOut}`}
                 </span>
               </div>
 
-              <div className="p-3 bg-dark/2 rounded-xl">
-                <span className="text-dark/50 block text-xs">Mã đặt phòng (Booking ID)</span>
+              <div className="p-4 bg-[#F5F5F5] border border-[#E5E5E5]">
+                <span className="text-[#707072] block text-[11px] uppercase tracking-wider mb-1">Mã đặt phòng</span>
                 <span
-                  className="font-mono text-dark font-medium text-xs break-all mt-0.5 block"
+                  className="font-mono text-[#111111] font-medium text-xs break-all block"
                   title={stayData.bookingId}
                 >
                   {stayData.bookingId}
@@ -304,7 +305,7 @@ function MyStayContent() {
                   href={stayData.propertyMapsUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-xs text-primary font-medium hover:underline"
+                  className="inline-flex items-center gap-1.5 text-xs text-[#111111] font-medium hover:underline underline-offset-4"
                 >
                   <span>Xem vị trí trên Google Maps</span>
                   <ExternalLink className="w-3.5 h-3.5" />
@@ -325,20 +326,20 @@ function MyStayContent() {
                   stayStatus={stayData.stayStatus}
                 />
                 {stayData.instructions && (
-                  <div className="p-3.5 bg-primary/5 border border-primary/15 rounded-xl text-xs text-dark/80 leading-relaxed">
-                    <strong className="text-primary font-semibold">Chỉ dẫn mở cửa: </strong>
+                  <div className="p-4 bg-[#F5F5F5] border border-[#E5E5E5] text-xs text-[#111111] leading-relaxed">
+                    <strong className="font-medium text-[#111111]">Chỉ dẫn mở cửa: </strong>
                     <span>{stayData.instructions}</span>
                   </div>
                 )}
               </div>
             ) : (
-              <div className="p-5 rounded-2xl border border-dark/10 bg-white shadow-sm flex items-start gap-3.5">
-                <div className="p-2.5 rounded-xl bg-amber-50 text-amber-600 shrink-0 mt-0.5">
-                  <Lock className="w-5 h-5" />
+              <div className="p-6 border border-[#E5E5E5] bg-white flex items-start gap-4">
+                <div className="w-10 h-10 rounded-full bg-[#F5F5F5] text-[#111111] flex items-center justify-center shrink-0 mt-0.5">
+                  <Lock className="w-4 h-4" />
                 </div>
                 <div className="space-y-1">
-                  <h3 className="text-sm font-bold text-dark">Khóa phòng điện tử & Mật khẩu Wi-Fi</h3>
-                  <p className="text-xs text-dark/60 leading-relaxed">
+                  <h3 className="text-sm font-medium text-[#111111]">Khóa phòng điện tử & Mật khẩu Wi-Fi</h3>
+                  <p className="text-xs text-[#707072] leading-relaxed">
                     {stayData.activationNotice ??
                       "Mã mở khóa phòng và mật khẩu Wi-Fi chỉ được kích hoạt trong thời gian kỳ nghỉ có hiệu lực."}
                   </p>

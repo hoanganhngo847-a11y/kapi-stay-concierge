@@ -147,12 +147,11 @@ function CopyButton({ label, value, id }: CopyButtonProps) {
       onClick={handleCopy}
       aria-label={copied ? "Đã sao chép!" : `Sao chép ${label}`}
       className={[
-        "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium",
-        "transition-all duration-200 focus-visible:outline-none focus-visible:ring-2",
-        "focus-visible:ring-primary/40",
+        "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium",
+        "transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#111111]",
         copied
-          ? "bg-secondary/20 text-secondary-700 border border-secondary/30"
-          : "bg-dark/8 text-dark/70 border border-dark/15 hover:bg-dark/12 hover:text-dark",
+          ? "bg-[#111111] text-white"
+          : "bg-[#F5F5F5] text-[#111111] border border-[#E5E5E5] hover:bg-[#E5E5E5]",
       ].join(" ")}
     >
       {copied ? (
@@ -183,15 +182,15 @@ interface InfoRowProps {
 
 function InfoRow({ label, value, highlight = false, copyId }: InfoRowProps) {
   return (
-    <div className="flex items-start justify-between gap-3 py-2.5 border-b border-dark/8 last:border-0">
-      <span className="text-xs text-dark/50 font-medium shrink-0 pt-0.5 min-w-[90px]">
+    <div className="flex items-start justify-between gap-3 py-2.5 border-b border-[#E5E5E5] last:border-0">
+      <span className="text-xs text-[#707072] font-medium shrink-0 pt-0.5 min-w-[90px]">
         {label}
       </span>
       <div className="flex flex-col items-end gap-1.5 min-w-0">
         <span
           className={[
-            "text-sm font-semibold text-right break-all",
-            highlight ? "text-primary text-base" : "text-dark",
+            "text-sm font-medium text-right break-all",
+            highlight ? "text-[#111111] text-base font-semibold" : "text-[#111111]",
           ].join(" ")}
         >
           {value}
@@ -224,7 +223,7 @@ function VietQRUnavailable({ onClose }: { onClose: () => void }) {
       footer={
         <Button
           id="close-qr-unavailable-btn"
-          variant="outline"
+          variant="primary"
           size="md"
           onClick={onClose}
           className="w-full"
@@ -234,26 +233,26 @@ function VietQRUnavailable({ onClose }: { onClose: () => void }) {
       }
     >
       <div className="flex flex-col items-center text-center gap-4 py-4">
-        <div className="w-16 h-16 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center">
-          <AlertCircle className="w-8 h-8 text-amber-500" aria-hidden="true" />
+        <div className="w-14 h-14 rounded-full bg-[#F5F5F5] border border-[#E5E5E5] flex items-center justify-center">
+          <AlertCircle className="w-7 h-7 text-[#111111]" aria-hidden="true" />
         </div>
         <div>
-          <p className="text-sm font-semibold text-dark mb-1">
+          <p className="text-sm font-medium text-[#111111] mb-1">
             Thanh toán qua VietQR hiện chưa khả dụng
           </p>
-          <p className="text-xs text-dark/55 leading-relaxed">
+          <p className="text-xs text-[#707072] leading-relaxed">
             Vui lòng liên hệ lễ tân hoặc bộ phận hỗ trợ để hoàn tất thanh toán.
           </p>
         </div>
         {SUPPORT_PHONE ? (
           <a
             href={`tel:${SUPPORT_PHONE}`}
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary-600 transition-colors"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-[#111111] underline hover:opacity-80 transition-opacity"
           >
             Liên hệ hỗ trợ
           </a>
         ) : (
-          <p className="text-sm font-medium text-dark/60">
+          <p className="text-sm font-medium text-[#707072]">
             Liên hệ lễ tân để được hỗ trợ
           </p>
         )}
@@ -300,24 +299,24 @@ export function QRModal({
       description="Quét mã QR hoặc chuyển khoản theo thông tin bên dưới. Giữ nguyên nội dung chuyển khoản để hỗ trợ việc xác minh giao dịch."
       footer={
         <div className="flex flex-col gap-3 w-full">
-          {/* Trạng thái chờ đối soát — thay thế nút "Kiểm tra thanh toán" */}
+          {/* Trạng thái chờ đối soát */}
           <div
             role="status"
             aria-live="polite"
-            className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-xl p-3.5 w-full"
+            className="flex items-start gap-3 bg-[#F5F5F5] border border-[#E5E5E5] p-3.5 w-full text-left"
           >
             <Hourglass
-              className="w-4 h-4 text-blue-500 shrink-0 mt-0.5"
+              className="w-4 h-4 text-[#111111] shrink-0 mt-0.5"
               aria-hidden="true"
             />
-            <p className="text-xs text-blue-800 leading-relaxed">
+            <p className="text-xs text-[#111111] leading-relaxed">
               <span className="font-semibold">Đang chờ xác nhận thanh toán.</span>{" "}
               Đặt phòng sẽ được xác nhận sau khi hệ thống xác minh giao dịch thành công.
             </p>
           </div>
 
           <Button
-            variant="outline"
+            variant="primary"
             size="md"
             onClick={handleClose}
             className="w-full"
@@ -330,12 +329,12 @@ export function QRModal({
     >
       <div className="space-y-5">
         {/* ── Cảnh báo thời hạn ───────────────────────────────────────── */}
-        <div className="flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-xl p-3">
+        <div className="flex items-center gap-2.5 bg-[#F5F5F5] border border-[#E5E5E5] p-3">
           <Clock
-            className="w-4 h-4 text-amber-600 shrink-0"
+            className="w-4 h-4 text-[#111111] shrink-0"
             aria-hidden="true"
           />
-          <p className="text-xs text-amber-800 font-medium">
+          <p className="text-xs text-[#111111] font-medium">
             Phiên thanh toán có hiệu lực trong{" "}
             <strong>30 phút</strong>. Vui lòng hoàn tất trước khi hết hạn.
           </p>
@@ -349,17 +348,17 @@ export function QRModal({
               <img
                 src={qrUrl}
                 alt={`Mã QR chuyển khoản ${formatVND(amountVnd)} cho ${paymentReference}`}
-                className="w-52 h-52 rounded-2xl border-2 border-dark/10 shadow-sm object-contain bg-white p-1"
+                className="w-52 h-52 border border-[#E5E5E5] object-contain bg-white p-2"
                 onError={() => setQrError(true)}
                 loading="eager"
               />
             ) : (
-              <div className="w-52 h-52 rounded-2xl border-2 border-dark/10 bg-dark/5 flex flex-col items-center justify-center gap-2">
+              <div className="w-52 h-52 border border-[#E5E5E5] bg-[#F5F5F5] flex flex-col items-center justify-center gap-2">
                 <AlertCircle
-                  className="w-8 h-8 text-dark/30"
+                  className="w-8 h-8 text-[#707072]"
                   aria-hidden="true"
                 />
-                <p className="text-xs text-dark/40 text-center px-4">
+                <p className="text-xs text-[#707072] text-center px-4">
                   Không tải được mã QR. Vui lòng chuyển khoản thủ công theo
                   thông tin bên dưới.
                 </p>
@@ -375,7 +374,7 @@ export function QRModal({
               href={qrUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-dark/40 hover:text-primary transition-colors"
+              className="inline-flex items-center gap-1 text-xs text-[#707072] hover:text-[#111111] transition-colors"
               aria-label="Mở ảnh QR trong tab mới"
             >
               <ExternalLink className="w-3 h-3" aria-hidden="true" />
@@ -386,7 +385,7 @@ export function QRModal({
 
         {/* ── Thông tin chuyển khoản ────────────────────────────────────── */}
         <div
-          className="bg-light/60 rounded-2xl border border-dark/10 px-4 py-1"
+          className="bg-white border border-[#E5E5E5] px-4 py-1"
           aria-label="Thông tin tài khoản nhận tiền"
         >
           <InfoRow label="Ngân hàng" value={BANK_ID} />
@@ -409,13 +408,13 @@ export function QRModal({
         </div>
 
         {/* ── Hướng dẫn ────────────────────────────────────────────────── */}
-        <div className="bg-secondary/10 rounded-xl p-3.5 space-y-2">
+        <div className="bg-[#F5F5F5] p-4 border border-[#E5E5E5] space-y-2.5 text-left">
           <div className="flex items-center gap-2 mb-1">
             <Smartphone
-              className="w-4 h-4 text-secondary-700 shrink-0"
+              className="w-4 h-4 text-[#111111] shrink-0"
               aria-hidden="true"
             />
-            <p className="text-xs font-semibold text-secondary-800">
+            <p className="text-xs font-semibold text-[#111111]">
               Hướng dẫn thanh toán
             </p>
           </div>
@@ -427,18 +426,18 @@ export function QRModal({
           ].map((step, i) => (
             <div key={i} className="flex items-start gap-2.5">
               <span
-                className="shrink-0 w-5 h-5 rounded-full bg-secondary/30 text-secondary-800 text-xs font-bold flex items-center justify-center mt-0.5"
+                className="shrink-0 w-5 h-5 rounded-full bg-[#111111] text-white text-[11px] font-medium flex items-center justify-center mt-0.5"
                 aria-hidden="true"
               >
                 {i + 1}
               </span>
-              <p className="text-xs text-secondary-900 leading-relaxed">{step}</p>
+              <p className="text-xs text-[#111111] leading-relaxed">{step}</p>
             </div>
           ))}
         </div>
 
         {/* ── Lưu ý quan trọng ─────────────────────────────────────────── */}
-        <p className="text-xs text-dark/40 text-center leading-relaxed">
+        <p className="text-xs text-[#707072] text-center leading-relaxed">
           ⚠️ Nhập đúng nội dung chuyển khoản để hỗ trợ việc xác minh giao dịch.
           Sai nội dung có thể làm chậm quá trình xác nhận.
         </p>

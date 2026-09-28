@@ -255,19 +255,19 @@ export function CheckoutError({
 }: CheckoutErrorProps) {
   return (
     <div className="flex flex-col items-center justify-center min-h-[50vh] px-4 text-center">
-      <div className="w-16 h-16 rounded-2xl bg-rose-50 flex items-center justify-center mb-5 border border-rose-200">
+      <div className="w-14 h-14 rounded-full bg-[#F5F5F5] flex items-center justify-center mb-5 border border-[#E5E5E5]">
         <AlertCircle
-          className="w-8 h-8 text-rose-500"
+          className="w-7 h-7 text-[#111111]"
           aria-hidden="true"
         />
       </div>
-      <h1 className="text-xl font-bold text-dark mb-2">{title}</h1>
-      <p className="text-sm text-dark/60 leading-relaxed max-w-sm mb-6">
+      <h1 className="text-xl font-medium text-[#111111] mb-2">{title}</h1>
+      <p className="text-sm text-[#707072] leading-relaxed max-w-sm mb-6">
         {message}
       </p>
       <Link
         href={backHref}
-        className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:text-primary-600 transition-colors"
+        className="inline-flex items-center gap-2 text-sm font-medium text-[#111111] hover:underline underline-offset-4 transition-colors"
       >
         <ArrowLeft className="w-4 h-4" aria-hidden="true" />
         {backLabel}

@@ -11,72 +11,60 @@ interface KeyCardProps {
     statusLabel?: string;
 }
 
-const STATUS_CONFIG: Record<StayStatus, { label: string; className: string }> = {
-    ACTIVE: {
-        label: "Đang lưu trú",
-        className: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    },
-    UPCOMING: {
-        label: "Sắp diễn ra",
-        className: "bg-blue-50 text-blue-700 border-blue-200",
-    },
-    COMPLETED: {
-        label: "Đã hoàn thành",
-        className: "bg-gray-100 text-gray-600 border-gray-200",
-    },
-    CANCELLED: {
-        label: "Đã hủy",
-        className: "bg-rose-50 text-rose-700 border-rose-200",
-    },
-};
-
 export const KeyCard: React.FC<KeyCardProps> = ({
-    roomName,
-    passcode,
-    address,
-    mapUrl,
-    stayStatus = "ACTIVE",
-    statusLabel,
+  roomName,
+  passcode,
+  address,
+  mapUrl,
+  stayStatus = "ACTIVE",
+  statusLabel,
 }) => {
-    const currentStatus = STATUS_CONFIG[stayStatus] || STATUS_CONFIG.ACTIVE;
-    const displayLabel = statusLabel || currentStatus.label;
+  const displayLabel =
+    statusLabel || (stayStatus === "ACTIVE" ? "Đang lưu trú" : "Mã truy cập");
 
-    return (
-        <div className="rounded-xl border bg-card p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-lg">{roomName || "Mã truy cập phòng"}</h3>
-                <span
-                    className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${currentStatus.className}`}
-                >
-                    {displayLabel}
-                </span>
-            </div>
-
-            <div className="mb-4">
-                <p className="text-sm text-muted-foreground">Mã mở cửa (Passcode)</p>
-                <p className="text-3xl font-mono font-bold tracking-wider text-primary mt-1">
-                    {passcode}
-                </p>
-            </div>
-
-            {address && (
-                <div className="text-sm text-muted-foreground border-t pt-3 mt-3">
-                    <p className="font-medium text-foreground">Địa chỉ:</p>
-                    <p>{address}</p>
-                    {mapUrl && (
-                        <a
-                            href={mapUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-primary underline hover:opacity-80 mt-1 inline-block"
-                        >
-                            Xem trên bản đồ
-                        </a>
-                    )}
-                </div>
-            )}
+  return (
+    <div className="border border-[#E5E5E5] bg-white p-6">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <span className="text-[11px] font-medium uppercase tracking-wider text-[#707072] block mb-1">
+            Khóa phòng thông minh
+          </span>
+          <h3 className="font-medium text-lg text-[#111111]">
+            {roomName || "Mã truy cập phòng"}
+          </h3>
         </div>
-    );
+        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#111111] text-white">
+          {displayLabel}
+        </span>
+      </div>
+
+      <div className="my-5 p-4 bg-[#F5F5F5] border border-[#E5E5E5] text-center">
+        <p className="text-xs font-medium text-[#707072] uppercase tracking-wider mb-1.5">
+          Mã số mở cửa (Passcode)
+        </p>
+        <p className="text-4xl font-mono font-semibold tracking-[0.2em] text-[#111111]">
+          {passcode}
+        </p>
+      </div>
+
+      {address && (
+        <div className="text-xs text-[#707072] border-t border-[#E5E5E5] pt-4 mt-4">
+          <p className="font-medium text-[#111111] mb-0.5">Địa chỉ:</p>
+          <p>{address}</p>
+          {mapUrl && (
+            <a
+              href={mapUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[#111111] underline hover:opacity-80 mt-1.5 inline-block font-medium"
+            >
+              Xem trên bản đồ
+            </a>
+          )}
+        </div>
+      )}
+    </div>
+  );
 };
 
 export default KeyCard;
