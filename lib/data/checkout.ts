@@ -108,6 +108,8 @@ const RPC_ERROR_MESSAGES: Record<string, string> = {
   GUEST_COUNT_EXCEEDS_CAPACITY: "Số khách vượt quá sức chứa của phòng.",
   ROOM_NOT_AVAILABLE:
     "Phòng đã được đặt trong khoảng thời gian này. Vui lòng chọn khung giờ khác.",
+  ROOM_TEMPORARILY_HELD:
+    "Khung giờ này vừa được một khách khác chọn. Vui lòng chọn khung giờ khác.",
 
   // reserve_checkout_voucher_atomic
   CHECKOUT_SESSION_NOT_FOUND: "Không tìm thấy phiên đặt phòng.",
@@ -130,7 +132,13 @@ const RPC_ERROR_MESSAGES: Record<string, string> = {
 
 function mapRpcError(errorCode: string | undefined | null, fallback: string): string {
   if (!errorCode) return fallback;
-  return RPC_ERROR_MESSAGES[errorCode] ?? fallback;
+  if (RPC_ERROR_MESSAGES[errorCode]) return RPC_ERROR_MESSAGES[errorCode];
+  for (const [key, msg] of Object.entries(RPC_ERROR_MESSAGES)) {
+    if (errorCode.includes(key)) {
+      return msg;
+    }
+  }
+  return fallback;
 }
 
 // ---------------------------------------------------------------------------
@@ -198,7 +206,11 @@ export async function createCheckoutSession(
 
     if (error) {
       console.error("[checkout] createCheckoutSession RPC error:", error.message);
-      return { sessionId: null, error: "Không thể tạo phiên đặt phòng. Vui lòng thử lại." };
+      const mapped = mapRpcError(
+        error.message,
+        "Không thể tạo phiên đặt phòng. Vui lòng thử lại."
+      );
+      return { sessionId: null, error: mapped };
     }
 
     // RPC trả về JSONB: { success: bool, checkout_session?: {...}, error?: string }

@@ -19,6 +19,7 @@ import { AlertCircle, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { BookingSummary } from "@/components/checkout/BookingSummary";
 import { QRModal } from "@/components/checkout/QRModal";
+import { CheckoutHoldTimer } from "@/components/checkout/CheckoutHoldTimer";
 import type { GuestInfo, GuestInfoErrors } from "@/components/checkout/BookingSummary";
 // Server Actions — wraps server-only data layer, safe to call from client
 import {
@@ -317,6 +318,12 @@ export function CheckoutClient({
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <>
+      <CheckoutHoldTimer
+        expiresAt={session.expires_at}
+        sessionId={session.id}
+        roomId={session.room_id}
+      />
+
       <BookingSummary
         session={session}
         availableVouchers={availableVouchers}

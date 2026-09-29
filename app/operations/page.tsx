@@ -1,103 +1,75 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   verifyStaffRole,
-  getStaffDashboardData,
-  updateRoomStatus,
-  updateTicketStatusAdmin,
   StaffAuthError,
-  type StaffMutableRoomOperationalStatus,
-  type TicketStatus,
 } from "@/lib/data/admin";
-import OperationsDashboardClient from "./OperationsDashboardClient";
 
 export const metadata = {
-  title: "Bảng Điều Khiển Vận Hành | Kapi Stay Concierge",
-  description: "Quản trị trạng thái buồng phòng, tiếp nhận sự cố và lịch đón trả khách 24/7.",
+  title: "Vận Hành | Kapi Stay Concierge",
+  description: "Trang vận hành hệ thống Kapi Stay.",
 };
 
 export const dynamic = "force-dynamic";
 
-export default async function OperationsDashboardPage() {
+export default async function OperationsPage() {
   let staffRoleInfo: { id: string; email?: string; role: "staff" | "admin" } | null = null;
   let isForbidden = false;
-  let isBackendError = false;
 
   try {
     staffRoleInfo = await verifyStaffRole();
   } catch (error: unknown) {
     if (error instanceof StaffAuthError) {
       if (error.code === "UNAUTHENTICATED") {
-        redirect("/login?next=/operations");
+        redirect("/admin/login");
       } else if (error.code === "FORBIDDEN") {
         isForbidden = true;
-      } else {
-        isBackendError = true;
       }
     } else {
-      isBackendError = true;
+      isForbidden = true;
     }
   }
 
-  if (isForbidden && !staffRoleInfo) {
+  // 1. If admin visits /operations -> redirect to canonical unified admin portal
+  if (staffRoleInfo?.role === "admin") {
+    redirect("/admin");
+  }
+
+  // 2. If customer (no staff_roles) -> 403 Forbidden
+  if (isForbidden || !staffRoleInfo) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center">
         <h1 className="text-4xl font-bold text-red-600 mb-2">403 - Cấm truy cập</h1>
         <p className="text-gray-600 mb-4">
-          Tài khoản của bạn không có quyền Staff/Admin để truy cập trang vận hành này.
+          Tài khoản của bạn không có quyền truy cập trang này.
         </p>
       </div>
     );
   }
 
-  if (isBackendError) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center">
-        <h1 className="text-2xl font-bold text-gray-800 mb-2">Lỗi xác thực hệ thống</h1>
-        <p className="text-gray-600 mb-4">
-          Không thể kết nối máy chủ xác minh quyền hạn lúc này. Vui lòng thử lại sau.
-        </p>
-      </div>
-    );
-  }
-
-  let dashboardData = null;
-  let loadError = false;
-
-  try {
-    const res = await getStaffDashboardData();
-    if (res) {
-      dashboardData = res;
-    } else {
-      loadError = true;
-    }
-  } catch {
-    loadError = true;
-  }
-
-  const safeEmail: string = staffRoleInfo?.email || "";
-  const staffRole = staffRoleInfo?.role;
-
-  async function handleUpdateRoomStatus(
-    roomId: string,
-    status: StaffMutableRoomOperationalStatus
-  ) {
-    "use server";
-    return updateRoomStatus(roomId, status);
-  }
-
-  async function handleUpdateTicketStatus(ticketId: string, status: TicketStatus) {
-    "use server";
-    return updateTicketStatusAdmin(ticketId, status);
-  }
-
+  // 3. For staff role: Operations UI is sunset / consolidated into Admin Portal.
+  // DO NOT give staff admin access. Display informative notice.
   return (
-    <OperationsDashboardClient
-      initialData={dashboardData}
-      loadError={loadError}
-      staffEmail={safeEmail}
-      staffRole={staffRole}
-      onUpdateRoomStatus={handleUpdateRoomStatus}
-      onUpdateTicketStatus={handleUpdateTicketStatus}
-    />
+    <div className="max-w-2xl mx-auto my-16 p-8 bg-white border border-[#E5E5E5] text-center">
+      <div className="w-12 h-12 bg-[#F5F5F5] border border-[#E5E5E5] flex items-center justify-center mx-auto mb-4 text-[#111111] font-semibold text-lg">
+        !
+      </div>
+      <h1 className="text-lg font-semibold text-[#111111] mb-2">
+        Giao diện Vận hành đã được hợp nhất
+      </h1>
+      <p className="text-xs text-[#707072] leading-relaxed mb-6">
+        Giao diện vận hành độc lập (/operations) đã được hợp nhất vào Kapi Admin Portal.
+        Tài khoản Staff hiện tại không có quyền truy cập trực tiếp vào Kapi Admin Portal.
+        Vui lòng liên hệ Quản trị viên (Admin) nếu bạn cần được cấp quyền quản trị.
+      </p>
+      <div className="flex justify-center gap-3">
+        <Link
+          href="/"
+          className="px-4 py-2 bg-[#111111] text-white text-xs font-medium uppercase tracking-wider hover:bg-[#262626] transition-colors"
+        >
+          Trang chủ
+        </Link>
+      </div>
+    </div>
   );
 }

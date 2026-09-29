@@ -877,11 +877,15 @@ test("Test 23: Navigation & Role — Staff in Operations does NOT render 'Quay l
   assert.equal(shouldRenderAdminReturnCustomer, false);
 });
 
-test("Test 24: Navigation & Role — Admin Dashboard retains functional link to /operations", () => {
+test("Test 24: Operations Removal — Admin Dashboard removes legacy /operations link and 'Mở Operations' button", () => {
   const dashboardClientPath = path.resolve(process.cwd(), "components/admin/AdminDashboardClient.tsx");
   const content = fs.readFileSync(dashboardClientPath, "utf8");
-  assert.ok(content.includes('href="/operations"'), "Admin Dashboard must link to /operations");
-  assert.ok(content.includes("Mở Operations"), "Admin Dashboard must contain 'Mở Operations' CTA");
+  assert.ok(!content.includes('href="/operations"'), "Admin Dashboard must NOT link to /operations");
+  assert.ok(!content.includes("Mở Operations"), "Admin Dashboard must NOT contain 'Mở Operations' CTA");
+
+  const adminHeaderPath = path.resolve(process.cwd(), "components/admin/AdminHeader.tsx");
+  const headerContent = fs.readFileSync(adminHeaderPath, "utf8");
+  assert.ok(!headerContent.includes('href="/operations"'), "AdminHeader must NOT link to /operations");
 });
 
 test("Test 25: Security Role Boundary — verifyStaffRole permits staff OR admin; verifyAdminRole permits admin ONLY", async () => {
@@ -936,18 +940,12 @@ test("Test 26: Room Status Mutations — Staff mutable statuses allowed, occupie
 });
 
 test("Test 27: Source Code Contract Verification in app/operations and components/admin", () => {
-  const opsClientPath = path.resolve(process.cwd(), "app/operations/OperationsDashboardClient.tsx");
-  const opsClientContent = fs.readFileSync(opsClientPath, "utf8");
-
-  assert.ok(opsClientContent.includes("staffRole"), "OperationsDashboardClient must accept staffRole prop");
-  assert.ok(opsClientContent.includes('staffRole === "admin"'), "Must check staffRole === 'admin' before rendering return link");
-  assert.ok(opsClientContent.includes('href="/admin"'), "Return link must point to /admin");
-  assert.ok(opsClientContent.includes("propertyFilter"), "Must maintain propertyFilter state");
-  assert.ok(opsClientContent.includes("Chi nhánh"), "Must display Chi nhánh in room list");
-
   const opsPagePath = path.resolve(process.cwd(), "app/operations/page.tsx");
   const opsPageContent = fs.readFileSync(opsPagePath, "utf8");
-  assert.ok(opsPageContent.includes("staffRole={staffRole}"), "app/operations/page.tsx must pass staffRole to client");
+  // Admin is redirected to /admin
+  assert.ok(opsPageContent.includes('redirect("/admin")'), "app/operations/page.tsx must redirect admin to /admin");
+  // Staff receives sunset/decommission notice without admin escalation
+  assert.ok(opsPageContent.includes("Giao diện Vận hành đã được hợp nhất"), "app/operations/page.tsx must show sunset notice to staff");
 
   const adminClientPath = path.resolve(process.cwd(), "components/admin/AdminDashboardClient.tsx");
   const adminClientContent = fs.readFileSync(adminClientPath, "utf8");

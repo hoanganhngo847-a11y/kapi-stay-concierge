@@ -95,6 +95,11 @@ export default async function RoomDetailPage({
       resolvedSearchParams.max_guests ??
       resolvedSearchParams.guests
   );
+  const conflict = getFirstParam(resolvedSearchParams.conflict);
+  const initialConflict =
+    conflict === "held"
+      ? "Khung giờ này vừa được một khách khác chọn. Vui lòng chọn khung giờ khác."
+      : undefined;
 
   const todayVN = getTodayInVietnam();
   const isHourly = checkIn.includes("T") || checkIn.includes(":");
@@ -278,6 +283,7 @@ export default async function RoomDetailPage({
             initialCheckIn={hasValidDatePair ? checkIn : undefined}
             initialCheckOut={hasValidDatePair ? checkOut : undefined}
             initialGuests={initialGuests}
+            initialConflict={initialConflict}
           />
         </div>
       </div>

@@ -480,6 +480,18 @@ export default function AdminPropertyBoardClient({
                   <option value="maintenance">Bảo trì (Maintenance)</option>
                 </select>
               </div>
+
+              {/* Timeline Legend */}
+              <div className="flex items-center gap-3 text-[11px] text-[#707072] border-l border-[#E5E5E5] pl-3 ml-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 bg-[#111111] inline-block" />
+                  <span>Đã đặt</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 bg-amber-100 border border-dashed border-amber-400 inline-block" />
+                  <span>Đang giữ tạm</span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -675,8 +687,49 @@ export default function AdminPropertyBoardClient({
                           );
                         })}
 
+                        {/* Active Temporary Holds */}
+                        {(room.holds || []).map((hold, hIdx) => {
+                          const hStart = new Date(hold.check_in_at).getTime();
+                          const hEnd = new Date(hold.check_out_at).getTime();
+                          const clampedStart = Math.max(hStart, rangeStartMs);
+                          const clampedEnd = Math.min(hEnd, rangeEndMs);
+
+                          if (clampedStart >= clampedEnd) return null;
+
+                          const leftPct =
+                            ((clampedStart - rangeStartMs) / (rangeEndMs - rangeStartMs)) * 100;
+                          const widthPct = Math.max(
+                            0.5,
+                            ((clampedEnd - clampedStart) / (rangeEndMs - rangeStartMs)) * 100
+                          );
+
+                          return (
+                            <div
+                              key={`hold-${hIdx}`}
+                              style={{
+                                left: `${leftPct}%`,
+                                width: `${widthPct}%`,
+                              }}
+                              className="absolute h-9 bg-amber-50 border border-dashed border-amber-400 text-amber-900 shadow-sm px-2 text-left z-10 overflow-hidden flex items-center justify-between gap-1 select-none pointer-events-auto"
+                              title={`Đang được khách giữ tạm (${formatVietnamTime(
+                                hold.check_in_at
+                              )} - ${formatVietnamTime(hold.check_out_at)})`}
+                            >
+                              <div className="truncate text-[11px] leading-tight flex-1">
+                                <div className="font-medium truncate text-amber-800">
+                                  Đang giữ tạm
+                                </div>
+                                <div className="text-[9px] text-amber-700 font-mono truncate">
+                                  {formatVietnamTime(hold.check_in_at)} -{" "}
+                                  {formatVietnamTime(hold.check_out_at)}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+
                         {/* Empty track indicator */}
-                        {room.bookings.length === 0 && (
+                        {room.bookings.length === 0 && (!room.holds || room.holds.length === 0) && (
                           <div className="absolute inset-0 flex items-center justify-center text-[11px] text-[#CCCCCC] select-none pointer-events-none">
                             Trống lịch
                           </div>
