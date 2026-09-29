@@ -1,605 +1,1270 @@
-
-export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
 
 export type Database = {
-  
-  "graphql_public": {
-          Tables: {
-            [_ in never]: never
-          }
-          Views: {
-            [_ in never]: never
-          }
-          Functions: {
-            "graphql":
-{ Args: { "extensions"?: Json,"operationName"?: string,"query"?: string,"variables"?: Json }; Returns: Json
-                           }
-          }
-          Enums: {
-            [_ in never]: never
-          }
-          CompositeTypes: {
-            [_ in never]: never
-          }
-        },"public": {
-          Tables: {
-            "booking_access_credentials": {
-                  Row: {
-                    "booking_id": string,"created_at": string,"credential_type": string,"credential_value": string,"id": string,"instructions": string | null,"room_id": string,"status": string,"updated_at": string,"valid_from": string,"valid_until": string
-                  }
-                  Insert: {
-                    "booking_id": string,"created_at"?: string,"credential_type"?: string,"credential_value": string,"id"?: string,"instructions"?: string | null,"room_id": string,"status"?: string,"updated_at"?: string,"valid_from": string,"valid_until": string
-                  }
-                  Update: {
-                    "booking_id"?: string,"created_at"?: string,"credential_type"?: string,"credential_value"?: string,"id"?: string,"instructions"?: string | null,"room_id"?: string,"status"?: string,"updated_at"?: string,"valid_from"?: string,"valid_until"?: string
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "booking_access_credentials_booking_id_fkey"
-      columns: ["booking_id"]
-isOneToOne: false
-      referencedRelation: "bookings"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "booking_access_credentials_room_id_fkey"
-      columns: ["room_id"]
-isOneToOne: false
-      referencedRelation: "rooms"
-      referencedColumns: ["id"]
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
     }
-                  ]
-                },"booking_menu_items": {
-                  Row: {
-                    "booking_id": string,"created_at": string,"entitlement_id": string | null,"id": string,"menu_product_id": string,"normal_price_vnd": number,"product_name_snapshot": string,"quantity": number,"reward_source": string | null,"source_type": string,"total_price_vnd": number,"unit_price_vnd": number
-                  }
-                  Insert: {
-                    "booking_id": string,"created_at"?: string,"entitlement_id"?: string | null,"id"?: string,"menu_product_id": string,"normal_price_vnd"?: number,"product_name_snapshot": string,"quantity": number,"reward_source"?: string | null,"source_type": string,"total_price_vnd": number,"unit_price_vnd": number
-                  }
-                  Update: {
-                    "booking_id"?: string,"created_at"?: string,"entitlement_id"?: string | null,"id"?: string,"menu_product_id"?: string,"normal_price_vnd"?: number,"product_name_snapshot"?: string,"quantity"?: number,"reward_source"?: string | null,"source_type"?: string,"total_price_vnd"?: number,"unit_price_vnd"?: number
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "booking_menu_items_booking_id_fkey"
-      columns: ["booking_id"]
-isOneToOne: false
-      referencedRelation: "bookings"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "booking_menu_items_entitlement_id_fkey"
-      columns: ["entitlement_id"]
-isOneToOne: false
-      referencedRelation: "user_reward_entitlements"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "booking_menu_items_menu_product_id_fkey"
-      columns: ["menu_product_id"]
-isOneToOne: false
-      referencedRelation: "menu_products"
-      referencedColumns: ["id"]
+    Views: {
+      [_ in never]: never
     }
-                  ]
-                },"bookings": {
-                  Row: {
-                    "booking_status": string,"check_in": string | null,"check_in_at": string | null,"check_out": string | null,"check_out_at": string | null,"checkout_session_id": string | null,"created_at": string,"discount_amount_vnd": number,"final_paid_amount_vnd": number,"gross_amount_vnd": number,"guest_count": number,"id": string,"menu_amount_vnd": number,"payment_status": string,"room_id": string,"updated_at": string,"user_id": string
-                  }
-                  Insert: {
-                    "booking_status": string,"check_in"?: string | null,"check_in_at"?: string | null,"check_out"?: string | null,"check_out_at"?: string | null,"checkout_session_id"?: string | null,"created_at"?: string,"discount_amount_vnd"?: number,"final_paid_amount_vnd": number,"gross_amount_vnd": number,"guest_count": number,"id"?: string,"menu_amount_vnd"?: number,"payment_status": string,"room_id": string,"updated_at"?: string,"user_id": string
-                  }
-                  Update: {
-                    "booking_status"?: string,"check_in"?: string | null,"check_in_at"?: string | null,"check_out"?: string | null,"check_out_at"?: string | null,"checkout_session_id"?: string | null,"created_at"?: string,"discount_amount_vnd"?: number,"final_paid_amount_vnd"?: number,"gross_amount_vnd"?: number,"guest_count"?: number,"id"?: string,"menu_amount_vnd"?: number,"payment_status"?: string,"room_id"?: string,"updated_at"?: string,"user_id"?: string
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "bookings_checkout_session_id_fkey"
-      columns: ["checkout_session_id"]
-isOneToOne: false
-      referencedRelation: "checkout_sessions"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "bookings_room_id_fkey"
-      columns: ["room_id"]
-isOneToOne: false
-      referencedRelation: "rooms"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "bookings_user_id_fkey"
-      columns: ["user_id"]
-isOneToOne: false
-      referencedRelation: "profiles"
-      referencedColumns: ["id"]
-    }
-                  ]
-                },"checkout_menu_items": {
-                  Row: {
-                    "checkout_session_id": string,"created_at": string,"entitlement_id": string | null,"id": string,"menu_product_id": string,"normal_price_vnd": number,"quantity": number,"source_type": string,"total_price_vnd": number,"unit_price_vnd": number,"updated_at": string
-                  }
-                  Insert: {
-                    "checkout_session_id": string,"created_at"?: string,"entitlement_id"?: string | null,"id"?: string,"menu_product_id": string,"normal_price_vnd"?: number,"quantity": number,"source_type": string,"total_price_vnd": number,"unit_price_vnd": number,"updated_at"?: string
-                  }
-                  Update: {
-                    "checkout_session_id"?: string,"created_at"?: string,"entitlement_id"?: string | null,"id"?: string,"menu_product_id"?: string,"normal_price_vnd"?: number,"quantity"?: number,"source_type"?: string,"total_price_vnd"?: number,"unit_price_vnd"?: number,"updated_at"?: string
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "checkout_menu_items_checkout_session_id_fkey"
-      columns: ["checkout_session_id"]
-isOneToOne: false
-      referencedRelation: "checkout_sessions"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "checkout_menu_items_entitlement_id_fkey"
-      columns: ["entitlement_id"]
-isOneToOne: false
-      referencedRelation: "user_reward_entitlements"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "checkout_menu_items_menu_product_id_fkey"
-      columns: ["menu_product_id"]
-isOneToOne: false
-      referencedRelation: "menu_products"
-      referencedColumns: ["id"]
-    }
-                  ]
-                },"checkout_sessions": {
-                  Row: {
-                    "check_in": string | null,"check_in_at": string | null,"check_out": string | null,"check_out_at": string | null,"created_at": string,"discount_amount_vnd": number,"expires_at": string,"final_payable_amount_vnd": number,"gross_amount_vnd": number,"guest_count": number,"id": string,"menu_amount_vnd": number,"payment_reference": string | null,"room_id": string,"status": string,"updated_at": string,"user_id": string
-                  }
-                  Insert: {
-                    "check_in"?: string | null,"check_in_at"?: string | null,"check_out"?: string | null,"check_out_at"?: string | null,"created_at"?: string,"discount_amount_vnd"?: number,"expires_at": string,"final_payable_amount_vnd": number,"gross_amount_vnd": number,"guest_count": number,"id"?: string,"menu_amount_vnd"?: number,"payment_reference"?: string | null,"room_id": string,"status"?: string,"updated_at"?: string,"user_id": string
-                  }
-                  Update: {
-                    "check_in"?: string | null,"check_in_at"?: string | null,"check_out"?: string | null,"check_out_at"?: string | null,"created_at"?: string,"discount_amount_vnd"?: number,"expires_at"?: string,"final_payable_amount_vnd"?: number,"gross_amount_vnd"?: number,"guest_count"?: number,"id"?: string,"menu_amount_vnd"?: number,"payment_reference"?: string | null,"room_id"?: string,"status"?: string,"updated_at"?: string,"user_id"?: string
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "checkout_sessions_room_id_fkey"
-      columns: ["room_id"]
-isOneToOne: false
-      referencedRelation: "rooms"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "checkout_sessions_user_id_fkey"
-      columns: ["user_id"]
-isOneToOne: false
-      referencedRelation: "profiles"
-      referencedColumns: ["id"]
-    }
-                  ]
-                },"daily_checkins": {
-                  Row: {
-                    "checkin_date": string,"created_at": string,"id": string,"reward_points": number,"user_id": string
-                  }
-                  Insert: {
-                    "checkin_date": string,"created_at"?: string,"id"?: string,"reward_points"?: number,"user_id": string
-                  }
-                  Update: {
-                    "checkin_date"?: string,"created_at"?: string,"id"?: string,"reward_points"?: number,"user_id"?: string
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "daily_checkins_user_id_fkey"
-      columns: ["user_id"]
-isOneToOne: false
-      referencedRelation: "profiles"
-      referencedColumns: ["id"]
-    }
-                  ]
-                },"loyalty_transactions": {
-                  Row: {
-                    "booking_id": string | null,"created_at": string,"daily_checkin_id": string | null,"description": string | null,"id": string,"metadata": Json | null,"points_delta": number,"type": string,"user_id": string,"voucher_redemption_id": string | null
-                  }
-                  Insert: {
-                    "booking_id"?: string | null,"created_at"?: string,"daily_checkin_id"?: string | null,"description"?: string | null,"id"?: string,"metadata"?: Json | null,"points_delta": number,"type": string,"user_id": string,"voucher_redemption_id"?: string | null
-                  }
-                  Update: {
-                    "booking_id"?: string | null,"created_at"?: string,"daily_checkin_id"?: string | null,"description"?: string | null,"id"?: string,"metadata"?: Json | null,"points_delta"?: number,"type"?: string,"user_id"?: string,"voucher_redemption_id"?: string | null
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "loyalty_transactions_booking_id_fkey"
-      columns: ["booking_id"]
-isOneToOne: false
-      referencedRelation: "bookings"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "loyalty_transactions_daily_checkin_id_fkey"
-      columns: ["daily_checkin_id"]
-isOneToOne: false
-      referencedRelation: "daily_checkins"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "loyalty_transactions_user_id_fkey"
-      columns: ["user_id"]
-isOneToOne: false
-      referencedRelation: "profiles"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "loyalty_transactions_voucher_redemption_id_fkey"
-      columns: ["voucher_redemption_id"]
-isOneToOne: false
-      referencedRelation: "voucher_redemptions"
-      referencedColumns: ["id"]
-    }
-                  ]
-                },"menu_products": {
-                  Row: {
-                    "category": string,"created_at": string,"description": string | null,"id": string,"image_url": string | null,"is_active": boolean,"name": string,"price_vnd": number,"slug": string,"sort_order": number,"updated_at": string
-                  }
-                  Insert: {
-                    "category": string,"created_at"?: string,"description"?: string | null,"id"?: string,"image_url"?: string | null,"is_active"?: boolean,"name": string,"price_vnd": number,"slug": string,"sort_order"?: number,"updated_at"?: string
-                  }
-                  Update: {
-                    "category"?: string,"created_at"?: string,"description"?: string | null,"id"?: string,"image_url"?: string | null,"is_active"?: boolean,"name"?: string,"price_vnd"?: number,"slug"?: string,"sort_order"?: number,"updated_at"?: string
-                  }
-                  Relationships: [
-                    
-                  ]
-                },"payment_webhook_events": {
-                  Row: {
-                    "account_number": string,"bank_reference": string | null,"checkout_session_id": string | null,"error_code": string | null,"gateway": string,"id": string,"payment_reference": string | null,"processed_at": string | null,"processing_status": string,"provider": string,"provider_event_id": number,"raw_payload": NonNullable<Json>,"received_at": string,"transfer_amount_vnd": number,"transfer_type": string
-                  }
-                  Insert: {
-                    "account_number": string,"bank_reference"?: string | null,"checkout_session_id"?: string | null,"error_code"?: string | null,"gateway": string,"id"?: string,"payment_reference"?: string | null,"processed_at"?: string | null,"processing_status": string,"provider": string,"provider_event_id": number,"raw_payload": NonNullable<Json>,"received_at"?: string,"transfer_amount_vnd": number,"transfer_type": string
-                  }
-                  Update: {
-                    "account_number"?: string,"bank_reference"?: string | null,"checkout_session_id"?: string | null,"error_code"?: string | null,"gateway"?: string,"id"?: string,"payment_reference"?: string | null,"processed_at"?: string | null,"processing_status"?: string,"provider"?: string,"provider_event_id"?: number,"raw_payload"?: NonNullable<Json>,"received_at"?: string,"transfer_amount_vnd"?: number,"transfer_type"?: string
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "payment_webhook_events_checkout_session_id_fkey"
-      columns: ["checkout_session_id"]
-isOneToOne: false
-      referencedRelation: "checkout_sessions"
-      referencedColumns: ["id"]
-    }
-                  ]
-                },"profiles": {
-                  Row: {
-                    "avatar_url": string | null,"created_at": string,"display_name": string | null,"id": string,"phone": string | null,"updated_at": string
-                  }
-                  Insert: {
-                    "avatar_url"?: string | null,"created_at"?: string,"display_name"?: string | null,"id": string,"phone"?: string | null,"updated_at"?: string
-                  }
-                  Update: {
-                    "avatar_url"?: string | null,"created_at"?: string,"display_name"?: string | null,"id"?: string,"phone"?: string | null,"updated_at"?: string
-                  }
-                  Relationships: [
-                    
-                  ]
-                },"properties": {
-                  Row: {
-                    "address": string,"created_at": string,"id": string,"is_active": boolean,"maps_url": string | null,"name": string,"slug": string,"updated_at": string
-                  }
-                  Insert: {
-                    "address": string,"created_at"?: string,"id"?: string,"is_active"?: boolean,"maps_url"?: string | null,"name": string,"slug": string,"updated_at"?: string
-                  }
-                  Update: {
-                    "address"?: string,"created_at"?: string,"id"?: string,"is_active"?: boolean,"maps_url"?: string | null,"name"?: string,"slug"?: string,"updated_at"?: string
-                  }
-                  Relationships: [
-                    
-                  ]
-                },"reward_menu_items": {
-                  Row: {
-                    "category": string,"created_at": string,"id": string,"is_active": boolean,"name": string,"sort_order": number,"updated_at": string
-                  }
-                  Insert: {
-                    "category"?: string,"created_at"?: string,"id"?: string,"is_active"?: boolean,"name": string,"sort_order"?: number,"updated_at"?: string
-                  }
-                  Update: {
-                    "category"?: string,"created_at"?: string,"id"?: string,"is_active"?: boolean,"name"?: string,"sort_order"?: number,"updated_at"?: string
-                  }
-                  Relationships: [
-                    
-                  ]
-                },"room_availability_blocks": {
-                  Row: {
-                    "created_at": string,"ends_at": string,"id": string,"reason": string,"room_id": string,"starts_at": string
-                  }
-                  Insert: {
-                    "created_at"?: string,"ends_at": string,"id"?: string,"reason": string,"room_id": string,"starts_at": string
-                  }
-                  Update: {
-                    "created_at"?: string,"ends_at"?: string,"id"?: string,"reason"?: string,"room_id"?: string,"starts_at"?: string
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "room_availability_blocks_room_id_fkey"
-      columns: ["room_id"]
-isOneToOne: false
-      referencedRelation: "rooms"
-      referencedColumns: ["id"]
-    }
-                  ]
-                },"room_operations": {
-                  Row: {
-                    "operational_status": string,"room_id": string,"updated_at": string,"updated_by": string | null
-                  }
-                  Insert: {
-                    "operational_status"?: string,"room_id": string,"updated_at"?: string,"updated_by"?: string | null
-                  }
-                  Update: {
-                    "operational_status"?: string,"room_id"?: string,"updated_at"?: string,"updated_by"?: string | null
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "room_operations_room_id_fkey"
-      columns: ["room_id"]
-isOneToOne: true
-      referencedRelation: "rooms"
-      referencedColumns: ["id"]
-    }
-                  ]
-                },"room_private_details": {
-                  Row: {
-                    "private_instructions": string | null,"room_id": string,"updated_at": string,"wifi_password": string | null,"wifi_ssid": string | null
-                  }
-                  Insert: {
-                    "private_instructions"?: string | null,"room_id": string,"updated_at"?: string,"wifi_password"?: string | null,"wifi_ssid"?: string | null
-                  }
-                  Update: {
-                    "private_instructions"?: string | null,"room_id"?: string,"updated_at"?: string,"wifi_password"?: string | null,"wifi_ssid"?: string | null
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "room_private_details_room_id_fkey"
-      columns: ["room_id"]
-isOneToOne: true
-      referencedRelation: "rooms"
-      referencedColumns: ["id"]
-    }
-                  ]
-                },"rooms": {
-                  Row: {
-                    "amenities": (string)[],"capacity": number,"created_at": string,"description": string | null,"hourly_price_vnd": number,"id": string,"image_paths": (string)[],"is_listed": boolean,"name": string,"nightly_price_vnd": number,"property_id": string,"updated_at": string
-                  }
-                  Insert: {
-                    "amenities"?: (string)[],"capacity": number,"created_at"?: string,"description"?: string | null,"hourly_price_vnd": number,"id"?: string,"image_paths"?: (string)[],"is_listed"?: boolean,"name": string,"nightly_price_vnd": number,"property_id": string,"updated_at"?: string
-                  }
-                  Update: {
-                    "amenities"?: (string)[],"capacity"?: number,"created_at"?: string,"description"?: string | null,"hourly_price_vnd"?: number,"id"?: string,"image_paths"?: (string)[],"is_listed"?: boolean,"name"?: string,"nightly_price_vnd"?: number,"property_id"?: string,"updated_at"?: string
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "rooms_property_id_fkey"
-      columns: ["property_id"]
-isOneToOne: false
-      referencedRelation: "properties"
-      referencedColumns: ["id"]
-    }
-                  ]
-                },"staff_roles": {
-                  Row: {
-                    "created_at": string,"role": string,"user_id": string
-                  }
-                  Insert: {
-                    "created_at"?: string,"role": string,"user_id": string
-                  }
-                  Update: {
-                    "created_at"?: string,"role"?: string,"user_id"?: string
-                  }
-                  Relationships: [
-                    
-                  ]
-                },"streak_reward_definitions": {
-                  Row: {
-                    "created_at": string,"description": string,"discount_percentage": number | null,"expiry_days": number,"id": string,"is_active": boolean,"max_discount_vnd": number | null,"max_eligible_base_vnd": number | null,"milestone_day": number,"reward_type": string,"title": string,"updated_at": string
-                  }
-                  Insert: {
-                    "created_at"?: string,"description": string,"discount_percentage"?: number | null,"expiry_days"?: number,"id"?: string,"is_active"?: boolean,"max_discount_vnd"?: number | null,"max_eligible_base_vnd"?: number | null,"milestone_day": number,"reward_type": string,"title": string,"updated_at"?: string
-                  }
-                  Update: {
-                    "created_at"?: string,"description"?: string,"discount_percentage"?: number | null,"expiry_days"?: number,"id"?: string,"is_active"?: boolean,"max_discount_vnd"?: number | null,"max_eligible_base_vnd"?: number | null,"milestone_day"?: number,"reward_type"?: string,"title"?: string,"updated_at"?: string
-                  }
-                  Relationships: [
-                    
-                  ]
-                },"tickets": {
-                  Row: {
-                    "booking_id": string,"category": string,"created_at": string,"description": string,"id": string,"media_paths": (string)[],"room_id": string,"status": string,"updated_at": string,"user_id": string
-                  }
-                  Insert: {
-                    "booking_id": string,"category": string,"created_at"?: string,"description": string,"id"?: string,"media_paths"?: (string)[],"room_id": string,"status"?: string,"updated_at"?: string,"user_id": string
-                  }
-                  Update: {
-                    "booking_id"?: string,"category"?: string,"created_at"?: string,"description"?: string,"id"?: string,"media_paths"?: (string)[],"room_id"?: string,"status"?: string,"updated_at"?: string,"user_id"?: string
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "tickets_booking_id_fkey"
-      columns: ["booking_id"]
-isOneToOne: false
-      referencedRelation: "bookings"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "tickets_room_id_fkey"
-      columns: ["room_id"]
-isOneToOne: false
-      referencedRelation: "rooms"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "tickets_user_id_fkey"
-      columns: ["user_id"]
-isOneToOne: false
-      referencedRelation: "profiles"
-      referencedColumns: ["id"]
-    }
-                  ]
-                },"user_reward_entitlements": {
-                  Row: {
-                    "booking_id": string | null,"checkout_session_id": string | null,"created_at": string,"expires_at": string,"id": string,"issued_at": string,"milestone_day": number,"reward_definition_id": string,"selection_data": Json | null,"status": string,"streak_cycle_id": number,"updated_at": string,"used_at": string | null,"user_id": string
-                  }
-                  Insert: {
-                    "booking_id"?: string | null,"checkout_session_id"?: string | null,"created_at"?: string,"expires_at": string,"id"?: string,"issued_at"?: string,"milestone_day": number,"reward_definition_id": string,"selection_data"?: Json | null,"status"?: string,"streak_cycle_id"?: number,"updated_at"?: string,"used_at"?: string | null,"user_id": string
-                  }
-                  Update: {
-                    "booking_id"?: string | null,"checkout_session_id"?: string | null,"created_at"?: string,"expires_at"?: string,"id"?: string,"issued_at"?: string,"milestone_day"?: number,"reward_definition_id"?: string,"selection_data"?: Json | null,"status"?: string,"streak_cycle_id"?: number,"updated_at"?: string,"used_at"?: string | null,"user_id"?: string
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "user_reward_entitlements_booking_id_fkey"
-      columns: ["booking_id"]
-isOneToOne: false
-      referencedRelation: "bookings"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "user_reward_entitlements_checkout_session_id_fkey"
-      columns: ["checkout_session_id"]
-isOneToOne: false
-      referencedRelation: "checkout_sessions"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "user_reward_entitlements_reward_definition_id_fkey"
-      columns: ["reward_definition_id"]
-isOneToOne: false
-      referencedRelation: "streak_reward_definitions"
-      referencedColumns: ["id"]
-    }
-                  ]
-                },"user_reward_streaks": {
-                  Row: {
-                    "current_streak": number,"last_checkin_date": string | null,"longest_streak": number,"streak_cycle_id": number,"streak_cycle_started_at": string,"updated_at": string,"user_id": string
-                  }
-                  Insert: {
-                    "current_streak"?: number,"last_checkin_date"?: string | null,"longest_streak"?: number,"streak_cycle_id"?: number,"streak_cycle_started_at"?: string,"updated_at"?: string,"user_id": string
-                  }
-                  Update: {
-                    "current_streak"?: number,"last_checkin_date"?: string | null,"longest_streak"?: number,"streak_cycle_id"?: number,"streak_cycle_started_at"?: string,"updated_at"?: string,"user_id"?: string
-                  }
-                  Relationships: [
-                    
-                  ]
-                },"voucher_redemptions": {
-                  Row: {
-                    "booking_id": string | null,"checkout_session_id": string | null,"discount_amount_vnd": number | null,"expires_at": string,"id": string,"issued_at": string,"status": string,"used_at": string | null,"user_id": string,"voucher_id": string
-                  }
-                  Insert: {
-                    "booking_id"?: string | null,"checkout_session_id"?: string | null,"discount_amount_vnd"?: number | null,"expires_at": string,"id"?: string,"issued_at"?: string,"status"?: string,"used_at"?: string | null,"user_id": string,"voucher_id": string
-                  }
-                  Update: {
-                    "booking_id"?: string | null,"checkout_session_id"?: string | null,"discount_amount_vnd"?: number | null,"expires_at"?: string,"id"?: string,"issued_at"?: string,"status"?: string,"used_at"?: string | null,"user_id"?: string,"voucher_id"?: string
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "voucher_redemptions_booking_id_fkey"
-      columns: ["booking_id"]
-isOneToOne: false
-      referencedRelation: "bookings"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "voucher_redemptions_checkout_session_id_fkey"
-      columns: ["checkout_session_id"]
-isOneToOne: false
-      referencedRelation: "checkout_sessions"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "voucher_redemptions_user_id_fkey"
-      columns: ["user_id"]
-isOneToOne: false
-      referencedRelation: "profiles"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "voucher_redemptions_voucher_id_fkey"
-      columns: ["voucher_id"]
-isOneToOne: false
-      referencedRelation: "vouchers"
-      referencedColumns: ["id"]
-    }
-                  ]
-                },"vouchers": {
-                  Row: {
-                    "created_at": string,"discount_percentage": number,"id": string,"is_active": boolean,"max_eligible_base_vnd": number,"name": string,"points_cost": number,"updated_at": string,"voucher_type": string
-                  }
-                  Insert: {
-                    "created_at"?: string,"discount_percentage"?: number,"id"?: string,"is_active"?: boolean,"max_eligible_base_vnd"?: number,"name": string,"points_cost"?: number,"updated_at"?: string,"voucher_type"?: string
-                  }
-                  Update: {
-                    "created_at"?: string,"discount_percentage"?: number,"id"?: string,"is_active"?: boolean,"max_eligible_base_vnd"?: number,"name"?: string,"points_cost"?: number,"updated_at"?: string,"voucher_type"?: string
-                  }
-                  Relationships: [
-                    
-                  ]
-                }
-          }
-          Views: {
-            [_ in never]: never
-          }
-          Functions: {
-            "check_room_availability":
-{ Args: { "p_check_in": string,"p_check_out": string,"p_room_id": string }; Returns: boolean
-                           },
-"check_room_availability_hourly":
-{ Args: { "p_check_in_at": string,"p_check_out_at": string,"p_room_id": string }; Returns: boolean
-                           },
-"claim_daily_reward":
-{ Args: Record<PropertyKey, never>; Returns: Json
-                           },
-"create_checkout_session_atomic":
-{ Args: { "p_check_in": string,"p_check_out": string,"p_guest_count": number,"p_room_id": string }; Returns: Json
-                           },
-"create_guest_ticket":
-{ Args: { "p_booking_id": string,"p_category": string,"p_description": string,"p_media_paths"?: (string)[] }; Returns: Json
-                           },
-"create_hourly_checkout_session_atomic":
-{ Args: { "p_check_in_at": string,"p_check_out_at": string,"p_guest_count": number,"p_room_id": string }; Returns: Json
-                           },
-"finalize_verified_checkout_atomic":
-{ Args: { "p_checkout_session_id": string,"p_verified_paid_amount_vnd": number,"p_verified_payment_reference": string }; Returns: Json
-                           },
-"get_active_reward_menu_items":
-{ Args: Record<PropertyKey, never>; Returns: Json
-                           },
-"get_checkout_menu_items":
-{ Args: { "p_checkout_session_id": string }; Returns: Json
-                           },
-"get_menu_products":
-{ Args: { "p_category"?: string }; Returns: Json
-                           },
-"get_my_rewards_summary":
-{ Args: Record<PropertyKey, never>; Returns: Json
-                           },
-"get_my_stay_credentials":
-{ Args: { "p_booking_id": string }; Returns: Json
-                           },
-"get_staff_dashboard_data":
-{ Args: Record<PropertyKey, never>; Returns: Json
-                           },
-"redeem_loyalty_voucher":
-{ Args: Record<PropertyKey, never>; Returns: Json
-                           },
-"release_checkout_reward_entitlement_atomic":
-{ Args: { "p_checkout_session_id": string,"p_entitlement_id"?: string }; Returns: Json
-                           },
-"release_checkout_voucher_atomic":
-{ Args: { "p_checkout_session_id": string }; Returns: Json
-                           },
-"reserve_checkout_reward_entitlement_atomic":
-{ Args: { "p_checkout_session_id": string,"p_entitlement_id": string,"p_menu_item_id"?: string }; Returns: Json
-                           },
-"reserve_checkout_voucher_atomic":
-{ Args: { "p_checkout_session_id": string,"p_voucher_redemption_id": string }; Returns: Json
-                           },
-"update_checkout_menu_items_atomic":
-{ Args: { "p_checkout_session_id": string,"p_items": Json }; Returns: Json
-                           },
-"update_room_operational_status":
-{ Args: { "p_operational_status": string,"p_room_id": string }; Returns: Json
-                           },
-"update_ticket_status":
-{ Args: { "p_status": string,"p_ticket_id": string }; Returns: Json
-                           }
-          }
-          Enums: {
-            [_ in never]: never
-          }
-          CompositeTypes: {
-            [_ in never]: never
-          }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
         }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+  public: {
+    Tables: {
+      booking_access_credentials: {
+        Row: {
+          booking_id: string
+          created_at: string
+          credential_type: string
+          credential_value: string
+          id: string
+          instructions: string | null
+          room_id: string
+          status: string
+          updated_at: string
+          valid_from: string
+          valid_until: string
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          credential_type?: string
+          credential_value: string
+          id?: string
+          instructions?: string | null
+          room_id: string
+          status?: string
+          updated_at?: string
+          valid_from: string
+          valid_until: string
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          credential_type?: string
+          credential_value?: string
+          id?: string
+          instructions?: string | null
+          room_id?: string
+          status?: string
+          updated_at?: string
+          valid_from?: string
+          valid_until?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_access_credentials_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_access_credentials_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      booking_menu_items: {
+        Row: {
+          booking_id: string
+          created_at: string
+          entitlement_id: string | null
+          id: string
+          menu_product_id: string
+          normal_price_vnd: number
+          product_name_snapshot: string
+          quantity: number
+          reward_source: string | null
+          source_type: string
+          total_price_vnd: number
+          unit_price_vnd: number
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          entitlement_id?: string | null
+          id?: string
+          menu_product_id: string
+          normal_price_vnd?: number
+          product_name_snapshot: string
+          quantity: number
+          reward_source?: string | null
+          source_type: string
+          total_price_vnd: number
+          unit_price_vnd: number
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          entitlement_id?: string | null
+          id?: string
+          menu_product_id?: string
+          normal_price_vnd?: number
+          product_name_snapshot?: string
+          quantity?: number
+          reward_source?: string | null
+          source_type?: string
+          total_price_vnd?: number
+          unit_price_vnd?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_menu_items_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_menu_items_entitlement_id_fkey"
+            columns: ["entitlement_id"]
+            isOneToOne: false
+            referencedRelation: "user_reward_entitlements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_menu_items_menu_product_id_fkey"
+            columns: ["menu_product_id"]
+            isOneToOne: false
+            referencedRelation: "menu_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bookings: {
+        Row: {
+          booking_status: string
+          check_in: string | null
+          check_in_at: string | null
+          check_out: string | null
+          check_out_at: string | null
+          checkout_session_id: string | null
+          created_at: string
+          discount_amount_vnd: number
+          final_paid_amount_vnd: number
+          gross_amount_vnd: number
+          guest_count: number
+          id: string
+          menu_amount_vnd: number
+          payment_status: string
+          room_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          booking_status: string
+          check_in?: string | null
+          check_in_at?: string | null
+          check_out?: string | null
+          check_out_at?: string | null
+          checkout_session_id?: string | null
+          created_at?: string
+          discount_amount_vnd?: number
+          final_paid_amount_vnd: number
+          gross_amount_vnd: number
+          guest_count: number
+          id?: string
+          menu_amount_vnd?: number
+          payment_status: string
+          room_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          booking_status?: string
+          check_in?: string | null
+          check_in_at?: string | null
+          check_out?: string | null
+          check_out_at?: string | null
+          checkout_session_id?: string | null
+          created_at?: string
+          discount_amount_vnd?: number
+          final_paid_amount_vnd?: number
+          gross_amount_vnd?: number
+          guest_count?: number
+          id?: string
+          menu_amount_vnd?: number
+          payment_status?: string
+          room_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_checkout_session_id_fkey"
+            columns: ["checkout_session_id"]
+            isOneToOne: false
+            referencedRelation: "checkout_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      checkout_menu_items: {
+        Row: {
+          checkout_session_id: string
+          created_at: string
+          entitlement_id: string | null
+          id: string
+          menu_product_id: string
+          normal_price_vnd: number
+          quantity: number
+          source_type: string
+          total_price_vnd: number
+          unit_price_vnd: number
+          updated_at: string
+        }
+        Insert: {
+          checkout_session_id: string
+          created_at?: string
+          entitlement_id?: string | null
+          id?: string
+          menu_product_id: string
+          normal_price_vnd?: number
+          quantity: number
+          source_type: string
+          total_price_vnd: number
+          unit_price_vnd: number
+          updated_at?: string
+        }
+        Update: {
+          checkout_session_id?: string
+          created_at?: string
+          entitlement_id?: string | null
+          id?: string
+          menu_product_id?: string
+          normal_price_vnd?: number
+          quantity?: number
+          source_type?: string
+          total_price_vnd?: number
+          unit_price_vnd?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checkout_menu_items_checkout_session_id_fkey"
+            columns: ["checkout_session_id"]
+            isOneToOne: false
+            referencedRelation: "checkout_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checkout_menu_items_entitlement_id_fkey"
+            columns: ["entitlement_id"]
+            isOneToOne: false
+            referencedRelation: "user_reward_entitlements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checkout_menu_items_menu_product_id_fkey"
+            columns: ["menu_product_id"]
+            isOneToOne: false
+            referencedRelation: "menu_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      checkout_sessions: {
+        Row: {
+          check_in: string | null
+          check_in_at: string | null
+          check_out: string | null
+          check_out_at: string | null
+          created_at: string
+          discount_amount_vnd: number
+          expires_at: string
+          final_payable_amount_vnd: number
+          gross_amount_vnd: number
+          guest_count: number
+          id: string
+          menu_amount_vnd: number
+          payment_reference: string | null
+          room_id: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          check_in?: string | null
+          check_in_at?: string | null
+          check_out?: string | null
+          check_out_at?: string | null
+          created_at?: string
+          discount_amount_vnd?: number
+          expires_at: string
+          final_payable_amount_vnd: number
+          gross_amount_vnd: number
+          guest_count: number
+          id?: string
+          menu_amount_vnd?: number
+          payment_reference?: string | null
+          room_id: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          check_in?: string | null
+          check_in_at?: string | null
+          check_out?: string | null
+          check_out_at?: string | null
+          created_at?: string
+          discount_amount_vnd?: number
+          expires_at?: string
+          final_payable_amount_vnd?: number
+          gross_amount_vnd?: number
+          guest_count?: number
+          id?: string
+          menu_amount_vnd?: number
+          payment_reference?: string | null
+          room_id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checkout_sessions_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checkout_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      daily_checkins: {
+        Row: {
+          checkin_date: string
+          created_at: string
+          id: string
+          reward_points: number
+          user_id: string
+        }
+        Insert: {
+          checkin_date: string
+          created_at?: string
+          id?: string
+          reward_points?: number
+          user_id: string
+        }
+        Update: {
+          checkin_date?: string
+          created_at?: string
+          id?: string
+          reward_points?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_checkins_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      loyalty_transactions: {
+        Row: {
+          booking_id: string | null
+          created_at: string
+          daily_checkin_id: string | null
+          description: string | null
+          id: string
+          metadata: Json | null
+          points_delta: number
+          type: string
+          user_id: string
+          voucher_redemption_id: string | null
+        }
+        Insert: {
+          booking_id?: string | null
+          created_at?: string
+          daily_checkin_id?: string | null
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          points_delta: number
+          type: string
+          user_id: string
+          voucher_redemption_id?: string | null
+        }
+        Update: {
+          booking_id?: string | null
+          created_at?: string
+          daily_checkin_id?: string | null
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          points_delta?: number
+          type?: string
+          user_id?: string
+          voucher_redemption_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "loyalty_transactions_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loyalty_transactions_daily_checkin_id_fkey"
+            columns: ["daily_checkin_id"]
+            isOneToOne: false
+            referencedRelation: "daily_checkins"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loyalty_transactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loyalty_transactions_voucher_redemption_id_fkey"
+            columns: ["voucher_redemption_id"]
+            isOneToOne: false
+            referencedRelation: "voucher_redemptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      menu_products: {
+        Row: {
+          category: string
+          created_at: string
+          description: string | null
+          id: string
+          image_url: string | null
+          is_active: boolean
+          name: string
+          price_vnd: number
+          slug: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          name: string
+          price_vnd: number
+          slug: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          name?: string
+          price_vnd?: number
+          slug?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      payment_webhook_events: {
+        Row: {
+          account_number: string
+          bank_reference: string | null
+          checkout_session_id: string | null
+          error_code: string | null
+          gateway: string
+          id: string
+          payment_reference: string | null
+          processed_at: string | null
+          processing_status: string
+          provider: string
+          provider_event_id: number
+          raw_payload: Json
+          received_at: string
+          transfer_amount_vnd: number
+          transfer_type: string
+        }
+        Insert: {
+          account_number: string
+          bank_reference?: string | null
+          checkout_session_id?: string | null
+          error_code?: string | null
+          gateway: string
+          id?: string
+          payment_reference?: string | null
+          processed_at?: string | null
+          processing_status: string
+          provider: string
+          provider_event_id: number
+          raw_payload: Json
+          received_at?: string
+          transfer_amount_vnd: number
+          transfer_type: string
+        }
+        Update: {
+          account_number?: string
+          bank_reference?: string | null
+          checkout_session_id?: string | null
+          error_code?: string | null
+          gateway?: string
+          id?: string
+          payment_reference?: string | null
+          processed_at?: string | null
+          processing_status?: string
+          provider?: string
+          provider_event_id?: number
+          raw_payload?: Json
+          received_at?: string
+          transfer_amount_vnd?: number
+          transfer_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_webhook_events_checkout_session_id_fkey"
+            columns: ["checkout_session_id"]
+            isOneToOne: false
+            referencedRelation: "checkout_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      properties: {
+        Row: {
+          address: string
+          created_at: string
+          id: string
+          is_active: boolean
+          maps_url: string | null
+          name: string
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          address: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          maps_url?: string | null
+          name: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          maps_url?: string | null
+          name?: string
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      reward_menu_items: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      room_availability_blocks: {
+        Row: {
+          created_at: string
+          ends_at: string
+          id: string
+          reason: string
+          room_id: string
+          starts_at: string
+        }
+        Insert: {
+          created_at?: string
+          ends_at: string
+          id?: string
+          reason: string
+          room_id: string
+          starts_at: string
+        }
+        Update: {
+          created_at?: string
+          ends_at?: string
+          id?: string
+          reason?: string
+          room_id?: string
+          starts_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "room_availability_blocks_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      room_operations: {
+        Row: {
+          operational_status: string
+          room_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          operational_status?: string
+          room_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          operational_status?: string
+          room_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "room_operations_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: true
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      room_private_details: {
+        Row: {
+          private_instructions: string | null
+          room_id: string
+          updated_at: string
+          wifi_password: string | null
+          wifi_ssid: string | null
+        }
+        Insert: {
+          private_instructions?: string | null
+          room_id: string
+          updated_at?: string
+          wifi_password?: string | null
+          wifi_ssid?: string | null
+        }
+        Update: {
+          private_instructions?: string | null
+          room_id?: string
+          updated_at?: string
+          wifi_password?: string | null
+          wifi_ssid?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "room_private_details_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: true
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rooms: {
+        Row: {
+          amenities: string[]
+          capacity: number
+          created_at: string
+          description: string | null
+          hourly_price_vnd: number
+          id: string
+          image_paths: string[]
+          is_listed: boolean
+          name: string
+          nightly_price_vnd: number
+          property_id: string
+          updated_at: string
+        }
+        Insert: {
+          amenities?: string[]
+          capacity: number
+          created_at?: string
+          description?: string | null
+          hourly_price_vnd: number
+          id?: string
+          image_paths?: string[]
+          is_listed?: boolean
+          name: string
+          nightly_price_vnd: number
+          property_id: string
+          updated_at?: string
+        }
+        Update: {
+          amenities?: string[]
+          capacity?: number
+          created_at?: string
+          description?: string | null
+          hourly_price_vnd?: number
+          id?: string
+          image_paths?: string[]
+          is_listed?: boolean
+          name?: string
+          nightly_price_vnd?: number
+          property_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rooms_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_roles: {
+        Row: {
+          created_at: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          role: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      streak_reward_definitions: {
+        Row: {
+          created_at: string
+          description: string
+          discount_percentage: number | null
+          expiry_days: number
+          id: string
+          is_active: boolean
+          max_discount_vnd: number | null
+          max_eligible_base_vnd: number | null
+          milestone_day: number
+          reward_type: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          discount_percentage?: number | null
+          expiry_days?: number
+          id?: string
+          is_active?: boolean
+          max_discount_vnd?: number | null
+          max_eligible_base_vnd?: number | null
+          milestone_day: number
+          reward_type: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          discount_percentage?: number | null
+          expiry_days?: number
+          id?: string
+          is_active?: boolean
+          max_discount_vnd?: number | null
+          max_eligible_base_vnd?: number | null
+          milestone_day?: number
+          reward_type?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tickets: {
+        Row: {
+          booking_id: string
+          category: string
+          created_at: string
+          description: string
+          id: string
+          media_paths: string[]
+          room_id: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          booking_id: string
+          category: string
+          created_at?: string
+          description: string
+          id?: string
+          media_paths?: string[]
+          room_id: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          booking_id?: string
+          category?: string
+          created_at?: string
+          description?: string
+          id?: string
+          media_paths?: string[]
+          room_id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tickets_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tickets_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tickets_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_reward_entitlements: {
+        Row: {
+          booking_id: string | null
+          checkout_session_id: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          issued_at: string
+          milestone_day: number
+          reward_definition_id: string
+          selection_data: Json | null
+          status: string
+          streak_cycle_id: number
+          updated_at: string
+          used_at: string | null
+          user_id: string
+        }
+        Insert: {
+          booking_id?: string | null
+          checkout_session_id?: string | null
+          created_at?: string
+          expires_at: string
+          id?: string
+          issued_at?: string
+          milestone_day: number
+          reward_definition_id: string
+          selection_data?: Json | null
+          status?: string
+          streak_cycle_id?: number
+          updated_at?: string
+          used_at?: string | null
+          user_id: string
+        }
+        Update: {
+          booking_id?: string | null
+          checkout_session_id?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          issued_at?: string
+          milestone_day?: number
+          reward_definition_id?: string
+          selection_data?: Json | null
+          status?: string
+          streak_cycle_id?: number
+          updated_at?: string
+          used_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_reward_entitlements_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_reward_entitlements_checkout_session_id_fkey"
+            columns: ["checkout_session_id"]
+            isOneToOne: false
+            referencedRelation: "checkout_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_reward_entitlements_reward_definition_id_fkey"
+            columns: ["reward_definition_id"]
+            isOneToOne: false
+            referencedRelation: "streak_reward_definitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_reward_streaks: {
+        Row: {
+          current_streak: number
+          last_checkin_date: string | null
+          longest_streak: number
+          streak_cycle_id: number
+          streak_cycle_started_at: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          current_streak?: number
+          last_checkin_date?: string | null
+          longest_streak?: number
+          streak_cycle_id?: number
+          streak_cycle_started_at?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          current_streak?: number
+          last_checkin_date?: string | null
+          longest_streak?: number
+          streak_cycle_id?: number
+          streak_cycle_started_at?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      voucher_redemptions: {
+        Row: {
+          booking_id: string | null
+          checkout_session_id: string | null
+          discount_amount_vnd: number | null
+          expires_at: string
+          id: string
+          issued_at: string
+          status: string
+          used_at: string | null
+          user_id: string
+          voucher_id: string
+        }
+        Insert: {
+          booking_id?: string | null
+          checkout_session_id?: string | null
+          discount_amount_vnd?: number | null
+          expires_at: string
+          id?: string
+          issued_at?: string
+          status?: string
+          used_at?: string | null
+          user_id: string
+          voucher_id: string
+        }
+        Update: {
+          booking_id?: string | null
+          checkout_session_id?: string | null
+          discount_amount_vnd?: number | null
+          expires_at?: string
+          id?: string
+          issued_at?: string
+          status?: string
+          used_at?: string | null
+          user_id?: string
+          voucher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voucher_redemptions_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voucher_redemptions_checkout_session_id_fkey"
+            columns: ["checkout_session_id"]
+            isOneToOne: false
+            referencedRelation: "checkout_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voucher_redemptions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voucher_redemptions_voucher_id_fkey"
+            columns: ["voucher_id"]
+            isOneToOne: false
+            referencedRelation: "vouchers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vouchers: {
+        Row: {
+          created_at: string
+          discount_percentage: number
+          id: string
+          is_active: boolean
+          max_eligible_base_vnd: number
+          name: string
+          points_cost: number
+          updated_at: string
+          voucher_type: string
+        }
+        Insert: {
+          created_at?: string
+          discount_percentage?: number
+          id?: string
+          is_active?: boolean
+          max_eligible_base_vnd?: number
+          name: string
+          points_cost?: number
+          updated_at?: string
+          voucher_type?: string
+        }
+        Update: {
+          created_at?: string
+          discount_percentage?: number
+          id?: string
+          is_active?: boolean
+          max_eligible_base_vnd?: number
+          name?: string
+          points_cost?: number
+          updated_at?: string
+          voucher_type?: string
+        }
+        Relationships: []
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      check_room_availability: {
+        Args: { p_check_in: string; p_check_out: string; p_room_id: string }
+        Returns: boolean
+      }
+      check_room_availability_hourly: {
+        Args: {
+          p_check_in_at: string
+          p_check_out_at: string
+          p_room_id: string
+        }
+        Returns: boolean
+      }
+      claim_daily_reward: { Args: never; Returns: Json }
+      create_checkout_session_atomic: {
+        Args: {
+          p_check_in: string
+          p_check_out: string
+          p_guest_count: number
+          p_room_id: string
+        }
+        Returns: Json
+      }
+      create_guest_ticket: {
+        Args: {
+          p_booking_id: string
+          p_category: string
+          p_description: string
+          p_media_paths?: string[]
+        }
+        Returns: Json
+      }
+      create_hourly_checkout_session_atomic: {
+        Args: {
+          p_check_in_at: string
+          p_check_out_at: string
+          p_guest_count: number
+          p_room_id: string
+        }
+        Returns: Json
+      }
+      finalize_verified_checkout_atomic: {
+        Args: {
+          p_checkout_session_id: string
+          p_verified_paid_amount_vnd: number
+          p_verified_payment_reference: string
+        }
+        Returns: Json
+      }
+      get_active_reward_menu_items: { Args: never; Returns: Json }
+      get_admin_dashboard_data: { Args: never; Returns: Json }
+      get_checkout_menu_items: {
+        Args: { p_checkout_session_id: string }
+        Returns: Json
+      }
+      get_menu_products: { Args: { p_category?: string }; Returns: Json }
+      get_my_rewards_summary: { Args: never; Returns: Json }
+      get_my_stay_credentials: { Args: { p_booking_id: string }; Returns: Json }
+      get_staff_dashboard_data: { Args: never; Returns: Json }
+      redeem_loyalty_voucher: { Args: never; Returns: Json }
+      release_checkout_reward_entitlement_atomic: {
+        Args: { p_checkout_session_id: string; p_entitlement_id?: string }
+        Returns: Json
+      }
+      release_checkout_voucher_atomic: {
+        Args: { p_checkout_session_id: string }
+        Returns: Json
+      }
+      reserve_checkout_reward_entitlement_atomic: {
+        Args: {
+          p_checkout_session_id: string
+          p_entitlement_id: string
+          p_menu_item_id?: string
+        }
+        Returns: Json
+      }
+      reserve_checkout_voucher_atomic: {
+        Args: { p_checkout_session_id: string; p_voucher_redemption_id: string }
+        Returns: Json
+      }
+      update_checkout_menu_items_atomic: {
+        Args: { p_checkout_session_id: string; p_items: Json }
+        Returns: Json
+      }
+      update_room_operational_status: {
+        Args: { p_operational_status: string; p_room_id: string }
+        Returns: Json
+      }
+      update_ticket_status: {
+        Args: { p_status: string; p_ticket_id: string }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
 }
 
-type DatabaseWithoutInternals = Omit<Database, '__InternalSupabase'>
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
 
 type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
@@ -607,112 +1272,120 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never
-> = DefaultSchemaTableNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
+    : never) = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
   ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
       DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
     ? R
     : never
-  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-  ? (DefaultSchema["Tables"] & DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
-      Row: infer R
-    }
-    ? R
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
     : never
-  : never
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never
-> = DefaultSchemaTableNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
+    : never) = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Insert: infer I
     }
     ? I
     : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-      Insert: infer I
-    }
-    ? I
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
     : never
-  : never
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never
-> = DefaultSchemaTableNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
+    : never) = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Update: infer U
     }
     ? U
     : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-      Update: infer U
-    }
-    ? U
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
     : never
-  : never
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never
-> = DefaultSchemaEnumNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
+    : never) = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
-  ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-  : never
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never
-> = PublicCompositeTypeNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
+    : never) = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-  ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-  : never
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
 
 export const Constants = {
-  "graphql_public": {
-          Enums: {
-            
-          }
-        },"public": {
-          Enums: {
-            
-          }
-        }
+  graphql_public: {
+    Enums: {},
+  },
+  public: {
+    Enums: {},
+  },
 } as const
-
