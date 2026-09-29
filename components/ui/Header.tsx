@@ -24,8 +24,8 @@ export function Header({ authSlot }: HeaderProps) {
 
   const navLinks = [
     { href: "/rooms", label: "Phòng", isActive: pathname.startsWith("/rooms") },
-    { href: "/#locations", label: "Chi nhánh", isActive: false },
-    { href: "/rewards", label: "Kapi Rewards", isActive: pathname.startsWith("/rewards") },
+    { href: "/menu", label: "Menu", isActive: pathname.startsWith("/menu") },
+    { href: "/rewards", label: "Rewards", isActive: pathname.startsWith("/rewards") },
     { href: "/my-stay", label: "My Stay", isActive: pathname.startsWith("/my-stay") },
   ];
 

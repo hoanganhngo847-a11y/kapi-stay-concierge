@@ -28,6 +28,8 @@ import {
   applyPhysicalRewardAction,
   releasePhysicalRewardAction,
   getPhysicalRewardsAction,
+  updateCheckoutMenuItemsAction,
+  getCheckoutMenuItemsAction,
 } from "./actions";
 import type {
   CheckoutSessionWithRoom,
@@ -45,6 +47,9 @@ interface CheckoutClientProps {
   initialVouchers: CheckoutVoucherItem[];
   initialPhysicalRewards?: CheckoutPhysicalReward[];
   menuItems?: CheckoutMenuItem[];
+  allMenuProducts?: import("@/lib/data/menu").MenuProduct[];
+  initialSelectedMenuItems?: import("@/lib/data/checkout").CheckoutMenuItemRecord[];
+  initialMenuAmountVnd?: number;
   /** userId được page.tsx truyền vào; auth thực tế do Server Actions xử lý */
   userId: string;
 }
@@ -89,6 +94,9 @@ export function CheckoutClient({
   initialVouchers,
   initialPhysicalRewards = [],
   menuItems = [],
+  allMenuProducts = [],
+  initialSelectedMenuItems = [],
+  initialMenuAmountVnd = 0,
   userId: _userId, // eslint-disable-line @typescript-eslint/no-unused-vars
 }: CheckoutClientProps) {
 
@@ -116,6 +124,14 @@ export function CheckoutClient({
   const [isPhysicalRewardLoading, setIsPhysicalRewardLoading] = useState(false);
   const [physicalRewardError, setPhysicalRewardError] = useState<string | null>(null);
 
+  // ── State: menu items (Đồ ăn & thức uống) ───────────────────────────────────
+  const [selectedMenuItems, setSelectedMenuItems] = useState<
+    import("@/lib/data/checkout").CheckoutMenuItemRecord[]
+  >(initialSelectedMenuItems);
+  const [menuAmountVnd, setMenuAmountVnd] = useState(initialMenuAmountVnd);
+  const [isMenuLoading, setIsMenuLoading] = useState(false);
+  const [menuError, setMenuError] = useState<string | null>(null);
+
   // ── State: QRModal ────────────────────────────────────────────────────────
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -129,8 +145,9 @@ export function CheckoutClient({
     );
   }
 
-  // Tính toán số tiền thanh toán thực tế (sau khi áp voucher)
-  const finalAmountVnd = Math.max(0, session.gross_amount_vnd - discountAmountVnd);
+  // Tính toán số tiền thanh toán thực tế (sau khi áp voucher + đồ ăn thức uống)
+  // Voucher chỉ discount tiền phòng (gross_amount_vnd), không discount menu_amount_vnd
+  const finalAmountVnd = Math.max(0, session.gross_amount_vnd - discountAmountVnd) + menuAmountVnd;
 
   // ── Handler: cập nhật thông tin khách ────────────────────────────────────
   const handleGuestInfoChange = useCallback(
@@ -248,6 +265,30 @@ export function CheckoutClient({
     [selectedPhysicalRewardId, selectedMenuItemId, session.id, handleReleasePhysicalReward]
   );
 
+  // ── Handler: cập nhật thực đơn (đồ ăn & thức uống) ────────────────────────
+  const handleUpdateMenuItems = useCallback(
+    async (itemsPayload: import("@/lib/data/checkout").CheckoutMenuItemPayload[]) => {
+      setIsMenuLoading(true);
+      setMenuError(null);
+      try {
+        const res = await updateCheckoutMenuItemsAction(session.id, itemsPayload);
+        if (!res.success) {
+          setMenuError(res.error || "Không thể cập nhật món ăn & thức uống.");
+          return;
+        }
+        const fresh = await getCheckoutMenuItemsAction(session.id);
+        setSelectedMenuItems(fresh.data);
+        setMenuAmountVnd(fresh.menuAmountVnd);
+      } catch (err) {
+        console.error("[CheckoutClient] handleUpdateMenuItems exception:", err);
+        setMenuError("Lỗi kết nối khi cập nhật thực đơn.");
+      } finally {
+        setIsMenuLoading(false);
+      }
+    },
+    [session.id]
+  );
+
   // ── Handler: bấm "Tiến hành thanh toán" ──────────────────────────────────
   function handleProceedToPayment() {
     // Validate form thông tin khách
@@ -293,6 +334,12 @@ export function CheckoutClient({
         onReleasePhysicalReward={handleReleasePhysicalReward}
         isPhysicalRewardLoading={isPhysicalRewardLoading}
         physicalRewardError={physicalRewardError}
+        allMenuProducts={allMenuProducts}
+        selectedMenuItems={selectedMenuItems}
+        menuAmountVnd={menuAmountVnd}
+        onUpdateMenuItems={handleUpdateMenuItems}
+        isMenuLoading={isMenuLoading}
+        menuError={menuError}
         guestInfo={guestInfo}
         guestInfoErrors={guestInfoErrors}
         onGuestInfoChange={handleGuestInfoChange}

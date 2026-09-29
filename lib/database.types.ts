@@ -48,15 +48,46 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
-                },"bookings": {
+                },"booking_menu_items": {
                   Row: {
-                    "booking_status": string,"check_in": string | null,"check_in_at": string | null,"check_out": string | null,"check_out_at": string | null,"checkout_session_id": string | null,"created_at": string,"discount_amount_vnd": number,"final_paid_amount_vnd": number,"gross_amount_vnd": number,"guest_count": number,"id": string,"payment_status": string,"room_id": string,"updated_at": string,"user_id": string
+                    "booking_id": string,"created_at": string,"entitlement_id": string | null,"id": string,"menu_product_id": string,"normal_price_vnd": number,"product_name_snapshot": string,"quantity": number,"reward_source": string | null,"source_type": string,"total_price_vnd": number,"unit_price_vnd": number
                   }
                   Insert: {
-                    "booking_status": string,"check_in"?: string | null,"check_in_at"?: string | null,"check_out"?: string | null,"check_out_at"?: string | null,"checkout_session_id"?: string | null,"created_at"?: string,"discount_amount_vnd"?: number,"final_paid_amount_vnd": number,"gross_amount_vnd": number,"guest_count": number,"id"?: string,"payment_status": string,"room_id": string,"updated_at"?: string,"user_id": string
+                    "booking_id": string,"created_at"?: string,"entitlement_id"?: string | null,"id"?: string,"menu_product_id": string,"normal_price_vnd"?: number,"product_name_snapshot": string,"quantity": number,"reward_source"?: string | null,"source_type": string,"total_price_vnd": number,"unit_price_vnd": number
                   }
                   Update: {
-                    "booking_status"?: string,"check_in"?: string | null,"check_in_at"?: string | null,"check_out"?: string | null,"check_out_at"?: string | null,"checkout_session_id"?: string | null,"created_at"?: string,"discount_amount_vnd"?: number,"final_paid_amount_vnd"?: number,"gross_amount_vnd"?: number,"guest_count"?: number,"id"?: string,"payment_status"?: string,"room_id"?: string,"updated_at"?: string,"user_id"?: string
+                    "booking_id"?: string,"created_at"?: string,"entitlement_id"?: string | null,"id"?: string,"menu_product_id"?: string,"normal_price_vnd"?: number,"product_name_snapshot"?: string,"quantity"?: number,"reward_source"?: string | null,"source_type"?: string,"total_price_vnd"?: number,"unit_price_vnd"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "booking_menu_items_booking_id_fkey"
+      columns: ["booking_id"]
+isOneToOne: false
+      referencedRelation: "bookings"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "booking_menu_items_entitlement_id_fkey"
+      columns: ["entitlement_id"]
+isOneToOne: false
+      referencedRelation: "user_reward_entitlements"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "booking_menu_items_menu_product_id_fkey"
+      columns: ["menu_product_id"]
+isOneToOne: false
+      referencedRelation: "menu_products"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"bookings": {
+                  Row: {
+                    "booking_status": string,"check_in": string | null,"check_in_at": string | null,"check_out": string | null,"check_out_at": string | null,"checkout_session_id": string | null,"created_at": string,"discount_amount_vnd": number,"final_paid_amount_vnd": number,"gross_amount_vnd": number,"guest_count": number,"id": string,"menu_amount_vnd": number,"payment_status": string,"room_id": string,"updated_at": string,"user_id": string
+                  }
+                  Insert: {
+                    "booking_status": string,"check_in"?: string | null,"check_in_at"?: string | null,"check_out"?: string | null,"check_out_at"?: string | null,"checkout_session_id"?: string | null,"created_at"?: string,"discount_amount_vnd"?: number,"final_paid_amount_vnd": number,"gross_amount_vnd": number,"guest_count": number,"id"?: string,"menu_amount_vnd"?: number,"payment_status": string,"room_id": string,"updated_at"?: string,"user_id": string
+                  }
+                  Update: {
+                    "booking_status"?: string,"check_in"?: string | null,"check_in_at"?: string | null,"check_out"?: string | null,"check_out_at"?: string | null,"checkout_session_id"?: string | null,"created_at"?: string,"discount_amount_vnd"?: number,"final_paid_amount_vnd"?: number,"gross_amount_vnd"?: number,"guest_count"?: number,"id"?: string,"menu_amount_vnd"?: number,"payment_status"?: string,"room_id"?: string,"updated_at"?: string,"user_id"?: string
                   }
                   Relationships: [
                     {
@@ -79,15 +110,46 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
-                },"checkout_sessions": {
+                },"checkout_menu_items": {
                   Row: {
-                    "check_in": string | null,"check_in_at": string | null,"check_out": string | null,"check_out_at": string | null,"created_at": string,"discount_amount_vnd": number,"expires_at": string,"final_payable_amount_vnd": number,"gross_amount_vnd": number,"guest_count": number,"id": string,"payment_reference": string | null,"room_id": string,"status": string,"updated_at": string,"user_id": string
+                    "checkout_session_id": string,"created_at": string,"entitlement_id": string | null,"id": string,"menu_product_id": string,"normal_price_vnd": number,"quantity": number,"source_type": string,"total_price_vnd": number,"unit_price_vnd": number,"updated_at": string
                   }
                   Insert: {
-                    "check_in"?: string | null,"check_in_at"?: string | null,"check_out"?: string | null,"check_out_at"?: string | null,"created_at"?: string,"discount_amount_vnd"?: number,"expires_at": string,"final_payable_amount_vnd": number,"gross_amount_vnd": number,"guest_count": number,"id"?: string,"payment_reference"?: string | null,"room_id": string,"status"?: string,"updated_at"?: string,"user_id": string
+                    "checkout_session_id": string,"created_at"?: string,"entitlement_id"?: string | null,"id"?: string,"menu_product_id": string,"normal_price_vnd"?: number,"quantity": number,"source_type": string,"total_price_vnd": number,"unit_price_vnd": number,"updated_at"?: string
                   }
                   Update: {
-                    "check_in"?: string | null,"check_in_at"?: string | null,"check_out"?: string | null,"check_out_at"?: string | null,"created_at"?: string,"discount_amount_vnd"?: number,"expires_at"?: string,"final_payable_amount_vnd"?: number,"gross_amount_vnd"?: number,"guest_count"?: number,"id"?: string,"payment_reference"?: string | null,"room_id"?: string,"status"?: string,"updated_at"?: string,"user_id"?: string
+                    "checkout_session_id"?: string,"created_at"?: string,"entitlement_id"?: string | null,"id"?: string,"menu_product_id"?: string,"normal_price_vnd"?: number,"quantity"?: number,"source_type"?: string,"total_price_vnd"?: number,"unit_price_vnd"?: number,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "checkout_menu_items_checkout_session_id_fkey"
+      columns: ["checkout_session_id"]
+isOneToOne: false
+      referencedRelation: "checkout_sessions"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "checkout_menu_items_entitlement_id_fkey"
+      columns: ["entitlement_id"]
+isOneToOne: false
+      referencedRelation: "user_reward_entitlements"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "checkout_menu_items_menu_product_id_fkey"
+      columns: ["menu_product_id"]
+isOneToOne: false
+      referencedRelation: "menu_products"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"checkout_sessions": {
+                  Row: {
+                    "check_in": string | null,"check_in_at": string | null,"check_out": string | null,"check_out_at": string | null,"created_at": string,"discount_amount_vnd": number,"expires_at": string,"final_payable_amount_vnd": number,"gross_amount_vnd": number,"guest_count": number,"id": string,"menu_amount_vnd": number,"payment_reference": string | null,"room_id": string,"status": string,"updated_at": string,"user_id": string
+                  }
+                  Insert: {
+                    "check_in"?: string | null,"check_in_at"?: string | null,"check_out"?: string | null,"check_out_at"?: string | null,"created_at"?: string,"discount_amount_vnd"?: number,"expires_at": string,"final_payable_amount_vnd": number,"gross_amount_vnd": number,"guest_count": number,"id"?: string,"menu_amount_vnd"?: number,"payment_reference"?: string | null,"room_id": string,"status"?: string,"updated_at"?: string,"user_id": string
+                  }
+                  Update: {
+                    "check_in"?: string | null,"check_in_at"?: string | null,"check_out"?: string | null,"check_out_at"?: string | null,"created_at"?: string,"discount_amount_vnd"?: number,"expires_at"?: string,"final_payable_amount_vnd"?: number,"gross_amount_vnd"?: number,"guest_count"?: number,"id"?: string,"menu_amount_vnd"?: number,"payment_reference"?: string | null,"room_id"?: string,"status"?: string,"updated_at"?: string,"user_id"?: string
                   }
                   Relationships: [
                     {
@@ -159,6 +221,19 @@ isOneToOne: false
       referencedRelation: "voucher_redemptions"
       referencedColumns: ["id"]
     }
+                  ]
+                },"menu_products": {
+                  Row: {
+                    "category": string,"created_at": string,"description": string | null,"id": string,"image_url": string | null,"is_active": boolean,"name": string,"price_vnd": number,"slug": string,"sort_order": number,"updated_at": string
+                  }
+                  Insert: {
+                    "category": string,"created_at"?: string,"description"?: string | null,"id"?: string,"image_url"?: string | null,"is_active"?: boolean,"name": string,"price_vnd": number,"slug": string,"sort_order"?: number,"updated_at"?: string
+                  }
+                  Update: {
+                    "category"?: string,"created_at"?: string,"description"?: string | null,"id"?: string,"image_url"?: string | null,"is_active"?: boolean,"name"?: string,"price_vnd"?: number,"slug"?: string,"sort_order"?: number,"updated_at"?: string
+                  }
+                  Relationships: [
+                    
                   ]
                 },"payment_webhook_events": {
                   Row: {
@@ -475,6 +550,12 @@ isOneToOne: false
 "get_active_reward_menu_items":
 { Args: Record<PropertyKey, never>; Returns: Json
                            },
+"get_checkout_menu_items":
+{ Args: { "p_checkout_session_id": string }; Returns: Json
+                           },
+"get_menu_products":
+{ Args: { "p_category"?: string }; Returns: Json
+                           },
 "get_my_rewards_summary":
 { Args: Record<PropertyKey, never>; Returns: Json
                            },
@@ -498,6 +579,9 @@ isOneToOne: false
                            },
 "reserve_checkout_voucher_atomic":
 { Args: { "p_checkout_session_id": string,"p_voucher_redemption_id": string }; Returns: Json
+                           },
+"update_checkout_menu_items_atomic":
+{ Args: { "p_checkout_session_id": string,"p_items": Json }; Returns: Json
                            },
 "update_room_operational_status":
 { Args: { "p_operational_status": string,"p_room_id": string }; Returns: Json

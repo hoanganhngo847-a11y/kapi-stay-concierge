@@ -275,6 +275,18 @@ export interface AdminTicketRecord {
   } | null;
 }
 
+export interface TodayBookingMenuItem {
+  id: string;
+  product_name: string;
+  quantity: number;
+  source_type: "PURCHASE" | "REWARD";
+  unit_price_vnd: number;
+  total_price_vnd: number;
+  normal_price_vnd: number;
+  reward_source?: string | null;
+  reward_label?: string | null;
+}
+
 export interface StaffDashboardData {
   success: boolean;
   today?: string;
@@ -314,9 +326,11 @@ export interface StaffDashboardData {
     guest_count: number;
     booking_status: string;
     payment_status: string;
+    menu_amount_vnd?: number;
     is_checkin_today: boolean;
     is_checkout_today: boolean;
     rewards?: string[];
+    menu_items?: TodayBookingMenuItem[];
   }>;
   error?: string;
 }
@@ -835,6 +849,23 @@ export function validateStaffDashboardBoundary(data: unknown): StaffDashboardDat
       ? b.rewards.filter((r): r is string => typeof r === "string" && r.trim().length > 0)
       : undefined;
 
+    const menuItems = Array.isArray(b.menu_items)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ? b.menu_items.map((m: any) => ({
+          id: String(m.id || ""),
+          product_name: String(m.product_name || ""),
+          quantity: Number(m.quantity || 1),
+          source_type: m.source_type === "REWARD" ? ("REWARD" as const) : ("PURCHASE" as const),
+          unit_price_vnd: Number(m.unit_price_vnd || 0),
+          total_price_vnd: Number(m.total_price_vnd || 0),
+          normal_price_vnd: Number(m.normal_price_vnd || 0),
+          reward_source: m.reward_source ? String(m.reward_source) : null,
+          reward_label: m.reward_label ? String(m.reward_label) : null,
+        }))
+      : undefined;
+
+    const menuAmountVnd = typeof b.menu_amount_vnd === "number" ? b.menu_amount_vnd : undefined;
+
     return {
       id,
       room_id: roomId,
@@ -849,9 +880,11 @@ export function validateStaffDashboardBoundary(data: unknown): StaffDashboardDat
       guest_count: guestCount,
       booking_status: bookingStatus,
       payment_status: paymentStatus,
+      menu_amount_vnd: menuAmountVnd,
       is_checkin_today: isCheckinToday,
       is_checkout_today: isCheckoutToday,
       rewards,
+      menu_items: menuItems,
     };
   });
 

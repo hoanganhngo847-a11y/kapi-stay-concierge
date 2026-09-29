@@ -26,14 +26,22 @@ import {
   Mail,
   BedDouble,
   Gift,
+  Utensils,
+  Plus,
+  Minus,
+  Trash2,
+  Search,
 } from "lucide-react";
 import { Button, Input, Badge, Reveal } from "@/components/ui";
 import { formatVND } from "@/lib/utils/format";
+import type { MenuProduct } from "@/lib/data/menu";
 import type {
   CheckoutSessionWithRoom,
   CheckoutVoucherItem,
   CheckoutPhysicalReward,
   CheckoutMenuItem,
+  CheckoutMenuItemRecord,
+  CheckoutMenuItemPayload,
 } from "@/lib/data/checkout";
 
 // ---------------------------------------------------------------------------
@@ -76,6 +84,18 @@ export interface BookingSummaryProps {
   selectedMenuItemId?: string | null;
   /** Danh mục thực đơn phần thưởng đang active */
   menuItems?: CheckoutMenuItem[];
+  /** Toàn bộ catalog món ăn & thức uống active */
+  allMenuProducts?: MenuProduct[];
+  /** Danh sách món user đã chọn trong phiên checkout */
+  selectedMenuItems?: CheckoutMenuItemRecord[];
+  /** Tổng tiền món ăn & thức uống (tính từ server) */
+  menuAmountVnd?: number;
+  /** Callback cập nhật danh sách món (thêm, sửa số lượng, xóa) */
+  onUpdateMenuItems?: (itemsPayload: CheckoutMenuItemPayload[]) => Promise<void>;
+  /** Trạng thái đang tải/cập nhật món */
+  isMenuLoading?: boolean;
+  /** Lỗi cập nhật thực đơn */
+  menuError?: string | null;
   /** Callback áp phần thưởng hiện vật */
   onApplyPhysicalReward?: (entitlementId: string, menuItemId?: string) => Promise<void>;
   /** Callback hủy phần thưởng hiện vật */
@@ -271,6 +291,12 @@ export function BookingSummary({
   selectedPhysicalRewardId = null,
   selectedMenuItemId = null,
   menuItems = [],
+  allMenuProducts = [],
+  selectedMenuItems = [],
+  menuAmountVnd = 0,
+  onUpdateMenuItems,
+  isMenuLoading = false,
+  menuError = null,
   onApplyPhysicalReward,
   onReleasePhysicalReward,
   isPhysicalRewardLoading = false,
@@ -283,6 +309,10 @@ export function BookingSummary({
 }: BookingSummaryProps) {
   const [showVoucherPanel, setShowVoucherPanel] = useState(false);
   const [showPhysicalRewardPanel, setShowPhysicalRewardPanel] = useState(false);
+  const [showCatalogPicker, setShowCatalogPicker] = useState(false);
+  const [menuSearch, setMenuSearch] = useState("");
+  const [menuActiveCategory, setMenuActiveCategory] = useState<"ALL" | "DRINK" | "SNACK" | "MAIN_FOOD">("ALL");
+
   const [tempMenuItemId, setTempMenuItemId] = useState<string | null>(
     selectedMenuItemId || (menuItems.length > 0 ? menuItems[0].id : null)
   );
@@ -296,7 +326,10 @@ export function BookingSummary({
   );
   const gross = session.gross_amount_vnd;
   const discount = discountAmountVnd;
-  const finalAmount = Math.max(0, gross - discount);
+  const menuTotal = menuAmountVnd;
+  // Rule J: Voucher applies to room charge ONLY. Addons are strictly excluded.
+  // final_payable = room_gross - room_discount + menu_addon_total
+  const finalAmount = Math.max(0, gross - discount) + menuTotal;
 
   const room = session.room;
   const hourlyPrice =
@@ -314,6 +347,92 @@ export function BookingSummary({
       onReleaseVoucher();
     });
   }
+
+  async function handleIncreaseMenuQty(item: CheckoutMenuItemRecord) {
+    if (!onUpdateMenuItems || isMenuLoading) return;
+    const payload: CheckoutMenuItemPayload[] = selectedMenuItems.map((i) => ({
+      menu_product_id: i.menu_product_id,
+      quantity: i.id === item.id ? i.quantity + 1 : i.quantity,
+      source_type: i.source_type,
+      entitlement_id: i.entitlement_id || undefined,
+    }));
+    await onUpdateMenuItems(payload);
+  }
+
+  async function handleDecreaseMenuQty(item: CheckoutMenuItemRecord) {
+    if (!onUpdateMenuItems || isMenuLoading) return;
+    let payload: CheckoutMenuItemPayload[];
+    if (item.quantity > 1) {
+      payload = selectedMenuItems.map((i) => ({
+        menu_product_id: i.menu_product_id,
+        quantity: i.id === item.id ? i.quantity - 1 : i.quantity,
+        source_type: i.source_type,
+        entitlement_id: i.entitlement_id || undefined,
+      }));
+    } else {
+      payload = selectedMenuItems
+        .filter((i) => i.id !== item.id)
+        .map((i) => ({
+          menu_product_id: i.menu_product_id,
+          quantity: i.quantity,
+          source_type: i.source_type,
+          entitlement_id: i.entitlement_id || undefined,
+        }));
+    }
+    await onUpdateMenuItems(payload);
+  }
+
+  async function handleRemoveMenuItem(item: CheckoutMenuItemRecord) {
+    if (!onUpdateMenuItems || isMenuLoading) return;
+    const payload: CheckoutMenuItemPayload[] = selectedMenuItems
+      .filter((i) => i.id !== item.id)
+      .map((i) => ({
+        menu_product_id: i.menu_product_id,
+        quantity: i.quantity,
+        source_type: i.source_type,
+        entitlement_id: i.entitlement_id || undefined,
+      }));
+    await onUpdateMenuItems(payload);
+  }
+
+  async function handleAddProductToCart(prod: MenuProduct) {
+    if (!onUpdateMenuItems || isMenuLoading) return;
+    const existing = selectedMenuItems.find(
+      (i) => i.menu_product_id === prod.id && i.source_type === "PURCHASE"
+    );
+    let payload: CheckoutMenuItemPayload[];
+    if (existing) {
+      payload = selectedMenuItems.map((i) => ({
+        menu_product_id: i.menu_product_id,
+        quantity: i.id === existing.id ? i.quantity + 1 : i.quantity,
+        source_type: i.source_type,
+        entitlement_id: i.entitlement_id || undefined,
+      }));
+    } else {
+      payload = [
+        ...selectedMenuItems.map((i) => ({
+          menu_product_id: i.menu_product_id,
+          quantity: i.quantity,
+          source_type: i.source_type,
+          entitlement_id: i.entitlement_id || undefined,
+        })),
+        {
+          menu_product_id: prod.id,
+          quantity: 1,
+          source_type: "PURCHASE",
+        },
+      ];
+    }
+    await onUpdateMenuItems(payload);
+  }
+
+  const filteredCatalog = allMenuProducts.filter((p) => {
+    if (menuActiveCategory !== "ALL" && p.category !== menuActiveCategory) return false;
+    if (menuSearch.trim()) {
+      return p.name.toLowerCase().includes(menuSearch.toLowerCase().trim());
+    }
+    return true;
+  });
 
   return (
     <div className="w-full space-y-6">
@@ -725,6 +844,275 @@ export function BookingSummary({
         </Reveal>
       )}
 
+      {/* ── Card 2C: Đồ ăn & thức uống (Menu Add-ons & Quà tặng) ─────────── */}
+      <Reveal distance={12} delay={140}>
+        <section
+          className="bg-white border border-[#E5E5E5] overflow-hidden"
+          aria-labelledby="menu-addons-heading"
+        >
+          <div className="flex items-center justify-between p-5 sm:p-6 border-b border-[#E5E5E5] bg-white">
+            <div className="flex items-center gap-3">
+              <span className="w-8 h-8 bg-[#F5F5F5] text-[#111111] flex items-center justify-center shrink-0">
+                <Utensils className="w-4 h-4" aria-hidden="true" />
+              </span>
+              <div>
+                <h2
+                  id="menu-addons-heading"
+                  className="text-sm font-medium text-[#111111]"
+                >
+                  Đồ ăn & thức uống
+                </h2>
+                <p className="text-xs text-[#707072] mt-0.5">
+                  {selectedMenuItems.length > 0
+                    ? `${selectedMenuItems.reduce((s, i) => s + i.quantity, 0)} sản phẩm đã chọn`
+                    : "Chọn thêm nước uống, đồ ăn vặt & món chính phục vụ tại phòng"}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {menuTotal > 0 && (
+                <span className="text-sm font-medium text-[#111111]">
+                  +{formatVND(menuTotal)}
+                </span>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowCatalogPicker((prev) => !prev)}
+                className="text-xs h-8"
+              >
+                {showCatalogPicker ? "Đóng menu" : "+ Xem thực đơn"}
+              </Button>
+            </div>
+          </div>
+
+          <div className="p-5 sm:p-6 space-y-4">
+            {menuError && (
+              <div
+                role="alert"
+                className="flex items-start gap-2.5 bg-[#F5F5F5] border border-[#E5E5E5] p-3.5 text-xs text-[#111111]"
+              >
+                <X className="w-4 h-4 text-[#111111] shrink-0 mt-0.5" aria-hidden="true" />
+                <p>{menuError}</p>
+              </div>
+            )}
+
+            {/* Danh sách món đã chọn */}
+            {selectedMenuItems.length === 0 ? (
+              <p className="text-xs text-[#707072] py-2">
+                Chưa có đồ ăn hoặc thức uống nào được chọn. Quý khách có thể bấm &quot;+ Xem thực đơn&quot; để chọn thêm món cho kỳ nghỉ.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {selectedMenuItems.map((item) => {
+                  const isReward = item.source_type === "REWARD";
+                  const catLabel =
+                    item.category === "DRINK"
+                      ? "Nước uống"
+                      : item.category === "SNACK"
+                      ? "Ăn vặt"
+                      : "Món chính";
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between p-3 border border-[#E5E5E5] bg-[#FAFAFA]"
+                    >
+                      <div className="min-w-0 flex-1 pr-3">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-[#111111] truncate">
+                            {item.name}
+                          </p>
+                          <span className="text-[10px] uppercase font-medium px-1.5 py-0.5 bg-[#EAEAEA] text-[#333333] shrink-0">
+                            {catLabel}
+                          </span>
+                          {isReward && (
+                            <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 bg-[#111111] text-white shrink-0">
+                              🎁 Quà tặng
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-[#707072] mt-0.5">
+                          {isReward
+                            ? `${item.reward_title || "Phần thưởng"} (Giá gốc: ${formatVND(item.normal_price_vnd)})`
+                            : `${formatVND(item.unit_price_vnd)} / phần`}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-3 shrink-0">
+                        {/* Stepper controls */}
+                        <div className="flex items-center border border-[#E5E5E5] bg-white">
+                          <button
+                            type="button"
+                            aria-label={`Giảm số lượng ${item.name}`}
+                            disabled={isMenuLoading}
+                            onClick={() => handleDecreaseMenuQty(item)}
+                            className="w-7 h-7 flex items-center justify-center text-[#707072] hover:text-[#111111] hover:bg-[#F5F5F5] disabled:opacity-50"
+                          >
+                            <Minus className="w-3 h-3" />
+                          </button>
+                          <span className="w-8 text-center text-xs font-medium text-[#111111]">
+                            {item.quantity}
+                          </span>
+                          <button
+                            type="button"
+                            aria-label={`Tăng số lượng ${item.name}`}
+                            disabled={isMenuLoading}
+                            onClick={() => handleIncreaseMenuQty(item)}
+                            className="w-7 h-7 flex items-center justify-center text-[#707072] hover:text-[#111111] hover:bg-[#F5F5F5] disabled:opacity-50"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                        </div>
+
+                        {/* Total price for this row */}
+                        <div className="w-20 text-right">
+                          <span className="text-xs font-medium text-[#111111]">
+                            {isReward ? "Miễn phí" : formatVND(item.total_price_vnd)}
+                          </span>
+                        </div>
+
+                        {/* Remove item button */}
+                        <button
+                          type="button"
+                          aria-label={`Xóa ${item.name}`}
+                          disabled={isMenuLoading}
+                          onClick={() => handleRemoveMenuItem(item)}
+                          className="p-1.5 text-[#707072] hover:text-[#111111] transition-colors disabled:opacity-50"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                <div className="flex items-center justify-between pt-2 border-t border-[#E5E5E5] text-xs">
+                  <span className="text-[#707072]">Tạm tính đồ ăn & thức uống:</span>
+                  <span className="font-medium text-[#111111] text-sm">
+                    {formatVND(menuTotal)}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Catalog Picker Collapsible */}
+            {showCatalogPicker && (
+              <div className="pt-4 border-t border-[#E5E5E5] space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <span className="text-xs font-medium text-[#111111] uppercase tracking-wider">
+                    Chọn món từ thực đơn Kapi
+                  </span>
+                  {/* Category tabs */}
+                  <div className="flex items-center gap-1 bg-[#F5F5F5] p-1 border border-[#E5E5E5]">
+                    {(
+                      [
+                        { id: "ALL", label: "Tất cả" },
+                        { id: "DRINK", label: "Nước uống" },
+                        { id: "SNACK", label: "Ăn vặt" },
+                        { id: "MAIN_FOOD", label: "Món chính" },
+                      ] as const
+                    ).map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setMenuActiveCategory(tab.id)}
+                        className={[
+                          "px-2.5 py-1 text-xs transition-colors",
+                          menuActiveCategory === tab.id
+                            ? "bg-[#111111] text-white font-medium"
+                            : "text-[#707072] hover:text-[#111111]",
+                        ].join(" ")}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Search input */}
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#707072]" />
+                  <input
+                    type="text"
+                    value={menuSearch}
+                    onChange={(e) => setMenuSearch(e.target.value)}
+                    placeholder="Tìm theo tên món (ví dụ: Coca, Mì xào, Bánh mì...)"
+                    className="w-full pl-8 pr-3 py-1.5 text-xs border border-[#E5E5E5] focus:outline-none focus:border-[#111111] bg-white placeholder-[#707072]"
+                  />
+                  {menuSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setMenuSearch("")}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#707072] hover:text-[#111111]"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Product list */}
+                <div className="max-h-64 overflow-y-auto divide-y divide-[#E5E5E5] border border-[#E5E5E5] bg-white">
+                  {filteredCatalog.length === 0 ? (
+                    <div className="p-4 text-center text-xs text-[#707072]">
+                      Không tìm thấy món ăn phù hợp với từ khóa tìm kiếm.
+                    </div>
+                  ) : (
+                    filteredCatalog.map((product) => {
+                      const existingQty =
+                        selectedMenuItems.find(
+                          (i) => i.menu_product_id === product.id && i.source_type === "PURCHASE"
+                        )?.quantity ?? 0;
+
+                      return (
+                        <div
+                          key={product.id}
+                          className="p-3 flex items-center justify-between hover:bg-[#FAFAFA] transition-colors"
+                        >
+                          <div className="min-w-0 flex-1 pr-3">
+                            <div className="flex items-center gap-2">
+                              <p className="text-xs font-medium text-[#111111] truncate">
+                                {product.name}
+                              </p>
+                              <span className="text-[10px] text-[#707072] font-mono">
+                                {formatVND(product.price_vnd)}
+                              </span>
+                            </div>
+                            {product.description && (
+                              <p className="text-[11px] text-[#707072] truncate mt-0.5">
+                                {product.description}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="shrink-0 flex items-center gap-2">
+                            {existingQty > 0 && (
+                              <span className="text-[11px] font-medium text-[#111111] bg-[#F5F5F5] px-2 py-0.5 border border-[#E5E5E5]">
+                                Đã chọn: {existingQty}
+                              </span>
+                            )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={isMenuLoading}
+                              onClick={() => handleAddProductToCart(product)}
+                              className="text-xs h-7 px-2.5"
+                            >
+                              + Thêm
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+      </Reveal>
+
       {/* ── Card 3: Bảng kê chi phí ──────────────────────────────────────── */}
       <Reveal distance={12} delay={160}>
         <section
@@ -750,12 +1138,42 @@ export function BookingSummary({
                 <div className="flex items-center gap-1.5">
                   <Tag className="w-3.5 h-3.5 text-[#111111]" aria-hidden="true" />
                   <span className="text-[#111111] font-medium">
-                    Giảm giá voucher
+                    Giảm giá voucher (chỉ áp dụng tiền phòng)
                   </span>
                 </div>
                 <span className="font-medium text-[#111111]">
                   -{formatVND(discount)}
                 </span>
+              </div>
+            )}
+
+            {menuTotal > 0 && (
+              <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center gap-1.5">
+                  <Utensils className="w-3.5 h-3.5 text-[#111111]" aria-hidden="true" />
+                  <span className="text-[#111111] font-medium">
+                    Đồ ăn & thức uống
+                  </span>
+                </div>
+                <span className="font-medium text-[#111111]">
+                  +{formatVND(menuTotal)}
+                </span>
+              </div>
+            )}
+
+            {selectedMenuItems.some((i) => i.source_type === "REWARD") && (
+              <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center gap-1.5">
+                  <Gift className="w-3.5 h-3.5 text-[#111111]" aria-hidden="true" />
+                  <span className="text-[#111111] font-medium">
+                    Phần thưởng ẩm thực chuỗi:{" "}
+                    {selectedMenuItems
+                      .filter((i) => i.source_type === "REWARD")
+                      .map((i) => `${i.name} (×${i.quantity})`)
+                      .join(", ")}
+                  </span>
+                </div>
+                <span className="font-medium text-[#111111]">Miễn phí</span>
               </div>
             )}
 

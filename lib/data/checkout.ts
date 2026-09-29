@@ -276,6 +276,7 @@ export async function getCheckoutSession(
         expires_at,
         created_at,
         updated_at,
+        menu_amount_vnd,
         rooms (
           id,
           name,
@@ -354,6 +355,7 @@ export async function getCheckoutSession(
       guest_count: data.guest_count,
       gross_amount_vnd: data.gross_amount_vnd,
       discount_amount_vnd: data.discount_amount_vnd,
+      menu_amount_vnd: (data as unknown as { menu_amount_vnd?: number }).menu_amount_vnd ?? 0,
       final_payable_amount_vnd: data.final_payable_amount_vnd,
       payment_reference: data.payment_reference,
       status: data.status,
@@ -916,6 +918,127 @@ export async function releasePhysicalReward(
   } catch (err) {
     console.error("[checkout] releasePhysicalReward unexpected error:", err);
     return { success: false, error: "Lỗi kết nối cơ sở dữ liệu." };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Module: Thực đơn & Món ăn tại bước Checkout (public.menu_products)
+// ---------------------------------------------------------------------------
+
+export interface CheckoutMenuItemPayload {
+  menu_product_id: string;
+  quantity: number;
+  source_type: "PURCHASE" | "REWARD";
+  entitlement_id?: string;
+}
+
+export interface CheckoutMenuItemRecord {
+  id: string;
+  menu_product_id: string;
+  name: string;
+  category: "DRINK" | "SNACK" | "MAIN_FOOD";
+  quantity: number;
+  source_type: "PURCHASE" | "REWARD";
+  unit_price_vnd: number;
+  total_price_vnd: number;
+  normal_price_vnd: number;
+  entitlement_id: string | null;
+  reward_title: string | null;
+}
+
+export async function updateCheckoutMenuItems(
+  sessionId: string,
+  items: CheckoutMenuItemPayload[]
+): Promise<{
+  success: boolean;
+  menuAmountVnd?: number;
+  finalPayableAmountVnd?: number;
+  error?: string;
+}> {
+  try {
+    const supabase = await createClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: rpcRaw, error: rpcError } = await (supabase.rpc as any)(
+      "update_checkout_menu_items_atomic",
+      {
+        p_checkout_session_id: sessionId,
+        p_items: items,
+      }
+    );
+
+    if (rpcError) {
+      console.error("[checkout] updateCheckoutMenuItems RPC error:", rpcError.message);
+      return { success: false, error: "Không thể cập nhật danh sách món ăn & thức uống." };
+    }
+
+    const res = rpcRaw as {
+      success: boolean;
+      menu_amount_vnd?: number;
+      final_payable_amount_vnd?: number;
+      error?: string;
+    } | null;
+
+    if (!res || !res.success) {
+      const errMap: Record<string, string> = {
+        SNACK_X1_QUOTA_MISMATCH: "Phần thưởng Day 10 chỉ được chọn đúng 1 món ăn vặt.",
+        SNACK_X2_QUOTA_MISMATCH: "Phần thưởng Day 20 chỉ được chọn đúng 2 món ăn vặt.",
+        SNACK_COMBO_QUOTA_MISMATCH: "Phần thưởng Day 40 phải gồm đúng 2 món ăn vặt và 1 nước uống.",
+        MEAL_CHOICE_QUOTA_MISMATCH: "Phần thưởng Day 80 chỉ được chọn đúng 1 món ăn chính.",
+        INACTIVE_OR_INVALID_PRODUCT: "Món ăn hoặc thức uống đã chọn hiện không khả dụng.",
+        INVALID_QUANTITY: "Số lượng món không hợp lệ.",
+        CHECKOUT_SESSION_EXPIRED: "Phiên đặt phòng đã hết hạn.",
+      };
+      return { success: false, error: errMap[res?.error || ""] || res?.error || "Lỗi cập nhật thực đơn." };
+    }
+
+    return {
+      success: true,
+      menuAmountVnd: res.menu_amount_vnd,
+      finalPayableAmountVnd: res.final_payable_amount_vnd,
+    };
+  } catch (err) {
+    console.error("[checkout] updateCheckoutMenuItems exception:", err);
+    return { success: false, error: "Lỗi kết nối cơ sở dữ liệu." };
+  }
+}
+
+export async function getCheckoutMenuItems(
+  sessionId: string
+): Promise<{
+  data: CheckoutMenuItemRecord[];
+  menuAmountVnd: number;
+  error: string | null;
+}> {
+  try {
+    const supabase = await createClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: rpcRaw, error: rpcError } = await (supabase.rpc as any)(
+      "get_checkout_menu_items",
+      {
+        p_checkout_session_id: sessionId,
+      }
+    );
+
+    if (rpcError) {
+      console.error("[checkout] getCheckoutMenuItems RPC error:", rpcError.message);
+      return { data: [], menuAmountVnd: 0, error: "Không thể tải món đã chọn." };
+    }
+
+    const res = rpcRaw as {
+      success: boolean;
+      items?: CheckoutMenuItemRecord[];
+      menu_amount_vnd?: number;
+      error?: string;
+    } | null;
+
+    return {
+      data: res?.items ?? [],
+      menuAmountVnd: res?.menu_amount_vnd ?? 0,
+      error: null,
+    };
+  } catch (err) {
+    console.error("[checkout] getCheckoutMenuItems exception:", err);
+    return { data: [], menuAmountVnd: 0, error: "Lỗi kết nối cơ sở dữ liệu." };
   }
 }
 

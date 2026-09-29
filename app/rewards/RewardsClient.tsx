@@ -12,6 +12,7 @@ import {
   Lock,
   RefreshCw,
   AlertCircle,
+  ChevronRight,
 } from "lucide-react";
 import { Reveal } from "@/components/ui/Reveal";
 import {
@@ -308,9 +309,11 @@ export function RewardsClient({
                   </span>
                 </div>
                 <p className="text-xs text-[#707072]">
-                  {summary.currentStreak > 0
-                    ? `Duy trì liên tục để mở khóa phần thưởng tiếp theo.`
-                    : `Hãy điểm danh hôm nay để bắt đầu chuỗi mới!`}
+                  {summary.hasCheckedInToday
+                    ? `Đã duy trì ${summary.currentStreak} ngày liên tiếp. Hãy tiếp tục vào ngày mai!`
+                    : summary.isStreakBroken || summary.currentStreak === 0
+                    ? `Chuỗi đã bị gián đoạn. Điểm danh hôm nay để bắt đầu lại từ Ngày 1!`
+                    : `Duy trì liên tục hôm nay để giữ chuỗi ${summary.currentStreak} ngày!`}
                 </p>
               </div>
 
@@ -375,7 +378,11 @@ export function RewardsClient({
                       Điểm danh hằng ngày
                     </span>
                     <h2 className="text-2xl font-normal text-[#111111]">
-                      Chuỗi hiện tại: {summary.currentStreak} ngày
+                      {summary.hasCheckedInToday
+                        ? `Chuỗi hiện tại: ${summary.currentStreak} ngày`
+                        : summary.isStreakBroken || summary.currentStreak === 0
+                        ? `Chuỗi đã bị gián đoạn`
+                        : `Chuỗi hiện tại: ${summary.currentStreak} ngày`}
                     </h2>
                   </div>
                   <span className="text-xs font-mono text-[#707072]">
@@ -439,7 +446,13 @@ export function RewardsClient({
                       className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-full bg-[#111111] text-white hover:bg-[#2A2A2A] text-sm font-medium transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50"
                     >
                       <Sparkles className="w-4 h-4" />
-                      <span>{isClaiming ? "Đang ghi nhận..." : "Điểm danh hôm nay +5"}</span>
+                      <span>
+                        {isClaiming
+                          ? "Đang ghi nhận..."
+                          : summary.isStreakBroken || summary.currentStreak === 0
+                          ? "Điểm danh lại từ đầu (+5 điểm)"
+                          : "Điểm danh hôm nay (+5 điểm)"}
+                      </span>
                     </button>
                   )}
                 </div>
@@ -626,8 +639,17 @@ export function RewardsClient({
                 </h2>
               </div>
 
-              {/* Segmented Filter */}
-              <div className="flex items-center gap-1 p-1 rounded-full bg-[#F5F5F5] border border-[#E5E5E5] text-xs">
+              <div className="flex flex-wrap items-center gap-3">
+                <Link
+                  href="/menu"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-[#111111] bg-white text-[#111111] text-xs font-medium hover:bg-[#111111] hover:text-white transition-colors"
+                >
+                  Xem Menu Kapi
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </Link>
+
+                {/* Segmented Filter */}
+                <div className="flex items-center gap-1 p-1 rounded-full bg-[#F5F5F5] border border-[#E5E5E5] text-xs">
                 <button
                   type="button"
                   onClick={() => setActiveRewardsTab("all")}
@@ -673,6 +695,7 @@ export function RewardsClient({
                   Lịch sử cũ
                 </button>
               </div>
+            </div>
             </div>
           </Reveal>
 
@@ -775,6 +798,21 @@ export function RewardsClient({
 // ---------------------------------------------------------------------------
 // Card: Hiển thị Entitlement (Quà hiện vật & món ăn)
 // ---------------------------------------------------------------------------
+function getEntitlementInstruction(rewardType: string): string {
+  switch (rewardType) {
+    case "SNACK_X1":
+      return "Chọn 1 món ăn vặt miễn phí khi đặt phòng";
+    case "SNACK_X2":
+      return "Chọn 2 món ăn vặt miễn phí khi đặt phòng";
+    case "SNACK_COMBO":
+      return "Chọn 2 món ăn vặt + 1 nước uống miễn phí";
+    case "MEAL_CHOICE":
+      return "Chọn 1 món ăn chính miễn phí khi đặt phòng";
+    default:
+      return "Phần thưởng chuỗi điểm danh khi đặt phòng";
+  }
+}
+
 function EntitlementCard({
   entitlement,
   isPast = false,
@@ -818,8 +856,22 @@ function EntitlementCard({
         </div>
 
         <p className="text-xs text-[#707072] leading-relaxed">
-          {entitlement.description || "Phần thưởng chuỗi điểm danh."}
+          {isAvailable
+            ? getEntitlementInstruction(entitlement.reward_type)
+            : entitlement.description || "Phần thưởng chuỗi điểm danh."}
         </p>
+
+        {isAvailable && (
+          <div className="pt-1">
+            <Link
+              href="/menu"
+              className="inline-flex items-center gap-1 px-2.5 py-1 border border-[#111111] bg-white hover:bg-[#111111] text-[#111111] hover:text-white text-[11px] font-medium transition-colors"
+            >
+              Xem Menu Kapi
+              <ChevronRight className="w-3 h-3" />
+            </Link>
+          </div>
+        )}
 
         {entitlement.selection_data?.menu_item_name && (
           <p className="text-xs text-[#111111] font-medium bg-[#FAFAFA] px-2.5 py-1 rounded border border-[#E5E5E5] w-fit">

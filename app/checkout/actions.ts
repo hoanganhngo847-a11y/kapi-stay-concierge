@@ -145,3 +145,43 @@ export async function releasePhysicalRewardAction(
   return releasePhysicalReward(sessionId, entitlementId);
 }
 
+export async function updateCheckoutMenuItemsAction(
+  sessionId: string,
+  items: import("@/lib/data/checkout").CheckoutMenuItemPayload[]
+): Promise<{
+  success: boolean;
+  menuAmountVnd?: number;
+  finalPayableAmountVnd?: number;
+  error?: string;
+}> {
+  const userId = await getAuthenticatedUserId();
+  if (!userId) {
+    return { success: false, error: "Phiên đăng nhập đã hết hạn." };
+  }
+  const { updateCheckoutMenuItems } = await import("@/lib/data/checkout");
+  return updateCheckoutMenuItems(sessionId, items);
+}
+
+export async function getCheckoutMenuItemsAction(
+  sessionId: string
+): Promise<{
+  data: import("@/lib/data/checkout").CheckoutMenuItemRecord[];
+  menuAmountVnd: number;
+  error: string | null;
+}> {
+  const userId = await getAuthenticatedUserId();
+  if (!userId) {
+    return { data: [], menuAmountVnd: 0, error: "Phiên đăng nhập đã hết hạn." };
+  }
+  const { getCheckoutMenuItems } = await import("@/lib/data/checkout");
+  return getCheckoutMenuItems(sessionId);
+}
+
+export async function getAllMenuProductsAction(): Promise<{
+  data: import("@/lib/data/menu").MenuProduct[];
+  error: string | null;
+}> {
+  const { getMenuProducts } = await import("@/lib/data/menu");
+  return getMenuProducts();
+}
+
