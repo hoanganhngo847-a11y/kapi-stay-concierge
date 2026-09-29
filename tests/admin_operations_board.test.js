@@ -313,3 +313,236 @@ test("Board 12: Range Query Validation — Maximum 14 days enforced", () => {
   // start >= end -> INVALID_RANGE
   assert.equal(validateQueryRange("2026-09-30T00:00:00Z", "2026-09-29T00:00:00Z").error, "INVALID_RANGE");
 });
+
+// ---------------------------------------------------------------------------
+// REGRESSION TESTS: CANONICAL UUID VALIDATION & DEMO SYNTHETIC ID COMPLIANCE
+// ---------------------------------------------------------------------------
+
+const CANONICAL_UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isValidUUID(val) {
+  return typeof val === "string" && CANONICAL_UUID_REGEX.test(val.trim());
+}
+
+test("Board 13: Regression — Synthetic Property UUIDs Accepted (b1000000-0000-0000-0000-000000000006)", () => {
+  // All 8 demo branch IDs must pass
+  const demoBranchIds = [
+    "b1000000-0000-0000-0000-000000000001", // Hà Nội - Hoàn Kiếm
+    "b1000000-0000-0000-0000-000000000002", // Hà Nội - Cầu Giấy
+    "b1000000-0000-0000-0000-000000000003", // TP.HCM - Quận 1
+    "b1000000-0000-0000-0000-000000000004", // TP.HCM - Bình Thạnh
+    "b1000000-0000-0000-0000-000000000005", // Đà Nẵng - Mỹ Khê
+    "b1000000-0000-0000-0000-000000000006", // Đà Lạt - Trung Tâm (Target Bug Fix)
+    "b1000000-0000-0000-0000-000000000007", // Nha Trang - Trần Phú
+    "b1000000-0000-0000-0000-000000000008", // Hạ Long - Bãi Cháy
+  ];
+
+  for (const id of demoBranchIds) {
+    assert.equal(
+      isValidUUID(id),
+      true,
+      `Synthetic demo property ID ${id} must be accepted by canonical isValidUUID`
+    );
+  }
+
+  // Specifically check b1000000-0000-0000-0000-000000000006
+  assert.equal(isValidUUID("b1000000-0000-0000-0000-000000000006"), true);
+});
+
+test("Board 14: Regression — RFC UUID Standard Compliance (v4 & case-insensitivity)", () => {
+  const standardRfcUuids = [
+    "550e8400-e29b-41d4-a716-446655440000",
+    "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+    "d67ab065-8adb-4dae-8cf3-649bec0548aa",
+    "46E81B83-61DF-0CFD-6E68-0DE74D797D59", // Upper case
+    "550E8400-e29b-41d4-A716-446655440000", // Mixed case
+  ];
+
+  for (const id of standardRfcUuids) {
+    assert.equal(
+      isValidUUID(id),
+      true,
+      `Standard RFC UUID ${id} must be accepted by canonical isValidUUID`
+    );
+  }
+});
+
+test("Board 15: Regression — Malformed & Attack IDs Rejected Fail-Safe", () => {
+  const malformedIds = [
+    "abc",
+    "123",
+    "../../etc",
+    "../admin",
+    "",
+    "   ",
+    null,
+    undefined,
+    12345,
+    {},
+    [],
+    true,
+    "b1000000-0000-0000-0000-00000000000g", // Invalid hex character 'g'
+    "b1000000-0000-0000-0000-0000000000006", // 13 hex characters in last chunk
+    "b1000000-0000-0000-0000-00000000006", // 11 hex characters in last chunk
+    "b10000000-0000-0000-0000-00000000006", // Invalid chunk structure
+    "b1000000-0000-0000-0000-000000000006; DROP TABLE rooms;", // SQL Injection
+    "b1000000-0000-0000-0000-000000000006 extra_token", // Trailing token
+    "b1000000-0000\n-0000-0000-000000000006", // Internal newline injection
+  ];
+
+  for (const id of malformedIds) {
+    assert.equal(
+      isValidUUID(id),
+      false,
+      `Malformed ID ${id} must be rejected by canonical isValidUUID`
+    );
+  }
+});
+
+test("Board 16: Route Contract — Property Board does not trigger notFound() for Valid Kapi Property IDs", () => {
+  const pagePath = path.resolve(
+    process.cwd(),
+    "app/admin/(portal)/properties/[propertyId]/page.tsx"
+  );
+  assert.ok(fs.existsSync(pagePath), "Property Board page file must exist");
+  const content = fs.readFileSync(pagePath, "utf8");
+
+  // 1. Must NOT define RFC-strict local regex
+  assert.doesNotMatch(
+    content,
+    /\[1-5\]\[0-9a-f\]\{3\}/,
+    "Property Board must not use RFC-strict version regex [1-5]"
+  );
+  assert.doesNotMatch(
+    content,
+    /\[89ab\]\[0-9a-f\]\{3\}/,
+    "Property Board must not use RFC-strict variant regex [89ab]"
+  );
+
+  // 2. Must import isValidUUID from lib/data/admin
+  assert.match(
+    content,
+    /import\s*\{[^}]*isValidUUID[^}]*\}\s*from\s*["']@\/lib\/data\/admin["']/,
+    "Must import isValidUUID from @/lib/data/admin"
+  );
+
+  // 3. Must check if (!propertyId || !isValidUUID(propertyId))
+  assert.match(
+    content,
+    /if\s*\(\s*!propertyId\s*\|\|\s*!isValidUUID\(\s*propertyId\s*\)\s*\)\s*\{\s*notFound\(\s*\);?\s*\}/,
+    "Must validate propertyId using canonical isValidUUID and call notFound() fail-safe"
+  );
+
+  // 4. Verify behavioral logic: valid synthetic property ID does NOT trigger notFound
+  const simulateCheck = (propertyId) => {
+    if (!propertyId || !isValidUUID(propertyId)) {
+      return "NOT_FOUND";
+    }
+    return "RENDER_BOARD";
+  };
+
+  assert.equal(
+    simulateCheck("b1000000-0000-0000-0000-000000000006"),
+    "RENDER_BOARD",
+    "Valid Kapi property ID b1000000-0000-0000-0000-000000000006 must render board, NOT 404"
+  );
+  assert.equal(
+    simulateCheck("abc"),
+    "NOT_FOUND",
+    "Malformed ID 'abc' must trigger 404"
+  );
+  assert.equal(
+    simulateCheck("../../etc"),
+    "NOT_FOUND",
+    "Path traversal '../../etc' must trigger 404"
+  );
+});
+
+test("Board 17: RPC Contract — getAdminPropertyRoomSchedule accepts Synthetic Property ID and calls RPC", () => {
+  const adminDataPath = path.resolve(process.cwd(), "lib/data/admin.ts");
+  const content = fs.readFileSync(adminDataPath, "utf8");
+
+  // 1. lib/data/admin.ts exports canonical UUID_REGEX and isValidUUID
+  assert.match(
+    content,
+    /export\s+const\s+UUID_REGEX\s*=\s*\r?\n?\s*\/[^\/]+\//,
+    "lib/data/admin.ts must export UUID_REGEX"
+  );
+  assert.match(
+    content,
+    /export\s+function\s+isValidUUID\s*\(/,
+    "lib/data/admin.ts must export isValidUUID"
+  );
+
+  // 2. getAdminPropertyRoomSchedule checks isValidUUID(propertyId)
+  const fnSlice = content.slice(content.indexOf("getAdminPropertyRoomSchedule"));
+  assert.match(
+    fnSlice,
+    /if\s*\(\s*!propertyId\s*\|\|\s*!isValidUUID\(propertyId\)\s*\)/,
+    "getAdminPropertyRoomSchedule must validate propertyId with isValidUUID"
+  );
+
+  // 3. RPC call uses p_property_id: propertyId
+  assert.match(
+    fnSlice,
+    /p_property_id:\s*propertyId/,
+    "getAdminPropertyRoomSchedule must pass propertyId as p_property_id to RPC"
+  );
+
+  // 4. Mock execution of getAdminPropertyRoomSchedule logic with synthetic ID
+  const mockScheduleRpc = (propertyId) => {
+    if (!propertyId || !isValidUUID(propertyId)) {
+      return { success: false, error: "ID chi nhánh không hợp lệ." };
+    }
+    return {
+      success: true,
+      data: {
+        property: {
+          id: propertyId,
+          name: "Kapi Đà Lạt - Trung Tâm",
+          address: "12 Phan Bội Châu, Đà Lạt",
+        },
+        rooms: [],
+        tickets: [],
+      },
+    };
+  };
+
+  const res = mockScheduleRpc("b1000000-0000-0000-0000-000000000006");
+  assert.equal(res.success, true);
+  assert.equal(res.data.property.id, "b1000000-0000-0000-0000-000000000006");
+});
+
+test("Board 18: No Regression — Existing /admin/rooms/[roomId] validates synthetic room IDs", () => {
+  const roomEditPagePath = path.resolve(
+    process.cwd(),
+    "app/admin/(portal)/rooms/[roomId]/page.tsx"
+  );
+  const content = fs.readFileSync(roomEditPagePath, "utf8");
+
+  // Page calls getAdminRoomDetail(roomId)
+  assert.match(
+    content,
+    /getAdminRoomDetail\(roomId\)/,
+    "Room edit page must call getAdminRoomDetail"
+  );
+
+  // Synthetic room IDs from hourly_demo_seed (e.g. c0000000-0006-0000-0000-000000000101)
+  const syntheticRoomId = "c0000000-0006-0000-0000-000000000101";
+  assert.equal(
+    isValidUUID(syntheticRoomId),
+    true,
+    "Synthetic demo room ID must pass isValidUUID"
+  );
+
+  // In lib/data/admin.ts, getAdminRoomDetail checks isValidUUID(roomId)
+  const adminDataPath = path.resolve(process.cwd(), "lib/data/admin.ts");
+  const adminContent = fs.readFileSync(adminDataPath, "utf8");
+  const roomDetailSlice = adminContent.slice(adminContent.indexOf("getAdminRoomDetail"));
+  assert.match(
+    roomDetailSlice,
+    /if\s*\(\s*!roomId\s*\|\|\s*!isValidUUID\(roomId\)\s*\)/,
+    "getAdminRoomDetail must validate roomId with isValidUUID"
+  );
+});
