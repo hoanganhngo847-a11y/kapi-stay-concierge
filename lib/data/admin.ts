@@ -312,6 +312,9 @@ export interface StaffDashboardData {
   room_operations?: Array<{
     room_id: string;
     room_name: string;
+    property_id?: string;
+    property_name?: string;
+    property_address?: string;
     operational_status: RoomOperationalStatus;
     updated_at: string | null;
     updated_by: string | null;
@@ -810,6 +813,9 @@ export function validateStaffDashboardBoundary(data: unknown): StaffDashboardDat
 
     const roomId = validateRequiredId(item.room_id, "room_id", context);
     const roomName = validateRequiredString(item.room_name, "room_name", context);
+    const propertyId = validateOptionalId(item.property_id, "property_id", context);
+    const propertyName = validateOptionalString(item.property_name);
+    const propertyAddress = validateOptionalString(item.property_address);
     const validatedStatus = validateRoomOperationalStatusBoundary(
       item.operational_status,
       `phòng ${roomId}`
@@ -820,6 +826,9 @@ export function validateStaffDashboardBoundary(data: unknown): StaffDashboardDat
     return {
       room_id: roomId,
       room_name: roomName,
+      property_id: propertyId ?? undefined,
+      property_name: propertyName ?? undefined,
+      property_address: propertyAddress ?? undefined,
       operational_status: validatedStatus,
       updated_at: updatedAt,
       updated_by: updatedBy,
@@ -1041,9 +1050,32 @@ export interface AdminPendingTicket {
 export interface AdminRoomSummary {
   room_id: string;
   room_name: string;
+  property_id?: string;
+  property_name?: string;
+  property_address?: string;
   operational_status: RoomOperationalStatus;
   updated_at: string | null;
   updated_by: string | null;
+}
+
+export interface AdminPropertyRoomItem {
+  room_id: string;
+  room_name: string;
+  operational_status: RoomOperationalStatus;
+  updated_at: string | null;
+  updated_by: string | null;
+}
+
+export interface AdminPropertyRoomSummary {
+  property_id: string;
+  property_name: string;
+  property_address: string;
+  room_count: number;
+  ready_count: number;
+  occupied_count: number;
+  cleaning_count: number;
+  maintenance_count: number;
+  rooms: AdminPropertyRoomItem[];
 }
 
 export interface AdminDashboardData {
@@ -1052,6 +1084,7 @@ export interface AdminDashboardData {
   recent_bookings: AdminRecentBooking[];
   pending_tickets: AdminPendingTicket[];
   room_summaries: AdminRoomSummary[];
+  property_room_summaries: AdminPropertyRoomSummary[];
 }
 
 export function validateAdminDashboardBoundary(data: unknown): AdminDashboardData {
@@ -1126,11 +1159,78 @@ export function validateAdminDashboardBoundary(data: unknown): AdminDashboardDat
     return {
       room_id: String(r.room_id || ""),
       room_name: String(r.room_name || "N/A"),
+      property_id: r.property_id ? String(r.property_id) : undefined,
+      property_name: r.property_name ? String(r.property_name) : undefined,
+      property_address: r.property_address ? String(r.property_address) : undefined,
       operational_status: isValidRoomOperationalStatus(r.operational_status) ? r.operational_status : "ready",
       updated_at: r.updated_at ? String(r.updated_at) : null,
       updated_by: r.updated_by ? String(r.updated_by) : null,
     };
   });
+
+  const rawPropSummaries = Array.isArray(payload.property_room_summaries) ? payload.property_room_summaries : [];
+  let property_room_summaries: AdminPropertyRoomSummary[] = rawPropSummaries.map((rawItem: unknown) => {
+    const p = (rawItem && typeof rawItem === "object" ? rawItem : {}) as Record<string, unknown>;
+    const rawRoomsOfProp = Array.isArray(p.rooms) ? p.rooms : [];
+    const rooms: AdminPropertyRoomItem[] = rawRoomsOfProp.map((rawR: unknown) => {
+      const r = (rawR && typeof rawR === "object" ? rawR : {}) as Record<string, unknown>;
+      return {
+        room_id: String(r.room_id || ""),
+        room_name: String(r.room_name || "N/A"),
+        operational_status: isValidRoomOperationalStatus(r.operational_status) ? r.operational_status : "ready",
+        updated_at: r.updated_at ? String(r.updated_at) : null,
+        updated_by: r.updated_by ? String(r.updated_by) : null,
+      };
+    });
+
+    return {
+      property_id: String(p.property_id || ""),
+      property_name: String(p.property_name || "Chi nhánh"),
+      property_address: String(p.property_address || ""),
+      room_count: typeof p.room_count === "number" ? p.room_count : rooms.length,
+      ready_count: typeof p.ready_count === "number" ? p.ready_count : rooms.filter((r) => r.operational_status === "ready").length,
+      occupied_count: typeof p.occupied_count === "number" ? p.occupied_count : rooms.filter((r) => r.operational_status === "occupied").length,
+      cleaning_count: typeof p.cleaning_count === "number" ? p.cleaning_count : rooms.filter((r) => r.operational_status === "cleaning").length,
+      maintenance_count: typeof p.maintenance_count === "number" ? p.maintenance_count : rooms.filter((r) => r.operational_status === "maintenance").length,
+      rooms,
+    };
+  });
+
+  if (property_room_summaries.length === 0 && room_summaries.length > 0) {
+    const map = new Map<string, AdminPropertyRoomSummary>();
+    for (const r of room_summaries) {
+      const propId = r.property_id || "default";
+      const propName = r.property_name || "Chi nhánh Kapi";
+      const propAddress = r.property_address || "";
+      if (!map.has(propId)) {
+        map.set(propId, {
+          property_id: propId,
+          property_name: propName,
+          property_address: propAddress,
+          room_count: 0,
+          ready_count: 0,
+          occupied_count: 0,
+          cleaning_count: 0,
+          maintenance_count: 0,
+          rooms: [],
+        });
+      }
+      const p = map.get(propId)!;
+      p.room_count += 1;
+      if (r.operational_status === "ready") p.ready_count += 1;
+      else if (r.operational_status === "occupied") p.occupied_count += 1;
+      else if (r.operational_status === "cleaning") p.cleaning_count += 1;
+      else if (r.operational_status === "maintenance") p.maintenance_count += 1;
+      p.rooms.push({
+        room_id: r.room_id,
+        room_name: r.room_name,
+        operational_status: r.operational_status,
+        updated_at: r.updated_at,
+        updated_by: r.updated_by,
+      });
+    }
+    property_room_summaries = Array.from(map.values()).sort((a, b) => a.property_name.localeCompare(b.property_name));
+  }
 
   return {
     success: true,
@@ -1138,6 +1238,7 @@ export function validateAdminDashboardBoundary(data: unknown): AdminDashboardDat
     recent_bookings,
     pending_tickets,
     room_summaries,
+    property_room_summaries,
   };
 }
 

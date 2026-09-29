@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
+import Link from "next/link";
 import type {
   StaffMutableRoomOperationalStatus,
   TicketStatus,
@@ -24,6 +25,7 @@ interface OperationsDashboardClientProps {
   initialData: StaffDashboardDataPayload | null;
   loadError: boolean;
   staffEmail?: string | null;
+  staffRole?: "staff" | "admin";
   onUpdateRoomStatus?: (
     roomId: string,
     status: StaffMutableRoomOperationalStatus
@@ -38,6 +40,7 @@ export default function OperationsDashboardClient({
   initialData,
   loadError: initialLoadError,
   staffEmail,
+  staffRole,
   onUpdateRoomStatus,
   onUpdateTicketStatus,
 }: OperationsDashboardClientProps) {
@@ -48,6 +51,7 @@ export default function OperationsDashboardClient({
 
   const [activeTab, setActiveTab] = useState<"rooms" | "tickets" | "schedule">("rooms");
   const [roomFilter, setRoomFilter] = useState<string>("all");
+  const [propertyFilter, setPropertyFilter] = useState<string>("all");
   const [scheduleFilter, setScheduleFilter] = useState<"all" | "checkin" | "checkout">("all");
 
   const showToast = (text: string, type: "success" | "error") => {
@@ -55,9 +59,50 @@ export default function OperationsDashboardClient({
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const roomOperations: RoomOperationItem[] = dashboardData?.room_operations || [];
+  const roomOperations = useMemo<RoomOperationItem[]>(
+    () => dashboardData?.room_operations || [],
+    [dashboardData?.room_operations]
+  );
   const tickets: TicketItem[] = dashboardData?.tickets || [];
-  const todayBookings: TodayBookingItem[] = dashboardData?.today_bookings || [];
+  const todayBookings = useMemo<TodayBookingItem[]>(
+    () => dashboardData?.today_bookings || [],
+    [dashboardData?.today_bookings]
+  );
+
+  const propertiesList = useMemo(() => {
+    const map = new Map<string, { id: string; name: string }>();
+    roomOperations.forEach((r) => {
+      if (r.property_id && r.property_name) {
+        if (!map.has(r.property_id)) {
+          map.set(r.property_id, { id: r.property_id, name: r.property_name });
+        }
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [roomOperations]);
+
+  const filteredRooms = useMemo(() => {
+    return roomOperations.filter((r) => {
+      const matchesProperty = propertyFilter === "all" || r.property_id === propertyFilter;
+      const matchesStatus = roomFilter === "all" || r.operational_status === roomFilter;
+      return matchesProperty && matchesStatus;
+    });
+  }, [roomOperations, propertyFilter, roomFilter]);
+
+  const scheduleItems: ScheduleItem[] = useMemo(() => {
+    const items: ScheduleItem[] = [];
+    todayBookings.forEach((b) => {
+      if (b.is_checkin_today) items.push({ ...b, eventType: "checkin" });
+      if (b.is_checkout_today) items.push({ ...b, eventType: "checkout" });
+    });
+    return items;
+  }, [todayBookings]);
+
+  const filteredSchedule = useMemo(() => {
+    return scheduleItems.filter((item) =>
+      scheduleFilter === "all" ? true : item.eventType === scheduleFilter
+    );
+  }, [scheduleItems, scheduleFilter]);
 
   // KPI Calculations
   const roomKPIs = {
@@ -161,20 +206,6 @@ export default function OperationsDashboardClient({
     );
   }
 
-  const filteredRooms = roomOperations.filter((r) =>
-    roomFilter === "all" ? true : r.operational_status === roomFilter
-  );
-
-  const scheduleItems: ScheduleItem[] = [];
-  todayBookings.forEach((b) => {
-    if (b.is_checkin_today) scheduleItems.push({ ...b, eventType: "checkin" });
-    if (b.is_checkout_today) scheduleItems.push({ ...b, eventType: "checkout" });
-  });
-
-  const filteredSchedule = scheduleItems.filter((item) =>
-    scheduleFilter === "all" ? true : item.eventType === scheduleFilter
-  );
-
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       {toastMessage && (
@@ -186,13 +217,22 @@ export default function OperationsDashboardClient({
         </div>
       )}
 
-      <div className="flex justify-between items-center border-b pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Bảng Điều Khiển Vận Hành</h1>
           <p className="text-sm text-gray-500">
             Xin chào {staffEmail ? <span className="font-semibold text-gray-700">{staffEmail}</span> : "Nhân viên"}
           </p>
         </div>
+
+        {staffRole === "admin" && (
+          <Link
+            href="/admin"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-gray-900 text-white text-xs font-medium uppercase tracking-wider hover:bg-black transition-colors rounded shadow-sm shrink-0"
+          >
+            <span>← Quay lại Admin</span>
+          </Link>
+        )}
       </div>
 
       {/* Thẻ KPI */}
@@ -280,19 +320,49 @@ export default function OperationsDashboardClient({
       {/* Tab 1: Bảng Phòng */}
       {activeTab === "rooms" && (
         <div className="bg-white rounded-lg border p-4 space-y-4">
-          <div className="flex justify-between items-center">
-            <span className="text-sm font-medium text-gray-600">Lọc trạng thái:</span>
-            <div className="space-x-2">
-              {["all", "ready", "occupied", "cleaning", "maintenance"].map((st) => (
-                <button
-                  key={st}
-                  onClick={() => setRoomFilter(st)}
-                  className={`px-3 py-1 rounded-md text-xs font-medium capitalize ${roomFilter === st ? "bg-gray-800 text-white" : "bg-gray-100 text-gray-600"
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b">
+            {/* Property Selector */}
+            <div className="flex items-center gap-2">
+              <label htmlFor="property-selector" className="text-xs font-semibold uppercase tracking-wider text-gray-700 whitespace-nowrap">
+                Chi nhánh:
+              </label>
+              <select
+                id="property-selector"
+                value={propertyFilter}
+                onChange={(e) => setPropertyFilter(e.target.value)}
+                className="text-xs bg-white border border-gray-300 rounded px-2.5 py-1.5 font-medium text-gray-900 focus:outline-none focus:ring-1 focus:ring-black"
+              >
+                <option value="all">Tất cả chi nhánh ({propertiesList.length})</option>
+                {propertiesList.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Room Status Filter */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-medium text-gray-500">Trạng thái:</span>
+              <div className="space-x-1 sm:space-x-2">
+                {[
+                  { id: "all", label: "Tất cả" },
+                  { id: "ready", label: "Sẵn sàng" },
+                  { id: "occupied", label: "Có khách" },
+                  { id: "cleaning", label: "Đang dọn" },
+                  { id: "maintenance", label: "Bảo trì" },
+                ].map((st) => (
+                  <button
+                    key={st.id}
+                    onClick={() => setRoomFilter(st.id)}
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition ${
+                      roomFilter === st.id ? "bg-gray-800 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                     }`}
-                >
-                  {st === "all" ? "Tất cả" : st}
-                </button>
-              ))}
+                  >
+                    {st.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -300,6 +370,7 @@ export default function OperationsDashboardClient({
             <thead className="bg-gray-50 text-gray-600 uppercase text-xs border-b">
               <tr>
                 <th className="p-3">Tên Phòng</th>
+                <th className="p-3">Chi Nhánh</th>
                 <th className="p-3">Trạng Thái Hiện Tại</th>
                 <th className="p-3">Cập Nhật Cuối</th>
                 <th className="p-3 text-right">Thao Tác</th>
@@ -308,24 +379,34 @@ export default function OperationsDashboardClient({
             <tbody className="divide-y">
               {filteredRooms.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="p-4 text-center text-gray-500">
-                    Không có phòng nào phù hợp.
+                  <td colSpan={5} className="p-6 text-center text-gray-500">
+                    Không có phòng nào phù hợp với bộ lọc hiện tại.
                   </td>
                 </tr>
               ) : (
                 filteredRooms.map((room) => (
-                  <tr key={room.room_id}>
+                  <tr key={room.room_id} className="hover:bg-gray-50 transition-colors">
                     <td className="p-3 font-medium text-gray-900">{room.room_name || room.room_id}</td>
+                    <td className="p-3 text-gray-600 text-xs">
+                      {room.property_name ? (
+                        <span className="inline-block px-2 py-0.5 bg-gray-100 border border-gray-200 rounded text-[11px] font-medium text-gray-700">
+                          {room.property_name}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400 italic">N/A</span>
+                      )}
+                    </td>
                     <td className="p-3">
                       <span
-                        className={`px-2 py-1 rounded-full text-xs font-semibold ${room.operational_status === "ready"
-                          ? "bg-green-100 text-green-800"
-                          : room.operational_status === "occupied"
-                            ? "bg-blue-100 text-blue-800"
-                            : room.operational_status === "cleaning"
-                              ? "bg-yellow-100 text-yellow-800"
-                              : "bg-red-100 text-red-800"
-                          }`}
+                        className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                          room.operational_status === "ready"
+                            ? "bg-green-100 text-green-800"
+                            : room.operational_status === "occupied"
+                              ? "bg-blue-100 text-blue-800"
+                              : room.operational_status === "cleaning"
+                                ? "bg-yellow-100 text-yellow-800"
+                                : "bg-red-100 text-red-800"
+                        }`}
                       >
                         {room.operational_status}
                       </span>
@@ -333,7 +414,7 @@ export default function OperationsDashboardClient({
                     <td className="p-3 text-gray-500 text-xs">
                       {room.updated_at ? new Date(room.updated_at).toLocaleString("vi-VN") : "Chưa cập nhật"}
                     </td>
-                    <td className="p-3 text-right space-x-1">
+                    <td className="p-3 text-right space-x-1 whitespace-nowrap">
                       {room.operational_status === "occupied" ? (
                         <span className="text-xs text-gray-400 italic">Chỉ đọc</span>
                       ) : (

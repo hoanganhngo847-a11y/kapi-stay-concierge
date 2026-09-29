@@ -25,7 +25,12 @@ interface AdminDashboardClientProps {
 export default function AdminDashboardClient({
   initialData,
 }: AdminDashboardClientProps) {
-  const { kpis, recent_bookings, pending_tickets, room_summaries } = initialData;
+  const {
+    kpis,
+    recent_bookings,
+    pending_tickets,
+    property_room_summaries = [],
+  } = initialData;
 
   return (
     <div className="space-y-8">
@@ -152,15 +157,15 @@ export default function AdminDashboardClient({
         </div>
       </div>
 
-      {/* Room Status Summary Section */}
-      <div className="bg-white border border-[#E5E5E5] p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 pb-4 border-b border-[#E5E5E5]">
+      {/* Room Status Grouped by Property Section */}
+      <div className="bg-white border border-[#E5E5E5] p-6 space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-[#E5E5E5]">
           <div>
             <h2 className="text-sm font-semibold uppercase tracking-wider text-[#111111]">
-              Trạng thái buồng phòng ({room_summaries.length} phòng niêm yết)
+              Trạng thái buồng phòng theo chi nhánh ({property_room_summaries.length} chi nhánh)
             </h2>
             <p className="text-xs text-[#707072] mt-0.5">
-              Phân loại buồng phòng theo trạng thái vận hành thực tế
+              Phân loại và giám sát tình trạng buồng phòng phân bổ theo từng cơ sở
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3 text-xs">
@@ -183,58 +188,114 @@ export default function AdminDashboardClient({
           </div>
         </div>
 
-        {/* Room Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {room_summaries.map((room) => {
-            const statusConfig = {
-              ready: {
-                label: "Sẵn sàng",
-                badgeClass: "bg-white text-[#111111] border border-[#111111]",
-              },
-              occupied: {
-                label: "Có khách",
-                badgeClass: "bg-[#111111] text-white border border-[#111111]",
-              },
-              cleaning: {
-                label: "Đang dọn dẹp",
-                badgeClass: "bg-[#F5F5F5] text-[#111111] border border-[#CCCCCC]",
-              },
-              maintenance: {
-                label: "Bảo trì",
-                badgeClass: "bg-white text-[#707072] border border-[#E5E5E5]",
-              },
-            }[room.operational_status] || {
-              label: room.operational_status,
-              badgeClass: "bg-[#F5F5F5] text-[#707072] border border-[#E5E5E5]",
-            };
-
-            return (
+        {property_room_summaries.length === 0 ? (
+          <div className="py-8 text-center text-xs text-[#9E9EA0]">
+            Chưa có dữ liệu phòng hoặc chi nhánh nào đang hoạt động.
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {property_room_summaries.map((property) => (
               <div
-                key={room.room_id}
-                className="p-3.5 border border-[#E5E5E5] bg-[#FAFAFA] flex items-center justify-between"
+                key={property.property_id}
+                className="border border-[#E5E5E5] bg-[#FFFFFF] p-5 space-y-4"
               >
-                <div>
-                  <span className="text-xs font-semibold text-[#111111] block">
-                    {room.room_name}
-                  </span>
-                  <span className="text-[10px] text-[#9E9EA0] mt-0.5 block">
-                    {room.updated_at
-                      ? `Cập nhật: ${new Date(room.updated_at).toLocaleTimeString("vi-VN", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}`
-                      : "Trực tiếp"}
-                  </span>
+                {/* Property Header */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-[#F0F0F0]">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-semibold text-[#111111] tracking-tight">
+                        {property.property_name}
+                      </h3>
+                      <span className="text-xs px-2 py-0.5 bg-[#F5F5F5] border border-[#E5E5E5] text-[#111111] font-medium">
+                        {property.room_count} phòng
+                      </span>
+                    </div>
+                    {property.property_address && (
+                      <p className="text-xs text-[#707072] mt-0.5">
+                        {property.property_address}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Property Status Counts */}
+                  <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#F5F5F5] border border-[#E5E5E5] text-[#111111]">
+                      Ready: <strong>{property.ready_count}</strong>
+                    </span>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#111111] text-white">
+                      Occupied: <strong>{property.occupied_count}</strong>
+                    </span>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#F5F5F5] border border-[#CCCCCC] text-[#707072]">
+                      Cleaning: <strong>{property.cleaning_count}</strong>
+                    </span>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-[#E5E5E5] text-[#707072]">
+                      Maintenance: <strong>{property.maintenance_count}</strong>
+                    </span>
+                  </div>
                 </div>
-                <span
-                  className={`px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${statusConfig.badgeClass}`}
-                >
-                  {statusConfig.label}
-                </span>
+
+                {/* Rooms of this Property */}
+                {property.rooms.length === 0 ? (
+                  <p className="text-xs text-[#9E9EA0] italic py-2">
+                    Chưa có phòng niêm yết tại chi nhánh này.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {property.rooms.map((room) => {
+                      const statusConfig = {
+                        ready: {
+                          label: "Sẵn sàng",
+                          badgeClass: "bg-white text-[#111111] border border-[#111111]",
+                        },
+                        occupied: {
+                          label: "Có khách",
+                          badgeClass: "bg-[#111111] text-white border border-[#111111]",
+                        },
+                        cleaning: {
+                          label: "Đang dọn dẹp",
+                          badgeClass: "bg-[#F5F5F5] text-[#111111] border border-[#CCCCCC]",
+                        },
+                        maintenance: {
+                          label: "Bảo trì",
+                          badgeClass: "bg-white text-[#707072] border border-[#E5E5E5]",
+                        },
+                      }[room.operational_status] || {
+                        label: room.operational_status,
+                        badgeClass: "bg-[#F5F5F5] text-[#707072] border border-[#E5E5E5]",
+                      };
+
+                      return (
+                        <div
+                          key={room.room_id}
+                          className="p-3.5 border border-[#E5E5E5] bg-[#FAFAFA] flex items-center justify-between"
+                        >
+                          <div>
+                            <span className="text-xs font-semibold text-[#111111] block">
+                              {room.room_name}
+                            </span>
+                            <span className="text-[10px] text-[#9E9EA0] mt-0.5 block">
+                              {room.updated_at
+                                ? `Cập nhật: ${new Date(room.updated_at).toLocaleTimeString("vi-VN", {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}`
+                                : "Trực tiếp"}
+                            </span>
+                          </div>
+                          <span
+                            className={`px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${statusConfig.badgeClass}`}
+                          >
+                            {statusConfig.label}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Two Column Layout: Recent Bookings & Pending Tickets */}
