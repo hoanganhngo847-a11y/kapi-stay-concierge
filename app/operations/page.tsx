@@ -75,6 +75,7 @@ export default async function OperationsDashboardPage() {
   }
 
   const safeEmail: string = staffRoleInfo?.email || "";
+  const staffRole = staffRoleInfo?.role;
 
   async function handleUpdateRoomStatus(
     roomId: string,
@@ -94,6 +95,7 @@ export default async function OperationsDashboardPage() {
       initialData={dashboardData}
       loadError={loadError}
       staffEmail={safeEmail}
+      staffRole={staffRole}
       onUpdateRoomStatus={handleUpdateRoomStatus}
       onUpdateTicketStatus={handleUpdateTicketStatus}
     />
