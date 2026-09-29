@@ -1,6 +1,6 @@
 import * as React from "react";
 import Link from "next/link";
-import { User, ExternalLink, LogOut, Shield } from "lucide-react";
+import { User, LogOut, Shield } from "lucide-react";
 import { adminSignOutAction } from "@/app/admin/actions";
 
 interface AdminHeaderProps {
@@ -49,14 +49,6 @@ export function AdminHeader({ adminEmail }: AdminHeaderProps) {
                 </span>
               </div>
             )}
-
-            <Link
-              href="/operations"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#111111] bg-white border border-[#CCCCCC] hover:border-[#111111] hover:bg-[#F9F9F9] transition-colors"
-            >
-              <span>Mở Operations</span>
-              <ExternalLink className="w-3 h-3 text-[#707072]" />
-            </Link>
 
             <form action={adminSignOutAction}>
               <button

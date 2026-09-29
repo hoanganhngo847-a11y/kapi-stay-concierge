@@ -19,6 +19,8 @@ import { Button } from "@/components/ui/Button";
 import { formatVND } from "@/lib/utils/format";
 import type { PublicRoom } from "@/lib/data/rooms";
 import { checkRoomAvailabilityHourly } from "@/lib/data/bookings";
+import { RoomAvailabilityTimeline } from "@/components/rooms/RoomAvailabilityTimeline";
+import { createHoldSessionAction } from "@/app/rooms/[id]/actions";
 
 export type AvailabilityState =
   | { status: "IDLE" }
@@ -40,6 +42,7 @@ export interface RoomBookingWidgetProps {
   initialCheckIn?: string;
   initialCheckOut?: string;
   initialGuests?: number;
+  initialConflict?: string;
 }
 
 /**
@@ -120,6 +123,7 @@ export function RoomBookingWidget({
   initialCheckIn,
   initialCheckOut,
   initialGuests,
+  initialConflict,
 }: RoomBookingWidgetProps) {
   const router = useRouter();
   const minNowStr = React.useMemo(() => getCurrentDateTimeInVietnam(), []);
@@ -157,6 +161,10 @@ export function RoomBookingWidget({
   const [checkOut, setCheckOut] = React.useState(normalizedInitialCheckOut);
   const [guests, setGuests] = React.useState(normalizedInitialGuests);
   const [validationError, setValidationError] = React.useState<string | null>(null);
+  const [isHolding, setIsHolding] = React.useState(false);
+  const [holdConflictMessage, setHoldConflictMessage] = React.useState<string | null>(
+    initialConflict || null
+  );
 
   // If the catalog handed us a complete valid datetime range, immediately verify it.
   const [availability, setAvailability] = React.useState<AvailabilityState>(
@@ -180,11 +188,20 @@ export function RoomBookingWidget({
     return checkIn ? getMinCheckOutDateTime(checkIn) : getMinCheckOutDateTime(minNowStr);
   }, [checkIn, minNowStr]);
 
+  // Handle timeline slot selection
+  const handleSelectTimelineInterval = (inStr: string, outStr: string) => {
+    setCheckIn(inStr);
+    setCheckOut(outStr);
+    setValidationError(null);
+    setHoldConflictMessage(null);
+  };
+
   // Handle Check-in change
   const handleCheckInChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVal = e.target.value;
     setCheckIn(newVal);
     setValidationError(null);
+    setHoldConflictMessage(null);
 
     // Invalidate any in-flight request.
     requestIdRef.current += 1;
@@ -216,6 +233,7 @@ export function RoomBookingWidget({
     const newVal = e.target.value;
     setCheckOut(newVal);
     setValidationError(null);
+    setHoldConflictMessage(null);
 
     // Invalidate any in-flight request.
     requestIdRef.current += 1;
@@ -303,8 +321,8 @@ export function RoomBookingWidget({
     setGuests((prev) => (prev < maxCapacity ? prev + 1 : maxCapacity));
   };
 
-  // Form submit handler
-  const handleSubmit = (e: React.FormEvent) => {
+  // Form submit handler: creates atomic temporary hold
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!checkIn || !checkOut) {
@@ -338,16 +356,52 @@ export function RoomBookingWidget({
       return;
     }
 
-    const params = new URLSearchParams({
-      roomId: room.id,
-      checkIn,
-      checkOut,
-      checkInAt: checkIn,
-      checkOutAt: checkOut,
-      guests: String(guests),
-    });
+    setIsHolding(true);
+    setHoldConflictMessage(null);
+    setValidationError(null);
 
-    router.push(`/checkout?${params.toString()}`);
+    try {
+      const res = await createHoldSessionAction({
+        roomId: room.id,
+        checkIn,
+        checkOut,
+        guests,
+      });
+
+      if (res.status === "UNAUTHENTICATED" && res.loginUrl) {
+        router.push(res.loginUrl);
+        return;
+      }
+
+      if (res.status === "SUCCESS" && res.sessionId) {
+        router.push(`/checkout?sessionId=${res.sessionId}`);
+        return;
+      }
+
+      if (res.status === "CONFLICT") {
+        const conflictMsg =
+          res.message ||
+          "Khung giờ này vừa được một khách khác chọn. Vui lòng chọn khung giờ khác.";
+        setHoldConflictMessage(conflictMsg);
+        setAvailability({
+          status: "UNAVAILABLE",
+          checkIn,
+          checkOut,
+          reason: conflictMsg,
+        });
+        return;
+      }
+
+      if (res.status === "ERROR") {
+        setValidationError(res.message || "Không thể giữ phòng lúc này. Vui lòng thử lại.");
+        return;
+      }
+    } catch (err) {
+      console.error("[RoomBookingWidget] hold error:", err);
+      setValidationError("Đã xảy ra lỗi khi giữ phòng. Vui lòng thử lại.");
+    } finally {
+      setIsHolding(false);
+    }
   };
 
   return (
@@ -362,6 +416,16 @@ export function RoomBookingWidget({
         </div>
         <span className="text-xs text-[#707072]">Tối đa {room.capacity} khách</span>
       </div>
+
+      {/* Visual Public Availability Timeline */}
+      <RoomAvailabilityTimeline
+        roomId={room.id}
+        selectedCheckIn={checkIn}
+        selectedCheckOut={checkOut}
+        onSelectInterval={handleSelectTimelineInterval}
+        holdConflictMessage={holdConflictMessage}
+        onClearConflictMessage={() => setHoldConflictMessage(null)}
+      />
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* DateTime Selection Box */}
@@ -522,13 +586,15 @@ export function RoomBookingWidget({
         {/* CTA Button (Black Pill) */}
         <Button
           type="submit"
-          disabled={availability.status !== "AVAILABLE"}
-          isLoading={availability.status === "CHECKING"}
+          disabled={availability.status !== "AVAILABLE" || isHolding}
+          isLoading={availability.status === "CHECKING" || isHolding}
           className="w-full h-12 text-sm font-medium justify-center rounded-full transition-all duration-200"
           rightIcon={<ArrowRight className="w-4 h-4" aria-hidden="true" />}
         >
-          {availability.status === "AVAILABLE"
-            ? "Tiếp tục đặt phòng"
+          {isHolding
+            ? "Đang giữ phòng..."
+            : availability.status === "AVAILABLE"
+            ? "Giữ phòng & tiếp tục"
             : availability.status === "CHECKING"
             ? "Đang kiểm tra phòng..."
             : availability.status === "UNAVAILABLE"

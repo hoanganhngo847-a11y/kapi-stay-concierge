@@ -27,7 +27,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, ShieldCheck, Clock } from "lucide-react";
+import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { requireBookingAuth } from "@/lib/auth/booking-gate";
 import {
   createCheckoutSession,
@@ -244,7 +244,7 @@ export default async function CheckoutPage({
     ]);
 
     return (
-      <CheckoutPageLayout sessionId={existingSession.id}>
+      <CheckoutPageLayout>
         <CheckoutClient
           session={existingSession}
           initialVouchers={vouchers ?? []}
@@ -374,6 +374,16 @@ export default async function CheckoutPage({
     });
 
   if (createError || !newSessionId) {
+    const isConflict =
+      createError?.includes("vừa được một khách khác chọn") ||
+      createError?.includes("Phòng đã được đặt") ||
+      createError?.includes("ROOM_TEMPORARILY_HELD") ||
+      createError?.includes("ROOM_NOT_AVAILABLE");
+
+    if (isConflict) {
+      redirect(`/rooms/${roomId}?conflict=held`);
+    }
+
     return (
       <CheckoutPageLayout>
         <CheckoutError
@@ -400,10 +410,9 @@ export default async function CheckoutPage({
 
 interface CheckoutPageLayoutProps {
   children: React.ReactNode;
-  sessionId?: string;
 }
 
-function CheckoutPageLayout({ children, sessionId }: CheckoutPageLayoutProps) {
+function CheckoutPageLayout({ children }: CheckoutPageLayoutProps) {
   return (
     <div className="min-h-screen bg-white">
       {/* Page header */}
@@ -481,22 +490,6 @@ function CheckoutPageLayout({ children, sessionId }: CheckoutPageLayoutProps) {
             thanh toán chuyển khoản qua VietQR.
           </p>
         </div>
-
-        {/* Session timer warning */}
-        {sessionId && (
-          <div
-            role="note"
-            className="flex items-center gap-2.5 bg-[#F5F5F5] border border-[#E5E5E5] px-4 py-3 mb-6"
-          >
-            <Clock
-              className="w-4 h-4 text-[#111111] shrink-0"
-              aria-hidden="true"
-            />
-            <p className="text-xs text-[#111111] font-medium">
-              Phiên đặt phòng có hiệu lực trong <strong>30 phút</strong>. Vui lòng hoàn tất thanh toán trước khi hết hạn.
-            </p>
-          </div>
-        )}
 
         {/* Checkout content (BookingSummary + QRModal) */}
         {children}

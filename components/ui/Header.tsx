@@ -62,13 +62,6 @@ export function Header({ authSlot }: HeaderProps) {
             </Link>
           ))}
 
-          <Link
-            href="/operations"
-            className="hidden lg:inline-block px-3 py-1.5 text-xs font-medium text-[#9E9EA0] hover:text-[#111111] transition-colors"
-          >
-            Vận hành
-          </Link>
-
           {authSlot && <div className="ml-1 sm:ml-2">{authSlot}</div>}
         </nav>
       </div>

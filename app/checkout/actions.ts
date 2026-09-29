@@ -185,3 +185,19 @@ export async function getAllMenuProductsAction(): Promise<{
   return getMenuProducts();
 }
 
+/**
+ * Releases temporary room hold by marking the checkout session as EXPIRED or FAILED.
+ */
+export async function releaseCheckoutHoldAction(
+  sessionId: string
+): Promise<{ success: boolean; error: string | null }> {
+  const userId = await getAuthenticatedUserId();
+  if (!userId) {
+    return { success: false, error: "Phiên đăng nhập đã hết hạn." };
+  }
+  const { releaseCheckoutHold } = await import("@/lib/data/bookings");
+  const res = await releaseCheckoutHold(sessionId);
+  return { success: res.success, error: res.error ?? null };
+}
+
+

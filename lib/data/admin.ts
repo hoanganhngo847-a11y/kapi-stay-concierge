@@ -2010,6 +2010,11 @@ export interface AdminPropertyRoomScheduleItem {
   nightly_price_vnd: number;
   capacity: number;
   bookings: AdminTimelineBooking[];
+  holds?: {
+    check_in_at: string;
+    check_out_at: string;
+    expires_at: string;
+  }[];
 }
 
 export interface AdminPropertyTicketItem {

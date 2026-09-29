@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import {
   CalendarDays,
   LogIn,
@@ -9,11 +8,9 @@ import {
   BedDouble,
   CheckCircle2,
   AlertCircle,
-  ExternalLink,
   Clock,
   Sparkles,
   Wrench,
-  ChevronRight,
 } from "lucide-react";
 import type { AdminDashboardData } from "@/lib/data/admin";
 import { formatVND } from "@/lib/utils/format";
@@ -53,14 +50,6 @@ export default function AdminDashboardClient({
             Theo dõi tình trạng buồng phòng, lượt khách và giao dịch đặt phòng thời gian thực.
           </p>
         </div>
-
-        <Link
-          href="/operations"
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#111111] text-white text-xs font-medium uppercase tracking-wider hover:bg-[#262626] transition-colors shrink-0"
-        >
-          <span>Mở Operations</span>
-          <ExternalLink className="w-3.5 h-3.5" />
-        </Link>
       </div>
 
       {/* KPI Cards Grid */}
@@ -311,13 +300,6 @@ export default function AdminDashboardClient({
                 15 giao dịch đặt phòng mới nhất
               </p>
             </div>
-            <Link
-              href="/operations"
-              className="text-xs text-[#707072] hover:text-[#111111] flex items-center gap-1 transition-colors"
-            >
-              <span>Xem thêm</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </Link>
           </div>
 
           {recent_bookings.length === 0 ? (
@@ -385,13 +367,6 @@ export default function AdminDashboardClient({
                 Các sự cố khách hàng cần bộ phận vận hành tiếp nhận
               </p>
             </div>
-            <Link
-              href="/operations"
-              className="text-xs text-[#707072] hover:text-[#111111] flex items-center gap-1 transition-colors"
-            >
-              <span>Xem Operations</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </Link>
           </div>
 
           {pending_tickets.length === 0 ? (

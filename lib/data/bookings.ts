@@ -254,3 +254,117 @@ export async function checkRoomAvailabilityHourly(
     );
   }
 }
+
+export interface PublicTimelineInterval {
+  start_at: string;
+  end_at: string;
+  state: "BOOKED" | "HELD" | "BLOCKED";
+}
+
+export interface PublicRoomAvailabilityTimelineResult {
+  success: boolean;
+  room_id?: string;
+  range_start?: string;
+  range_end?: string;
+  intervals: PublicTimelineInterval[];
+  error?: string;
+}
+
+/**
+ * Lấy danh sách các khoảng thời gian đã được Đặt (BOOKED), Đang giữ (HELD), hoặc Khóa (BLOCKED)
+ * trong ngày/khoảng thời gian. Dữ liệu công khai và đã được khử hoàn toàn thông tin định danh khách hàng.
+ */
+export async function getPublicRoomAvailabilityTimeline(
+  roomId: string,
+  rangeStart: string,
+  rangeEnd: string
+): Promise<PublicRoomAvailabilityTimelineResult> {
+  if (!roomId || typeof roomId !== "string" || !UUID_REGEX.test(roomId.trim())) {
+    return { success: false, intervals: [], error: "ID phòng không hợp lệ" };
+  }
+
+  const isoStart = normalizeToVietnamISO(rangeStart);
+  const isoEnd = normalizeToVietnamISO(rangeEnd);
+
+  if (!isoStart || !isoEnd) {
+    return { success: false, intervals: [], error: "Khoảng thời gian không hợp lệ" };
+  }
+
+  try {
+    const supabase = await createClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase.rpc as any)(
+      "get_public_room_availability_timeline",
+      {
+        p_room_id: roomId.trim(),
+        p_range_start: isoStart,
+        p_range_end: isoEnd,
+      }
+    );
+
+    if (error) {
+      console.error("[getPublicRoomAvailabilityTimeline] RPC error:", error.message);
+      return { success: false, intervals: [], error: error.message };
+    }
+
+    const payload = data as PublicRoomAvailabilityTimelineResult | null;
+    if (!payload?.success) {
+      return {
+        success: false,
+        intervals: [],
+        error: payload?.error || "Không thể tải dữ liệu lịch trống",
+      };
+    }
+
+    return {
+      success: true,
+      room_id: payload.room_id,
+      range_start: payload.range_start,
+      range_end: payload.range_end,
+      intervals: Array.isArray(payload.intervals) ? payload.intervals : [],
+    };
+  } catch (err) {
+    console.error("[getPublicRoomAvailabilityTimeline] Unexpected error:", err);
+    return {
+      success: false,
+      intervals: [],
+      error: "Không thể kết nối máy chủ để tải lịch trống phòng.",
+    };
+  }
+}
+
+/**
+ * Hủy chủ động phiên tạm giữ phòng của người dùng hiện tại khi rời khỏi hoặc hủy đơn checkout.
+ */
+export async function releaseCheckoutHold(
+  sessionId: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!sessionId || typeof sessionId !== "string" || !UUID_REGEX.test(sessionId.trim())) {
+    return { success: false, error: "ID phiên không hợp lệ" };
+  }
+
+  try {
+    const supabase = await createClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase.rpc as any)(
+      "release_checkout_hold_atomic",
+      {
+        p_checkout_session_id: sessionId.trim(),
+      }
+    );
+
+    if (error) {
+      console.error("[releaseCheckoutHold] RPC error:", error.message);
+      return { success: false, error: error.message };
+    }
+
+    const payload = data as { success: boolean; error?: string } | null;
+    return {
+      success: payload?.success ?? false,
+      error: payload?.error,
+    };
+  } catch (err) {
+    console.error("[releaseCheckoutHold] Unexpected error:", err);
+    return { success: false, error: "Không thể hủy phiên giữ phòng" };
+  }
+}
