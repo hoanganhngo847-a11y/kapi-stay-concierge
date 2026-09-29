@@ -34,7 +34,7 @@ import {
   getCheckoutSession,
   getUserAvailableVouchers,
 } from "@/lib/data/checkout";
-import { getPublicRoomById } from "@/lib/data/rooms";
+import { getPublicRoomById, isValidUUID } from "@/lib/data/rooms";
 import { CheckoutClient, CheckoutError } from "./CheckoutClient";
 
 // ---------------------------------------------------------------------------
@@ -70,13 +70,6 @@ interface CheckoutPageProps {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-const UUID_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-function isValidUUID(v: unknown): v is string {
-  return typeof v === "string" && UUID_REGEX.test(v);
-}
 
 function parseToVietnamTimestamp(v: unknown, defaultHour: string = "14:00"): number | null {
   if (typeof v !== "string" || !v.trim()) return null;
