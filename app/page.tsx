@@ -1,11 +1,13 @@
 import * as React from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, Check } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { getActiveProperties } from "@/lib/data/rooms";
 import { BookingSearchControl } from "@/components/rooms/BookingSearchControl";
 import { Reveal } from "@/components/ui/Reveal";
 import { FixedBackgroundVideo } from "@/components/home/FixedBackgroundVideo";
+import { RewardsSection } from "@/components/rewards";
+import { getRewardsSummary } from "@/lib/data/rewards";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +41,8 @@ const DEFAULT_TILES = [
 ];
 
 export default async function HomePage() {
-  const { data: properties = [] } = await getActiveProperties();
+  const [{ data: properties = [] }, { data: rewardsSummary, error: rewardsError }] =
+    await Promise.all([getActiveProperties(), getRewardsSummary()]);
 
   // Ghép nối danh sách properties thực tế với visual tiles
   const propertyTiles = DEFAULT_TILES.map((tile) => {
@@ -187,110 +190,11 @@ export default async function HomePage() {
           </div>
         </section>
 
-        {/* ── 4. KAPI REWARDS PRESENTATION (2-column horizontal drift over video) ── */}
-        <section id="rewards" className="relative w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20 border-t border-[#E5E5E5]/60 bg-transparent">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
-            {/* Left Block: fade-right (20px max) */}
-            <div className="lg:col-span-6">
-              <Reveal variant="fade-right" distance={20} duration={750}>
-                <div className="p-6 sm:p-8 bg-white/85 backdrop-blur-[4px] border border-[#E5E5E5] space-y-4">
-                  <p className="text-xs font-medium uppercase tracking-[0.2em] text-[#707072]">
-                    Kapi Rewards
-                  </p>
-                  <h2 className="text-3xl sm:text-4xl font-normal tracking-tight text-[#111111] mt-2">
-                    Tích lũy điểm.<br />Nhận ưu đãi kỳ nghỉ.
-                  </h2>
-                  <p className="text-sm sm:text-base text-[#707072] leading-relaxed max-w-lg mt-3">
-                    Mỗi giờ lưu trú tại Kapi đều tích lũy điểm thưởng. Sử dụng điểm để quy đổi voucher giảm giá 40% trực tiếp khi đặt phòng.
-                  </p>
-
-                  <div className="pt-4 space-y-3">
-                    <div className="flex items-start gap-3">
-                      <div className="w-5 h-5 rounded-full border border-[#111111] flex items-center justify-center shrink-0 mt-0.5">
-                        <Check className="w-3 h-3 text-[#111111]" />
-                      </div>
-                      <div className="text-sm">
-                        <strong className="font-medium text-[#111111]">500 điểm = 1 Voucher 40%</strong>
-                        <p className="text-xs text-[#707072]">Giảm tối đa 400.000đ, áp dụng cho mọi phòng.</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3">
-                      <div className="w-5 h-5 rounded-full border border-[#111111] flex items-center justify-center shrink-0 mt-0.5">
-                        <Check className="w-3 h-3 text-[#111111]" />
-                      </div>
-                      <div className="text-sm">
-                        <strong className="font-medium text-[#111111]">Điểm danh mỗi ngày +5 điểm</strong>
-                        <p className="text-xs text-[#707072]">Chỉ cần đăng nhập và xác nhận một chạm.</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3">
-                      <div className="w-5 h-5 rounded-full border border-[#111111] flex items-center justify-center shrink-0 mt-0.5">
-                        <Check className="w-3 h-3 text-[#111111]" />
-                      </div>
-                      <div className="text-sm">
-                        <strong className="font-medium text-[#111111]">1 VND = 0.00025 điểm</strong>
-                        <p className="text-xs text-[#707072]">Tích điểm tự động sau khi thanh toán thành công.</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </Reveal>
-            </div>
-
-            {/* Right Block: fade-left (20px max) */}
-            <div className="lg:col-span-6">
-              <Reveal variant="fade-left" distance={20} delay={120} duration={750}>
-                <div className="border border-[#E5E5E5] bg-white p-6 sm:p-8">
-                  <div className="flex items-center justify-between pb-6 border-b border-[#E5E5E5]">
-                    <div>
-                      <span className="text-xs uppercase tracking-widest text-[#707072]">
-                        Điểm thành viên
-                      </span>
-                      <div className="flex items-baseline gap-2 mt-1">
-                        <span className="text-4xl sm:text-5xl font-normal text-[#111111]">
-                          425
-                        </span>
-                        <span className="text-xs uppercase tracking-widest text-[#707072]">
-                          POINTS
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="text-right">
-                      <span className="text-xs font-mono text-[#707072]">425 / 500</span>
-                      <div className="w-32 h-1.5 bg-[#F5F5F5] rounded-full overflow-hidden mt-2">
-                        <div className="w-[85%] h-full bg-[#111111]" />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="py-6 border-b border-[#E5E5E5]">
-                    <p className="text-xs sm:text-sm text-[#707072]">
-                      Còn <strong>75 điểm</strong> để nhận voucher giảm giá 40% tiếp theo
-                    </p>
-                  </div>
-
-                  <div className="pt-6 flex flex-col sm:flex-row items-center gap-3">
-                    <Link
-                      href="/login"
-                      className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 rounded-full bg-[#111111] text-white text-xs sm:text-sm font-medium hover:bg-[#2A2A2A] transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-                    >
-                      Đăng nhập để xem ưu đãi
-                    </Link>
-                    <Link
-                      href="/rooms"
-                      className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 rounded-full border border-[#E5E5E5] text-[#111111] text-xs sm:text-sm font-medium hover:bg-[#F5F5F5] transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-                    >
-                      Khám phá phòng ngay
-                    </Link>
-                  </div>
-                </div>
-              </Reveal>
-            </div>
-          </div>
-        </section>
+        {/* ── 4. KAPI REWARDS PRESENTATION ── */}
+        <RewardsSection
+          initialSummary={rewardsSummary}
+          initialError={rewardsError}
+        />
 
         {/* ── 5. THREE CORE SERVICE PRINCIPLES (Minimal typography rows) ── */}
         <section className="relative w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20 border-t border-[#E5E5E5]/60 bg-transparent">
