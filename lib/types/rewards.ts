@@ -92,6 +92,7 @@ export interface RewardsSummary {
   checkinDate: string; // YYYY-MM-DD (Asia/Ho_Chi_Minh)
   currentStreak: number;
   longestStreak: number;
+  isStreakBroken?: boolean;
   nextMilestone: NextMilestoneInfo | null;
   pointsNeededForNextVoucher: number;
   availableVouchersCount: number;

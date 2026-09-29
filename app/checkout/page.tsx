@@ -228,13 +228,20 @@ export default async function CheckoutPage({
       }
     }
 
-    // Session hợp lệ — tải voucher, phần thưởng hiện vật và thực đơn song song
-    const [{ data: vouchers }, { data: physicalRewards }, { data: menuItems }] =
-      await Promise.all([
-        getUserAvailableVouchers(user.id),
-        getUserAvailablePhysicalRewards(user.id),
-        getActiveCheckoutMenuItems(),
-      ]);
+    // Session hợp lệ — tải voucher, phần thưởng hiện vật, thực đơn và món đã chọn song song
+    const [
+      { data: vouchers },
+      { data: physicalRewards },
+      { data: menuItems },
+      { data: allMenuProducts },
+      { data: initialMenuItems, menuAmountVnd: initialMenuAmountVnd },
+    ] = await Promise.all([
+      getUserAvailableVouchers(user.id),
+      getUserAvailablePhysicalRewards(user.id),
+      getActiveCheckoutMenuItems(),
+      (await import("@/lib/data/menu")).getMenuProducts(),
+      (await import("@/lib/data/checkout")).getCheckoutMenuItems(existingSession.id),
+    ]);
 
     return (
       <CheckoutPageLayout sessionId={existingSession.id}>
@@ -243,6 +250,9 @@ export default async function CheckoutPage({
           initialVouchers={vouchers ?? []}
           initialPhysicalRewards={physicalRewards ?? []}
           menuItems={menuItems ?? []}
+          allMenuProducts={allMenuProducts ?? []}
+          initialSelectedMenuItems={initialMenuItems ?? []}
+          initialMenuAmountVnd={initialMenuAmountVnd ?? 0}
           userId={user.id}
         />
       </CheckoutPageLayout>

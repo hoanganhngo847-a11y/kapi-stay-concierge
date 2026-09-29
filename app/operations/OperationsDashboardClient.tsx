@@ -467,12 +467,13 @@ export default function OperationsDashboardClient({
                 <th className="p-3">Giờ Check-in / Out</th>
                 <th className="p-3">Trạng Thái Booking</th>
                 <th className="p-3">Phần Thưởng Đi Kèm</th>
+                <th className="p-3">Đồ Ăn & Thức Uống</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {filteredSchedule.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="p-4 text-center text-gray-500">
+                  <td colSpan={6} className="p-4 text-center text-gray-500">
                     Không có lịch đón trả nào hôm hôm nay.
                   </td>
                 </tr>
@@ -505,6 +506,42 @@ export default function OperationsDashboardClient({
                               🎁 {r}
                             </span>
                           ))}
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 text-xs">—</span>
+                      )}
+                    </td>
+                    <td className="p-3">
+                      {item.menu_items && item.menu_items.length > 0 ? (
+                        <div className="space-y-1.5 text-xs">
+                          {item.menu_items.some((m) => m.source_type === "PURCHASE") && (
+                            <div>
+                              <span className="font-semibold text-gray-800 text-[11px] block">Paid:</span>
+                              <ul className="list-disc list-inside text-gray-700 text-[11px] pl-1">
+                                {item.menu_items
+                                  .filter((m) => m.source_type === "PURCHASE")
+                                  .map((m) => (
+                                    <li key={m.id}>
+                                      {m.product_name} ×{m.quantity} — {m.total_price_vnd.toLocaleString("vi-VN")}đ
+                                    </li>
+                                  ))}
+                              </ul>
+                            </div>
+                          )}
+                          {item.menu_items.some((m) => m.source_type === "REWARD") && (
+                            <div>
+                              <span className="font-semibold text-gray-800 text-[11px] block">Reward:</span>
+                              <ul className="list-disc list-inside text-gray-700 text-[11px] pl-1">
+                                {item.menu_items
+                                  .filter((m) => m.source_type === "REWARD")
+                                  .map((m) => (
+                                    <li key={m.id}>
+                                      {m.product_name} ×{m.quantity} — {m.reward_label || "Quà tặng"}
+                                    </li>
+                                  ))}
+                              </ul>
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <span className="text-gray-400 text-xs">—</span>

@@ -181,6 +181,7 @@ export async function getRewardsSummary(): Promise<{
             checkinDate: (res.checkin_date as string) || todayVn,
             currentStreak,
             longestStreak,
+            isStreakBroken: Boolean(res.is_streak_broken),
             nextMilestone: (res.next_milestone as NextMilestoneInfo) || null,
             pointsNeededForNextVoucher: Number(
               res.points_needed_for_next_voucher ?? Math.max(0, 500 - balance)
