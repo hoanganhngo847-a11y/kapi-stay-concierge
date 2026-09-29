@@ -64,6 +64,15 @@ export interface PublicProperty {
   maps_url: string | null;
 }
 
+export interface PublicRoomMedia {
+  id: string;
+  media_type: "IMAGE" | "VIDEO";
+  storage_path: string;
+  sort_order: number;
+  is_cover: boolean;
+  alt_text: string | null;
+}
+
 export interface PublicRoom {
   id: string;
   property_id: string;
@@ -76,6 +85,9 @@ export interface PublicRoom {
   image_paths: string[];
   is_listed: boolean;
   property: PublicProperty | null;
+  room_number?: string | null;
+  floor_number?: number | null;
+  media?: PublicRoomMedia[];
 }
 
 /**
@@ -479,6 +491,50 @@ export async function getPublicRoomById(id: string): Promise<{
         ? (propRaw[0] as PublicProperty | null)
         : (propRaw as PublicProperty | null);
 
+      // Query room_media
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: mediaRows } = await (supabase as any)
+        .from("room_media")
+        .select("id, media_type, storage_path, sort_order, is_cover, alt_text")
+        .eq("room_id", id)
+        .order("sort_order", { ascending: true });
+
+      let finalImagePaths = parseImagePaths(data.image_paths);
+      let roomMedia: PublicRoomMedia[] = [];
+
+      if (mediaRows && mediaRows.length > 0) {
+        roomMedia = (mediaRows as unknown as PublicRoomMedia[]).map((m) => ({
+          id: m.id,
+          media_type: m.media_type,
+          storage_path: m.storage_path,
+          sort_order: m.sort_order,
+          is_cover: m.is_cover,
+          alt_text: m.alt_text,
+        }));
+
+        const imageMedia = roomMedia.filter((m) => m.media_type === "IMAGE");
+        if (imageMedia.length > 0) {
+          const sortedImages = [...imageMedia].sort((a, b) => {
+            if (a.is_cover) return -1;
+            if (b.is_cover) return 1;
+            return a.sort_order - b.sort_order;
+          });
+
+          const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+          finalImagePaths = sortedImages.map((m) => {
+            if (
+              m.storage_path.startsWith("http://") ||
+              m.storage_path.startsWith("https://") ||
+              m.storage_path.startsWith("/")
+            ) {
+              return m.storage_path;
+            }
+            return `${supabaseUrl.replace(/\/$/, "")}/storage/v1/object/public/room-media/${m.storage_path.replace(/^\//, "")}`;
+          });
+        }
+      }
+
+      const rawData = data as Record<string, unknown>;
       const room: PublicRoom = {
         id: data.id,
         property_id: data.property_id,
@@ -488,8 +544,11 @@ export async function getPublicRoomById(id: string): Promise<{
         nightly_price_vnd: Number(data.nightly_price_vnd) || 0,
         capacity: Number(data.capacity) || 0,
         amenities: parseAmenities(data.amenities),
-        image_paths: parseImagePaths(data.image_paths),
+        image_paths: finalImagePaths,
         is_listed: data.is_listed,
+        room_number: typeof rawData.room_number === "string" ? rawData.room_number : null,
+        floor_number: typeof rawData.floor_number === "number" ? rawData.floor_number : null,
+        media: roomMedia,
         property,
       };
 
