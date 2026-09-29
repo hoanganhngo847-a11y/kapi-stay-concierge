@@ -351,27 +351,27 @@ export function RoomBookingWidget({
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-dark/10 shadow-sm p-6 lg:p-7 sticky top-24">
+    <div className="bg-white border border-[#E5E5E5] p-6 lg:p-7 sticky top-24">
       {/* Price header */}
-      <div className="flex items-baseline justify-between pb-5 border-b border-dark/10 mb-6">
+      <div className="flex items-baseline justify-between pb-5 border-b border-[#E5E5E5] mb-6">
         <div>
-          <span className="text-2xl sm:text-3xl font-bold text-primary">
+          <span className="text-3xl font-medium text-[#111111]">
             {formatVND(hourlyPrice)}
           </span>
-          <span className="text-sm text-dark/60"> / giờ</span>
+          <span className="text-sm text-[#707072]"> / giờ</span>
         </div>
-        <span className="text-xs text-dark/50 font-medium">Tối đa {room.capacity} khách</span>
+        <span className="text-xs text-[#707072]">Tối đa {room.capacity} khách</span>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* DateTime Selection Box */}
-        <div className="rounded-xl border border-dark/15 overflow-hidden">
-          <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-dark/15">
+        <div className="border border-[#E5E5E5] overflow-hidden">
+          <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-[#E5E5E5]">
             {/* Check-in */}
-            <div className="p-3 bg-light/30">
+            <div className="p-3 bg-[#F5F5F5]/60">
               <label
                 htmlFor="checkin-datetime"
-                className="block text-[11px] font-semibold text-dark/60 uppercase tracking-wider mb-1"
+                className="block text-[11px] font-medium text-[#707072] uppercase tracking-wider mb-1"
               >
                 Nhận phòng
               </label>
@@ -381,15 +381,15 @@ export function RoomBookingWidget({
                 min={minNowStr}
                 value={checkIn}
                 onChange={handleCheckInChange}
-                className="w-full bg-transparent text-sm font-medium text-dark focus:outline-none cursor-pointer"
+                className="w-full bg-transparent text-sm font-medium text-[#111111] focus:outline-none cursor-pointer"
               />
             </div>
 
             {/* Check-out */}
-            <div className="p-3 bg-light/30">
+            <div className="p-3 bg-[#F5F5F5]/60">
               <label
                 htmlFor="checkout-datetime"
-                className="block text-[11px] font-semibold text-dark/60 uppercase tracking-wider mb-1"
+                className="block text-[11px] font-medium text-[#707072] uppercase tracking-wider mb-1"
               >
                 Trả phòng (Tối thiểu 2h)
               </label>
@@ -400,41 +400,41 @@ export function RoomBookingWidget({
                 min={minCheckOutStr}
                 value={checkOut}
                 onChange={handleCheckOutChange}
-                className="w-full bg-transparent text-sm font-medium text-dark focus:outline-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-transparent text-sm font-medium text-[#111111] focus:outline-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               />
             </div>
           </div>
         </div>
 
         {/* Guest Selection Stepper */}
-        <div className="p-3 rounded-xl border border-dark/15 bg-light/30 flex items-center justify-between">
+        <div className="p-3 border border-[#E5E5E5] bg-[#F5F5F5]/60 flex items-center justify-between">
           <div>
             <label
               htmlFor="guests-control"
-              className="block text-[11px] font-semibold text-dark/60 uppercase tracking-wider mb-0.5"
+              className="block text-[11px] font-medium text-[#707072] uppercase tracking-wider mb-0.5"
             >
               Số lượng khách
             </label>
-            <div className="flex items-center gap-1.5 text-xs text-dark/70 font-medium">
-              <Users className="w-3.5 h-3.5 text-primary shrink-0" aria-hidden="true" />
+            <div className="flex items-center gap-1.5 text-xs text-[#111111]">
+              <Users className="w-3.5 h-3.5 text-[#707072] shrink-0" aria-hidden="true" />
               <span>
-                {guests} khách <span className="text-dark/40 font-normal">(tối đa {maxCapacity})</span>
+                {guests} khách <span className="text-[#707072]">(tối đa {maxCapacity})</span>
               </span>
             </div>
           </div>
 
-          <div id="guests-control" className="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border border-dark/10 shadow-2xs">
+          <div id="guests-control" className="flex items-center gap-2 bg-white px-2.5 py-1 rounded-full border border-[#E5E5E5]">
             <button
               type="button"
               onClick={handleDecrementGuests}
               disabled={guests <= 1}
               aria-label="Giảm số lượng khách"
-              className="w-7 h-7 flex items-center justify-center rounded-md text-dark/70 hover:bg-light disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="w-6 h-6 flex items-center justify-center rounded-full text-[#111111] hover:bg-[#F5F5F5] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
-              <Minus className="w-3.5 h-3.5" aria-hidden="true" />
+              <Minus className="w-3 h-3" aria-hidden="true" />
             </button>
 
-            <span className="w-5 text-center text-sm font-bold text-dark select-none" aria-live="polite">
+            <span className="w-5 text-center text-xs font-semibold text-[#111111] select-none" aria-live="polite">
               {guests}
             </span>
 
@@ -443,9 +443,9 @@ export function RoomBookingWidget({
               onClick={handleIncrementGuests}
               disabled={guests >= maxCapacity}
               aria-label="Tăng số lượng khách"
-              className="w-7 h-7 flex items-center justify-center rounded-md text-dark/70 hover:bg-light disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="w-6 h-6 flex items-center justify-center rounded-full text-[#111111] hover:bg-[#F5F5F5] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
-              <Plus className="w-3.5 h-3.5" aria-hidden="true" />
+              <Plus className="w-3 h-3" aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -457,44 +457,44 @@ export function RoomBookingWidget({
           </p>
         )}
 
-        {/* Availability UI (5 States) */}
-        <div className="text-xs leading-relaxed">
+        {/* Availability UI (Neutral, minimal, no huge green box) */}
+        <div className="text-xs leading-relaxed py-1 min-h-[28px] flex items-center">
           {availability.status === "IDLE" && (
-            <div className="p-3 rounded-xl bg-light/50 border border-dark/10 text-dark/70 flex items-start gap-2.5">
-              <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" aria-hidden="true" />
-              <span>Chọn thời gian nhận và trả phòng (tối thiểu 2 giờ) để kiểm tra phòng trống.</span>
+            <div className="flex items-center gap-2 text-[#707072] transition-opacity duration-200">
+              <Info className="w-3.5 h-3.5 text-[#707072] shrink-0" aria-hidden="true" />
+              <span>Chọn giờ nhận và trả phòng (tối thiểu 2 giờ).</span>
             </div>
           )}
 
           {availability.status === "CHECKING" && (
-            <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 flex items-center gap-2.5">
-              <Loader2 className="w-4 h-4 text-blue-600 animate-spin shrink-0" aria-hidden="true" />
+            <div className="flex items-center gap-2 text-[#707072] transition-opacity duration-200">
+              <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0 text-[#111111]" aria-hidden="true" />
               <span>Đang kiểm tra tình trạng phòng...</span>
             </div>
           )}
 
           {availability.status === "AVAILABLE" && (
-            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-center gap-2.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" aria-hidden="true" />
-              <span className="font-medium">Phòng còn trống trong khung giờ bạn chọn.</span>
+            <div className="flex items-center gap-2 text-[#111111] animate-in fade-in slide-in-from-bottom-1 duration-250 ease-out">
+              <CheckCircle2 className="w-3.5 h-3.5 text-[#111111] shrink-0" aria-hidden="true" />
+              <span className="font-normal">Phòng còn trống trong khung giờ này.</span>
             </div>
           )}
 
           {availability.status === "UNAVAILABLE" && (
-            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-start gap-2.5">
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" aria-hidden="true" />
+            <div className="flex items-start gap-2 text-rose-600 animate-in fade-in duration-200">
+              <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" aria-hidden="true" />
               <div>
                 <span className="font-medium block">Phòng không còn trống trong khung giờ này.</span>
                 {availability.reason && (
-                  <span className="text-rose-700 text-[11px] block mt-0.5">{availability.reason}</span>
+                  <span className="text-[11px] block mt-0.5 text-rose-500">{availability.reason}</span>
                 )}
               </div>
             </div>
           )}
 
           {availability.status === "ERROR" && (
-            <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 flex items-start gap-2.5">
-              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" aria-hidden="true" />
+            <div className="flex items-start gap-2 text-[#707072] animate-in fade-in duration-200">
+              <AlertTriangle className="w-3.5 h-3.5 text-[#707072] shrink-0 mt-0.5" aria-hidden="true" />
               <span>{availability.message || "Không thể kiểm tra tình trạng phòng lúc này."}</span>
             </div>
           )}
@@ -502,29 +502,29 @@ export function RoomBookingWidget({
 
         {/* Price Estimation Preview */}
         {hours > 0 && (
-          <div className="pt-2 pb-1 text-xs space-y-2 text-dark/70 border-t border-dark/10">
+          <div className="pt-3 pb-1 text-xs space-y-2 text-[#707072] border-t border-[#E5E5E5] transition-opacity duration-200">
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-primary" />
+                <Clock className="w-3.5 h-3.5 text-[#707072]" />
                 <span>
                   {formatVND(hourlyPrice)} × {hours} giờ
                 </span>
               </div>
-              <span className="font-semibold text-dark">{formatVND(estimatedTotal)}</span>
+              <span className="font-medium text-[#111111]">{formatVND(estimatedTotal)}</span>
             </div>
-            <div className="flex justify-between items-center pt-2 border-t border-dark/5 text-sm font-bold text-dark">
+            <div className="flex justify-between items-center pt-2 border-t border-[#E5E5E5] text-sm font-medium text-[#111111]">
               <span>Tạm tính</span>
-              <span className="text-primary">{formatVND(estimatedTotal)}</span>
+              <span>{formatVND(estimatedTotal)}</span>
             </div>
           </div>
         )}
 
-        {/* CTA Button (Strictly disabled unless AVAILABLE) */}
+        {/* CTA Button (Black Pill) */}
         <Button
           type="submit"
           disabled={availability.status !== "AVAILABLE"}
           isLoading={availability.status === "CHECKING"}
-          className="w-full h-12 text-base font-semibold shadow-sm justify-center"
+          className="w-full h-12 text-sm font-medium justify-center rounded-full transition-all duration-200"
           rightIcon={<ArrowRight className="w-4 h-4" aria-hidden="true" />}
         >
           {availability.status === "AVAILABLE"
@@ -536,8 +536,8 @@ export function RoomBookingWidget({
             : "Chọn giờ để đặt phòng"}
         </Button>
 
-        <div className="pt-4 border-t border-dark/10 flex items-center justify-center gap-2 text-xs text-dark/50">
-          <ShieldCheck className="w-4 h-4 text-secondary shrink-0" aria-hidden="true" />
+        <div className="pt-4 border-t border-[#E5E5E5] flex items-center justify-center gap-2 text-xs text-[#707072]">
+          <ShieldCheck className="w-4 h-4 text-[#111111] shrink-0" aria-hidden="true" />
           <span>Tự check-in 24/7 • Đặt phòng theo giờ linh hoạt</span>
         </div>
       </form>

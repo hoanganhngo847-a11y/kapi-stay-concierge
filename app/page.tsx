@@ -1,228 +1,330 @@
-"use client";
-
 import * as React from "react";
+import type { Metadata } from "next";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import {
-  KeyRound,
-  Headset,
-  Compass,
-  ArrowRight,
-  Sparkles,
-  Search,
-  ShieldCheck,
-  DoorOpen,
-} from "lucide-react";
-import { Button, Badge, Input, Modal } from "@/components/ui";
+import { ArrowRight, Check } from "lucide-react";
+import { getActiveProperties } from "@/lib/data/rooms";
+import { BookingSearchControl } from "@/components/rooms/BookingSearchControl";
+import { Reveal } from "@/components/ui/Reveal";
+import { FixedBackgroundVideo } from "@/components/home/FixedBackgroundVideo";
 
-export default function HomePage() {
-  const router = useRouter();
-  const [isModalOpen, setIsModalOpen] = React.useState(false);
-  const [bookingCode, setBookingCode] = React.useState("");
-  const [errorMessage, setErrorMessage] = React.useState("");
+export const dynamic = "force-dynamic";
 
-  const handleAccessMyStay = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!bookingCode.trim()) {
-      setErrorMessage("Vui lòng nhập mã đơn đặt phòng (ví dụ: KP-1029)");
-      return;
-    }
-    setErrorMessage("");
-    setIsModalOpen(false);
-    router.push(`/my-stay?code=${encodeURIComponent(bookingCode.trim().toUpperCase())}`);
-  };
+export const metadata: Metadata = {
+  title: "KAPI STAY | Không gian riêng. Theo giờ của bạn.",
+  description:
+    "Đặt phòng linh hoạt theo giờ, tự check-in và chủ động thời gian lưu trú với hệ thống phòng cao cấp trên toàn quốc.",
+};
+
+// Cấu hình ảnh chi nhánh chất lượng cao (sharp, photography-first)
+const LOCATION_IMAGES: Record<string, string> = {
+  "hoàn kiếm": "https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=1200&q=80",
+  "cầu giấy": "https://images.unsplash.com/photo-1566665797739-1674de7a421a?auto=format&fit=crop&w=1200&q=80",
+  "quận 1": "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=1200&q=80",
+  "bình thạnh": "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1200&q=80",
+  "mỹ khê": "https://images.unsplash.com/photo-1578683010236-d716f9a3f461?auto=format&fit=crop&w=1200&q=80",
+  "trung tâm": "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1200&q=80",
+  "trần phú": "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&w=1200&q=80",
+  "bãi cháy": "https://images.unsplash.com/photo-1631049307264-da0ec9d70304?auto=format&fit=crop&w=1200&q=80",
+};
+
+const DEFAULT_TILES = [
+  { city: "Hà Nội", area: "Hoàn Kiếm", image: LOCATION_IMAGES["hoàn kiếm"] },
+  { city: "Hà Nội", area: "Cầu Giấy", image: LOCATION_IMAGES["cầu giấy"] },
+  { city: "TP.HCM", area: "Quận 1", image: LOCATION_IMAGES["quận 1"] },
+  { city: "TP.HCM", area: "Bình Thạnh", image: LOCATION_IMAGES["bình thạnh"] },
+  { city: "Đà Nẵng", area: "Mỹ Khê", image: LOCATION_IMAGES["mỹ khê"] },
+  { city: "Đà Lạt", area: "Trung tâm", image: LOCATION_IMAGES["trung tâm"] },
+  { city: "Nha Trang", area: "Trần Phú", image: LOCATION_IMAGES["trần phú"] },
+  { city: "Hạ Long", area: "Bãi Cháy", image: LOCATION_IMAGES["bãi cháy"] },
+];
+
+export default async function HomePage() {
+  const { data: properties = [] } = await getActiveProperties();
+
+  // Ghép nối danh sách properties thực tế với visual tiles
+  const propertyTiles = DEFAULT_TILES.map((tile) => {
+    const matched = properties.find((p) =>
+      p.name.toLowerCase().includes(tile.area.toLowerCase()) ||
+      p.address.toLowerCase().includes(tile.area.toLowerCase())
+    );
+    return {
+      ...tile,
+      propertyId: matched?.id,
+      slug: matched?.slug,
+      name: matched?.name || `${tile.city} – ${tile.area}`,
+    };
+  });
 
   return (
-    <div className="w-full flex flex-col items-center">
-      {/* Hero Section */}
-      <section className="relative w-full overflow-hidden bg-gradient-to-b from-light/60 via-light/20 to-white py-16 sm:py-24 lg:py-28 px-4 sm:px-6">
-        {/* Background decorative elements */}
-        <div
-          className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-primary/10 blur-3xl pointer-events-none"
-          aria-hidden="true"
-        />
-        <div
-          className="absolute top-1/2 -right-32 w-96 h-96 rounded-full bg-secondary/10 blur-3xl pointer-events-none"
-          aria-hidden="true"
-        />
+    <div className="relative w-full flex flex-col bg-transparent min-h-screen">
+      {/* ── 0. FIXED CINEMATIC BACKGROUND VIDEO (Persistent across entire homepage) ── */}
+      <FixedBackgroundVideo />
 
-        <div className="relative max-w-4xl mx-auto flex flex-col items-center text-center">
-          {/* Badge */}
-          <div className="mb-6 animate-in fade-in slide-in-from-top-4 duration-500">
-            <Badge
-              variant="primary"
-              size="lg"
-              dot
-              icon={<Sparkles className="w-3.5 h-3.5" />}
-              className="px-4 py-1.5 font-medium shadow-2xs"
-            >
-              Homestay Tự Phục Vụ Thông Minh
-            </Badge>
-          </div>
-
-          {/* Headline */}
-          <h1 className="text-3xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-dark leading-[1.18] sm:leading-[1.15] mb-6">
-            Kapi Stay – Trải nghiệm homestay tự check-in{" "}
-            <span className="text-primary underline decoration-primary/30 decoration-wavy underline-offset-8">
-              24/7 thông minh
-            </span>{" "}
-            không lễ tân
-          </h1>
-
-          {/* Subtitle */}
-          <p className="max-w-2xl text-base sm:text-lg text-dark/70 mb-10 leading-relaxed">
-            Tự do khám phá không giới hạn thời gian. Nhận phòng chủ động bằng mã khóa kỹ thuật số,
-            tận hưởng không gian lưu trú ấm cúng, an toàn và riêng tư tuyệt đối tại Kapi House.
-          </p>
-
-          {/* CTA Buttons */}
-          <div className="w-full sm:w-auto flex flex-col sm:flex-row items-center justify-center gap-3.5 sm:gap-4">
-            <Link href="/rooms" className="w-full sm:w-auto">
-              <Button
-                size="lg"
-                className="w-full sm:w-auto h-13 px-8 text-base font-semibold shadow-md hover:shadow-lg transition-all"
-                rightIcon={<ArrowRight className="w-4 h-4" />}
-              >
-                Khám phá phòng
-              </Button>
-            </Link>
-
-            <Button
-              variant="outline"
-              size="lg"
-              onClick={() => setIsModalOpen(true)}
-              className="w-full sm:w-auto h-13 px-6 text-base font-semibold bg-white/80 hover:bg-light/60 border-dark/20 text-dark"
-              leftIcon={<KeyRound className="w-4 h-4 text-primary" />}
-            >
-              Truy cập phòng của bạn (My Stay)
-            </Button>
-          </div>
-
-          {/* Trust points */}
-          <div className="mt-12 flex flex-wrap items-center justify-center gap-6 sm:gap-10 text-xs font-medium text-dark/60">
-            <div className="flex items-center gap-2">
-              <DoorOpen className="w-4 h-4 text-primary" />
-              <span>Khóa điện tử tự động</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-secondary" />
-              <span>An ninh 24/7 & Bảo mật</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Headset className="w-4 h-4 text-dark" />
-              <span>Hỗ trợ kỹ thuật trực tuyến</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 3 Highlight Blocks Section */}
-      <section className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
-        <div className="text-center max-w-xl mx-auto mb-12 sm:mb-16">
-          <h2 className="text-2xl sm:text-3xl font-bold text-dark tracking-tight mb-3">
-            Đặc quyền lưu trú tại Kapi Stay
-          </h2>
-          <p className="text-sm sm:text-base text-dark/60">
-            Mô hình homestay tự phục vụ hiện đại kết hợp công nghệ giúp kỳ nghỉ của bạn trọn vẹn và tự do nhất.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
-          {/* Block 1: Check-in 1 chạm */}
-          <div className="group relative bg-white rounded-2xl p-7 border border-dark/10 shadow-sm hover:shadow-md hover:border-primary/40 transition-all duration-300 flex flex-col">
-            <div className="w-14 h-14 rounded-xl bg-primary/10 text-primary border border-primary/20 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-              <KeyRound className="w-7 h-7" />
-            </div>
-            <div className="flex items-center gap-2 mb-3">
-              <h3 className="text-xl font-bold text-dark">Check-in 1 chạm</h3>
-              <Badge variant="primary" size="sm">Tức thì</Badge>
-            </div>
-            <p className="text-sm text-dark/70 leading-relaxed flex-1">
-              Nhận mã PIN mở khóa cửa riêng biệt qua điện thoại. Bạn có thể tự do đến và nhận phòng bất kỳ khung giờ nào trong ngày mà không cần thủ tục giấy tờ hay gặp lễ tân.
-            </p>
-            <div className="mt-6 pt-4 border-t border-dark/5 flex items-center text-xs font-medium text-primary">
-              <span>Tự do 24/7 • Không thủ tục rườm rà</span>
-            </div>
-          </div>
-
-          {/* Block 2: Hỗ trợ sự cố tức thì */}
-          <div className="group relative bg-white rounded-2xl p-7 border border-dark/10 shadow-sm hover:shadow-md hover:border-secondary/50 transition-all duration-300 flex flex-col">
-            <div className="w-14 h-14 rounded-xl bg-secondary/20 text-secondary-800 border border-secondary/30 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-              <Headset className="w-7 h-7" />
-            </div>
-            <div className="flex items-center gap-2 mb-3">
-              <h3 className="text-xl font-bold text-dark">Hỗ trợ sự cố tức thì</h3>
-              <Badge variant="success" size="sm">&lt; 5 phút</Badge>
-            </div>
-            <p className="text-sm text-dark/70 leading-relaxed flex-1">
-              Đội ngũ Concierge trực tuyến 24/7 qua Hotline và Zalo. Mọi thắc mắc về thiết bị phòng, mật khẩu wifi hay phát sinh kỹ thuật đều được xử lý chỉ trong vài phút.
-            </p>
-            <div className="mt-6 pt-4 border-t border-dark/5 flex items-center text-xs font-medium text-secondary-800">
-              <span>Hotline túc trực 24/7 • Luôn sẵn sàng</span>
-            </div>
-          </div>
-
-          {/* Block 3: Cẩm nang bản địa độc quyền */}
-          <div className="group relative bg-white rounded-2xl p-7 border border-dark/10 shadow-sm hover:shadow-md hover:border-dark/30 transition-all duration-300 flex flex-col">
-            <div className="w-14 h-14 rounded-xl bg-dark/10 text-dark border border-dark/15 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-              <Compass className="w-7 h-7" />
-            </div>
-            <div className="flex items-center gap-2 mb-3">
-              <h3 className="text-xl font-bold text-dark">Cẩm nang bản địa</h3>
-              <Badge variant="warning" size="sm">Độc quyền</Badge>
-            </div>
-            <p className="text-sm text-dark/70 leading-relaxed flex-1">
-              Khám phá danh sách các quán ăn truyền thống ngon nức tiếng, góc cafe vibe chill và điểm check-in ít người biết được chính chủ nhà Kapi tuyển chọn dành riêng cho khách.
-            </p>
-            <div className="mt-6 pt-4 border-t border-dark/5 flex items-center text-xs font-medium text-dark/80">
-              <span>Trải nghiệm như người bản địa • Chọn lọc kỹ</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Modal Truy cập My Stay */}
-      <Modal
-        isOpen={isModalOpen}
-        onClose={() => {
-          setIsModalOpen(false);
-          setErrorMessage("");
-        }}
-        title="Truy cập phòng của bạn (My Stay)"
-        description="Nhập mã đơn đặt phòng được gửi qua tin nhắn / email để xem hướng dẫn phòng, mã PIN mở cửa và tiện ích."
-        size="md"
-      >
-        <form onSubmit={handleAccessMyStay} className="space-y-4 pt-2">
-          <Input
-            label="Mã đơn đặt phòng"
-            placeholder="Ví dụ: KP-1029 hoặc mã booking của bạn"
-            value={bookingCode}
-            onChange={(e) => {
-              setBookingCode(e.target.value);
-              if (errorMessage) setErrorMessage("");
-            }}
-            errorMessage={errorMessage}
-            startIcon={<Search className="w-4 h-4 text-dark/40" />}
-            autoFocus
+      {/* ── 1. HERO SECTION (Photography-first, original room image, fully covers video) ── */}
+      <section className="relative z-20 w-full h-[88vh] min-h-[580px] max-h-[920px] flex items-end overflow-hidden bg-[#111111]">
+        {/* Full-bleed background photo (restored original room image) */}
+        <div className="absolute inset-0 z-0 overflow-hidden">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=2000&q=85"
+            alt="Kapi Stay Không gian lưu trú cao cấp"
+            className="w-full h-full object-cover select-none animate-hero-image"
           />
+          {/* Subtle gradient overlay strictly for high-contrast typography readability */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/20" />
+        </div>
 
-          <div className="flex items-center justify-end gap-3 pt-2">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                setIsModalOpen(false);
-                setErrorMessage("");
-              }}
+        {/* Hero content */}
+        <div className="relative z-10 w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 pb-16 sm:pb-20 text-white">
+          <p className="text-xs sm:text-sm font-medium tracking-[0.2em] uppercase text-white/80 mb-3 animate-hero-eyebrow">
+            KAPI STAY
+          </p>
+          <h1 className="text-4xl sm:text-6xl lg:text-7xl font-normal tracking-tight leading-[1.02] max-w-3xl mb-4 animate-hero-headline">
+            Không gian riêng.<br />
+            Theo giờ của bạn.
+          </h1>
+          <p className="text-sm sm:text-base lg:text-lg text-white/90 max-w-xl font-normal leading-relaxed mb-8 animate-hero-subtitle">
+            Đặt phòng linh hoạt theo giờ, tự check-in và chủ động thời gian lưu trú.
+          </p>
+
+          <div className="animate-hero-cta">
+            <Link
+              href="#search"
+              className="inline-flex items-center justify-center px-8 py-3.5 rounded-full bg-white text-[#111111] hover:bg-[#F5F5F5] font-medium text-sm sm:text-base transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
             >
-              Hủy
-            </Button>
-            <Button type="submit" rightIcon={<ArrowRight className="w-4 h-4" />}>
-              Kiểm tra & Vào phòng
-            </Button>
+              Tìm phòng
+            </Link>
           </div>
-        </form>
-      </Modal>
+        </div>
+      </section>
+
+      {/* ── HOMEPAGE CONTENT LAYER (Transparent sections revealing the fixed background video) ── */}
+      <div className="relative z-10 w-full bg-transparent">
+        {/* ── 2. QUICK SEARCH SECTION (Booking search control with 30px fade-up) ── */}
+        <section id="search" className="relative w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 bg-transparent">
+          <Reveal duration={800} distance={30}>
+            <div className="mb-6 inline-block bg-white/85 backdrop-blur-[4px] px-5 py-3 border border-[#E5E5E5]">
+              <p className="text-xs font-medium uppercase tracking-[0.2em] text-[#707072] mb-1">
+                Tìm phòng nhanh
+              </p>
+              <h2 className="text-2xl sm:text-3xl font-medium tracking-tight text-[#111111]">
+                Chọn điểm đến và khung giờ của bạn
+              </h2>
+            </div>
+
+            <BookingSearchControl properties={properties} />
+          </Reveal>
+        </section>
+
+        {/* ── 3. LOCATIONS / PROPERTY TILES (Sharp photography grid) ── */}
+        <section id="locations" className="relative w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20 border-t border-[#E5E5E5]/60 bg-transparent">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-8 gap-4">
+            <div className="inline-block bg-white/85 backdrop-blur-[4px] px-5 py-3 border border-[#E5E5E5]">
+              <Reveal variant="fade-up" duration={500}>
+                <p className="text-xs font-medium uppercase tracking-[0.2em] text-[#707072] mb-1">
+                  Điểm đến
+                </p>
+              </Reveal>
+              <Reveal variant="fade-up" delay={80} duration={700}>
+                <h2 className="text-3xl sm:text-4xl font-normal tracking-tight text-[#111111]">
+                  Hệ thống Kapi Stay
+                </h2>
+              </Reveal>
+            </div>
+
+            <Reveal variant="fade-up" delay={240}>
+              <Link
+                href="/rooms"
+                className="group inline-flex items-center gap-1.5 text-xs font-medium text-[#111111] hover:underline underline-offset-4 bg-white/85 backdrop-blur-[4px] px-4 py-2 border border-[#E5E5E5] w-fit"
+              >
+                <span>Xem tất cả phòng</span>
+                <ArrowRight className="w-3.5 h-3.5 transition-transform duration-200 group-hover:translate-x-[3px]" />
+              </Link>
+            </Reveal>
+          </div>
+
+          {/* 4-column responsive grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {propertyTiles.map((tile, idx) => {
+              const href = tile.propertyId ? `/rooms?property_id=${tile.propertyId}` : "/rooms";
+
+              return (
+                <Reveal key={tile.city + tile.area} delay={Math.min(350, idx * 70)}>
+                  <Link
+                    href={href}
+                    className="group block relative overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111111]"
+                  >
+                    {/* Aspect ratio container */}
+                    <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#F5F5F5]">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={tile.image}
+                        alt={`Kapi Stay ${tile.city} ${tile.area}`}
+                        className="w-full h-full object-cover transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.025]"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-black/10 transition-opacity duration-300 group-hover:opacity-90" />
+                    </div>
+
+                    {/* Content overlay */}
+                    <div className="absolute inset-0 p-5 flex flex-col justify-between pointer-events-none transition-transform duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:-translate-y-[3px]">
+                      <div>
+                        <span className="text-[11px] font-medium tracking-widest uppercase text-white/80 block mb-1">
+                          {tile.city}
+                        </span>
+                        <h3 className="text-2xl font-medium tracking-tight text-white">
+                          {tile.area}
+                        </h3>
+                      </div>
+
+                      <span className="inline-flex items-center px-4 py-1.5 rounded-full bg-white text-[#111111] text-xs font-medium opacity-85 group-hover:opacity-100 transition-all duration-400 hover:scale-[1.02]">
+                        Khám phá
+                      </span>
+                    </div>
+                  </Link>
+                </Reveal>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* ── 4. KAPI REWARDS PRESENTATION (2-column horizontal drift over video) ── */}
+        <section id="rewards" className="relative w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20 border-t border-[#E5E5E5]/60 bg-transparent">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+            {/* Left Block: fade-right (20px max) */}
+            <div className="lg:col-span-6">
+              <Reveal variant="fade-right" distance={20} duration={750}>
+                <div className="p-6 sm:p-8 bg-white/85 backdrop-blur-[4px] border border-[#E5E5E5] space-y-4">
+                  <p className="text-xs font-medium uppercase tracking-[0.2em] text-[#707072]">
+                    Kapi Rewards
+                  </p>
+                  <h2 className="text-3xl sm:text-4xl font-normal tracking-tight text-[#111111] mt-2">
+                    Tích lũy điểm.<br />Nhận ưu đãi kỳ nghỉ.
+                  </h2>
+                  <p className="text-sm sm:text-base text-[#707072] leading-relaxed max-w-lg mt-3">
+                    Mỗi giờ lưu trú tại Kapi đều tích lũy điểm thưởng. Sử dụng điểm để quy đổi voucher giảm giá 40% trực tiếp khi đặt phòng.
+                  </p>
+
+                  <div className="pt-4 space-y-3">
+                    <div className="flex items-start gap-3">
+                      <div className="w-5 h-5 rounded-full border border-[#111111] flex items-center justify-center shrink-0 mt-0.5">
+                        <Check className="w-3 h-3 text-[#111111]" />
+                      </div>
+                      <div className="text-sm">
+                        <strong className="font-medium text-[#111111]">500 điểm = 1 Voucher 40%</strong>
+                        <p className="text-xs text-[#707072]">Giảm tối đa 400.000đ, áp dụng cho mọi phòng.</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <div className="w-5 h-5 rounded-full border border-[#111111] flex items-center justify-center shrink-0 mt-0.5">
+                        <Check className="w-3 h-3 text-[#111111]" />
+                      </div>
+                      <div className="text-sm">
+                        <strong className="font-medium text-[#111111]">Điểm danh mỗi ngày +5 điểm</strong>
+                        <p className="text-xs text-[#707072]">Chỉ cần đăng nhập và xác nhận một chạm.</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <div className="w-5 h-5 rounded-full border border-[#111111] flex items-center justify-center shrink-0 mt-0.5">
+                        <Check className="w-3 h-3 text-[#111111]" />
+                      </div>
+                      <div className="text-sm">
+                        <strong className="font-medium text-[#111111]">1 VND = 0.00025 điểm</strong>
+                        <p className="text-xs text-[#707072]">Tích điểm tự động sau khi thanh toán thành công.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </Reveal>
+            </div>
+
+            {/* Right Block: fade-left (20px max) */}
+            <div className="lg:col-span-6">
+              <Reveal variant="fade-left" distance={20} delay={120} duration={750}>
+                <div className="border border-[#E5E5E5] bg-white p-6 sm:p-8">
+                  <div className="flex items-center justify-between pb-6 border-b border-[#E5E5E5]">
+                    <div>
+                      <span className="text-xs uppercase tracking-widest text-[#707072]">
+                        Điểm thành viên
+                      </span>
+                      <div className="flex items-baseline gap-2 mt-1">
+                        <span className="text-4xl sm:text-5xl font-normal text-[#111111]">
+                          425
+                        </span>
+                        <span className="text-xs uppercase tracking-widest text-[#707072]">
+                          POINTS
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <span className="text-xs font-mono text-[#707072]">425 / 500</span>
+                      <div className="w-32 h-1.5 bg-[#F5F5F5] rounded-full overflow-hidden mt-2">
+                        <div className="w-[85%] h-full bg-[#111111]" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="py-6 border-b border-[#E5E5E5]">
+                    <p className="text-xs sm:text-sm text-[#707072]">
+                      Còn <strong>75 điểm</strong> để nhận voucher giảm giá 40% tiếp theo
+                    </p>
+                  </div>
+
+                  <div className="pt-6 flex flex-col sm:flex-row items-center gap-3">
+                    <Link
+                      href="/login"
+                      className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 rounded-full bg-[#111111] text-white text-xs sm:text-sm font-medium hover:bg-[#2A2A2A] transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+                    >
+                      Đăng nhập để xem ưu đãi
+                    </Link>
+                    <Link
+                      href="/rooms"
+                      className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 rounded-full border border-[#E5E5E5] text-[#111111] text-xs sm:text-sm font-medium hover:bg-[#F5F5F5] transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+                    >
+                      Khám phá phòng ngay
+                    </Link>
+                  </div>
+                </div>
+              </Reveal>
+            </div>
+          </div>
+        </section>
+
+        {/* ── 5. THREE CORE SERVICE PRINCIPLES (Minimal typography rows) ── */}
+        <section className="relative w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20 border-t border-[#E5E5E5]/60 bg-transparent">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 sm:gap-12">
+            {[
+              {
+                num: "01",
+                title: "Tự nhận phòng 24/7",
+                desc: "Mã mở cửa Digital Key được cấp tự động cho kỳ nghỉ của bạn. Đến và nhận phòng bất kỳ khung giờ nào mà không cần gặp lễ tân.",
+              },
+              {
+                num: "02",
+                title: "Không gian riêng biệt",
+                desc: "Thiết kế tối giản, sạch sẽ, yên tĩnh và tiện nghi. Đảm bảo trải nghiệm nghỉ ngơi trọn vẹn và an tâm tuyệt đối.",
+              },
+              {
+                num: "03",
+                title: "Hỗ trợ kỹ thuật trực tuyến",
+                desc: "Hệ thống Concierge và tổng đài trực tuyến hỗ trợ liên tục qua Hotline và tin nhắn, giải quyết thắc mắc tức thì.",
+              },
+            ].map((principle, idx) => (
+              <Reveal key={principle.num} delay={idx * 70} duration={700}>
+                <div className="p-6 sm:p-8 bg-white/85 backdrop-blur-[4px] border border-[#E5E5E5] space-y-2 h-full">
+                  <span className="text-xs font-mono text-[#707072]">{principle.num}</span>
+                  <h3 className="text-lg font-medium text-[#111111]">{principle.title}</h3>
+                  <p className="text-sm text-[#707072] leading-relaxed">
+                    {principle.desc}
+                  </p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

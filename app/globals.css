@@ -1,80 +1,240 @@
 @import "tailwindcss";
 
 @theme {
-  /* Brand Base Colors */
-  --color-primary: #e07a5f;
-  --color-secondary: #81b29a;
-  --color-dark: #3d405b;
-  --color-light: #f4f1de;
+  /* Kapi Monochrome Design Tokens */
+  --color-kapi-black: #111111;
+  --color-kapi-white: #ffffff;
+  --color-kapi-border: #e5e5e5;
+  --color-kapi-surface: #f5f5f5;
+  --color-kapi-muted: #707072;
+  --color-kapi-disabled: #9e9ea0;
 
-  /* Primary Shades (Cam đất ấm: 50-950) */
-  --color-primary-50: #fdf8f6;
-  --color-primary-100: #f8e9e4;
-  --color-primary-200: #f2d3c9;
-  --color-primary-300: #ebbdad;
-  --color-primary-400: #e59b86;
-  --color-primary-500: #e07a5f;
-  --color-primary-600: #ca5e42;
-  --color-primary-700: #a8482e;
-  --color-primary-800: #873b26;
-  --color-primary-900: #6e3222;
-  --color-primary-950: #3d170e;
+  /* Functional mappings to preserve backwards compatibility across existing components */
+  --color-primary: #111111;
+  --color-primary-50: #f5f5f5;
+  --color-primary-100: #e5e5e5;
+  --color-primary-200: #d4d4d4;
+  --color-primary-300: #a3a3a3;
+  --color-primary-400: #707072;
+  --color-primary-500: #111111;
+  --color-primary-600: #000000;
+  --color-primary-700: #000000;
+  --color-primary-800: #000000;
+  --color-primary-900: #000000;
+  --color-primary-950: #000000;
 
-  /* Secondary Shades (Xanh rêu nhạt: 50-950) */
-  --color-secondary-50: #f4f8f6;
-  --color-secondary-100: #e6f0eb;
-  --color-secondary-200: #cfe2d7;
-  --color-secondary-300: #b2d0bf;
-  --color-secondary-400: #96c0ab;
-  --color-secondary-500: #81b29a;
-  --color-secondary-600: #64977e;
-  --color-secondary-700: #4e7864;
-  --color-secondary-800: #406051;
-  --color-secondary-900: #365044;
-  --color-secondary-950: #1c2e26;
+  --color-secondary: #707072;
+  --color-secondary-50: #f5f5f5;
+  --color-secondary-100: #e5e5e5;
+  --color-secondary-500: #707072;
+  --color-secondary-800: #111111;
 
-  /* Dark Shades (Nâu than: 50-950) */
-  --color-dark-50: #f5f5f7;
-  --color-dark-100: #e6e7ec;
-  --color-dark-200: #cecfdb;
-  --color-dark-300: #abadc2;
-  --color-dark-400: #7a7e9f;
-  --color-dark-500: #505477;
-  --color-dark-600: #3d405b;
-  --color-dark-700: #31344a;
-  --color-dark-800: #27293a;
-  --color-dark-900: #21222e;
-  --color-dark-950: #13141c;
-
-  /* Light Shades (Kem nhạt: 50-950) */
-  --color-light-50: #fdfdfb;
-  --color-light-100: #faf8f0;
-  --color-light-200: #f4f1de;
-  --color-light-300: #ede7c5;
-  --color-light-400: #e2d7a2;
-  --color-light-500: #d3c37c;
-  --color-light-600: #beac5e;
-  --color-light-700: #978749;
-  --color-light-800: #796c3e;
-  --color-light-900: #645936;
-  --color-light-950: #37311c;
-
-  /* Semantic UI Kit Tokens */
-  --color-background: var(--color-light);
-  --color-foreground: var(--color-dark);
+  --color-dark: #111111;
+  --color-light: #ffffff;
 
   /* Typography */
-  --font-sans: var(--font-inter), sans-serif;
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 :root {
-  --background: var(--color-light);
-  --foreground: var(--color-dark);
+  --kapi-black: #111111;
+  --kapi-white: #ffffff;
+  --kapi-border: #e5e5e5;
+  --kapi-surface: #f5f5f5;
+  --kapi-muted: #707072;
+  --kapi-disabled: #9e9ea0;
+
+  --background: #ffffff;
+  --foreground: #111111;
 }
 
 body {
   background-color: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
+
+/* Sharp image and card reset */
+.kapi-sharp {
+  border-radius: 0 !important;
+}
+
+.kapi-pill {
+  border-radius: 9999px;
+}
+
+.kapi-control-pill {
+  border-radius: 24px;
+}
+
+/* Motion & Micro-interaction Animations */
+@keyframes page-entrance {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes header-entrance {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes hero-image-entrance {
+  from {
+    opacity: 0.92;
+    transform: scale(1.025);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes hero-eyebrow-entrance {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes hero-headline-entrance {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes hero-subtitle-entrance {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes hero-cta-entrance {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes divider-expand {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.animate-page-entrance {
+  animation: page-entrance 600ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-header-entrance {
+  animation: header-entrance 500ms cubic-bezier(0.16, 1, 0.3, 1) 100ms both;
+}
+
+.animate-hero-image {
+  animation: hero-image-entrance 1100ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-hero-eyebrow {
+  animation: hero-eyebrow-entrance 600ms cubic-bezier(0.16, 1, 0.3, 1) 150ms both;
+}
+
+.animate-hero-headline {
+  animation: hero-headline-entrance 800ms cubic-bezier(0.16, 1, 0.3, 1) 250ms both;
+}
+
+.animate-hero-subtitle {
+  animation: hero-subtitle-entrance 700ms cubic-bezier(0.16, 1, 0.3, 1) 400ms both;
+}
+
+.animate-hero-cta {
+  animation: hero-cta-entrance 700ms cubic-bezier(0.16, 1, 0.3, 1) 550ms both;
+}
+
+@keyframes login-entrance {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-login-entrance {
+  animation: login-entrance 600ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-divider-expand {
+  transform-origin: left;
+  animation: divider-expand 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Accessibility: Full reduced motion support across CSS transitions and animations */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  [data-reveal] {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+
+  .hover\:scale-\[1\.02\]:hover,
+  .hover\:scale-\[1\.035\]:hover,
+  .hover\:scale-\[1\.025\]:hover,
+  .hover\:scale-\[1\.015\]:hover,
+  .group:hover .group-hover\:scale-\[1\.035\],
+  .group:hover .group-hover\:scale-\[1\.025\],
+  .group:hover .group-hover\:scale-\[1\.015\],
+  .group:hover .group-hover\:-translate-y-\[3px\],
+  .group:hover .group-hover\:translate-x-\[2px\],
+  .group:hover .group-hover\:translate-x-\[3px\],
+  .group:hover .group-hover\:scale-105 {
+    transform: none !important;
+  }
+}
+
+

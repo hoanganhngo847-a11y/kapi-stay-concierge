@@ -12,18 +12,18 @@ const badgeVariants: Record<NonNullable<BadgeProps["variant"]>, string> = {
   success: "bg-emerald-50 text-emerald-800 border-emerald-200",
   warning: "bg-amber-50 text-amber-900 border-amber-200",
   danger: "bg-rose-50 text-rose-800 border-rose-200",
-  neutral: "bg-zinc-100 text-zinc-800 border-zinc-200",
-  primary: "bg-primary/10 text-primary-700 border-primary/20",
-  secondary: "bg-secondary/20 text-secondary-800 border-secondary/30",
+  neutral: "bg-[#F5F5F5] text-[#111111] border-[#E5E5E5]",
+  primary: "bg-[#111111] text-[#FFFFFF] border-[#111111]",
+  secondary: "bg-[#F5F5F5] text-[#707072] border-[#E5E5E5]",
 };
 
 const dotColors: Record<NonNullable<BadgeProps["variant"]>, string> = {
   success: "bg-emerald-500",
   warning: "bg-amber-500",
   danger: "bg-rose-500",
-  neutral: "bg-zinc-500",
-  primary: "bg-primary",
-  secondary: "bg-secondary",
+  neutral: "bg-[#707072]",
+  primary: "bg-[#FFFFFF]",
+  secondary: "bg-[#707072]",
 };
 
 const badgeSizes: Record<NonNullable<BadgeProps["size"]>, string> = {

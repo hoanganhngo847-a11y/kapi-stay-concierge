@@ -386,13 +386,13 @@ interface CheckoutPageLayoutProps {
 
 function CheckoutPageLayout({ children, sessionId }: CheckoutPageLayoutProps) {
   return (
-    <div className="min-h-screen bg-light/40">
+    <div className="min-h-screen bg-white">
       {/* Page header */}
-      <div className="bg-white border-b border-dark/10 shadow-2xs">
+      <div className="bg-white border-b border-[#E5E5E5]">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <Link
             href="/rooms"
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-dark/60 hover:text-primary transition-colors"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-[#707072] hover:text-[#111111] transition-colors"
             aria-label="Quay lại danh sách phòng"
           >
             <ArrowLeft className="w-4 h-4" aria-hidden="true" />
@@ -403,43 +403,43 @@ function CheckoutPageLayout({ children, sessionId }: CheckoutPageLayoutProps) {
           <div className="flex items-center gap-2" aria-label="Các bước đặt phòng">
             {/* Bước 1 */}
             <div className="flex items-center gap-1.5">
-              <span className="w-6 h-6 rounded-full bg-secondary/30 text-secondary-800 text-xs font-bold flex items-center justify-center">
+              <span className="w-5 h-5 rounded-full bg-[#111111] text-white text-[11px] font-medium flex items-center justify-center">
                 ✓
               </span>
-              <span className="text-xs font-medium text-secondary-700 hidden sm:inline">
+              <span className="text-xs font-medium text-[#111111] hidden sm:inline">
                 Chọn phòng
               </span>
             </div>
 
-            <div className="w-6 h-px bg-dark/20" aria-hidden="true" />
+            <div className="w-6 h-px bg-[#E5E5E5]" aria-hidden="true" />
 
             {/* Bước 2 — Hiện tại */}
             <div className="flex items-center gap-1.5">
-              <span className="w-6 h-6 rounded-full bg-primary text-white text-xs font-bold flex items-center justify-center">
+              <span className="w-5 h-5 rounded-full border border-[#111111] text-[#111111] text-[11px] font-medium flex items-center justify-center">
                 2
               </span>
-              <span className="text-xs font-semibold text-primary hidden sm:inline">
+              <span className="text-xs font-medium text-[#111111] hidden sm:inline">
                 Thanh toán
               </span>
             </div>
 
-            <div className="w-6 h-px bg-dark/20" aria-hidden="true" />
+            <div className="w-6 h-px bg-[#E5E5E5]" aria-hidden="true" />
 
             {/* Bước 3 */}
             <div className="flex items-center gap-1.5">
-              <span className="w-6 h-6 rounded-full bg-dark/15 text-dark/50 text-xs font-bold flex items-center justify-center">
+              <span className="w-5 h-5 rounded-full border border-[#E5E5E5] text-[#9E9EA0] text-[11px] font-medium flex items-center justify-center">
                 3
               </span>
-              <span className="text-xs font-medium text-dark/40 hidden sm:inline">
+              <span className="text-xs font-medium text-[#9E9EA0] hidden sm:inline">
                 Kỳ nghỉ
               </span>
             </div>
           </div>
 
           {/* Trust badges */}
-          <div className="flex items-center gap-1.5 text-xs text-dark/50">
+          <div className="flex items-center gap-1.5 text-xs text-[#707072]">
             <ShieldCheck
-              className="w-4 h-4 text-secondary shrink-0"
+              className="w-4 h-4 text-[#707072] shrink-0"
               aria-hidden="true"
             />
             <span className="hidden sm:inline">Bảo mật SSL</span>
@@ -448,15 +448,18 @@ function CheckoutPageLayout({ children, sessionId }: CheckoutPageLayoutProps) {
       </div>
 
       {/* Main content */}
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
+      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-12 animate-page-entrance">
         {/* Page title */}
-        <div className="mb-6">
-          <h1 className="text-xl sm:text-2xl font-bold text-dark tracking-tight">
+        <div className="mb-8">
+          <span className="text-[11px] font-medium tracking-widest uppercase text-[#707072] block mb-1">
+            Đặt phòng trực tuyến
+          </span>
+          <h1 className="text-2xl sm:text-3xl font-medium text-[#111111] tracking-tight">
             Xác nhận & Thanh toán
           </h1>
-          <p className="text-sm text-dark/55 mt-1">
-            Kiểm tra thông tin đặt phòng, áp voucher (nếu có) và hoàn tất
-            thanh toán qua VietQR.
+          <p className="text-sm text-[#707072] mt-1.5">
+            Kiểm tra thông tin đặt phòng, áp voucher và hoàn tất
+            thanh toán chuyển khoản qua VietQR.
           </p>
         </div>
 
@@ -464,16 +467,14 @@ function CheckoutPageLayout({ children, sessionId }: CheckoutPageLayoutProps) {
         {sessionId && (
           <div
             role="note"
-            className="flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-5"
+            className="flex items-center gap-2.5 bg-[#F5F5F5] border border-[#E5E5E5] px-4 py-3 mb-6"
           >
             <Clock
-              className="w-4 h-4 text-amber-600 shrink-0"
+              className="w-4 h-4 text-[#111111] shrink-0"
               aria-hidden="true"
             />
-            <p className="text-xs text-amber-800 font-medium">
-              Phiên đặt phòng có hiệu lực trong{" "}
-              <strong>30 phút</strong>. Vui lòng hoàn tất thanh toán trước khi
-              hết hạn.
+            <p className="text-xs text-[#111111] font-medium">
+              Phiên đặt phòng có hiệu lực trong <strong>30 phút</strong>. Vui lòng hoàn tất thanh toán trước khi hết hạn.
             </p>
           </div>
         )}
@@ -482,22 +483,22 @@ function CheckoutPageLayout({ children, sessionId }: CheckoutPageLayoutProps) {
         {children}
 
         {/* Footer trust block */}
-        <div className="mt-8 pt-6 border-t border-dark/10 text-center space-y-1">
-          <p className="text-xs text-dark/40">
-            🔒 Kapi Stay Concierge không lưu thông tin thẻ ngân hàng của bạn.
-            Thanh toán được xác nhận qua đối soát chuyển khoản VietQR.
+        <div className="mt-12 pt-6 border-t border-[#E5E5E5] text-center space-y-1.5">
+          <p className="text-xs text-[#707072]">
+            Kapi Stay Concierge không lưu thông tin tài khoản hay thẻ của bạn.
+            Thanh toán được xác nhận qua đối soát giao dịch VietQR.
           </p>
-          <p className="text-xs text-dark/35">
-            Gặp vấn đề?{" "}
+          <p className="text-xs text-[#707072]">
+            Cần trợ giúp?{" "}
             {process.env.NEXT_PUBLIC_SUPPORT_PHONE?.trim() ? (
               <a
                 href={`tel:${process.env.NEXT_PUBLIC_SUPPORT_PHONE.trim()}`}
-                className="text-primary hover:underline font-medium"
+                className="text-[#111111] underline font-medium"
               >
-                Liên hệ hỗ trợ
+                Liên hệ hotline hỗ trợ
               </a>
             ) : (
-              <span className="text-dark/50 font-medium">
+              <span className="text-[#111111] font-medium">
                 Liên hệ lễ tân để được hỗ trợ
               </span>
             )}

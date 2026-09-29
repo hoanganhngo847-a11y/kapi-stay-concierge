@@ -220,38 +220,38 @@ export function RoomFilters({
 
   return (
     <div
-      className={`bg-white rounded-2xl border border-dark/10 p-5 sm:p-6 shadow-sm mb-8 ${className}`}
+      className={`bg-white border border-[#E5E5E5] p-4 sm:p-5 rounded-2xl mb-8 ${className}`}
     >
-      <div className="flex items-center gap-2 mb-4 text-xs font-semibold uppercase tracking-wider text-dark/60">
-        <Filter className="w-3.5 h-3.5 text-primary" />
+      <div className="flex items-center gap-2 mb-3 text-[11px] font-medium uppercase tracking-[0.2em] text-[#707072]">
+        <Filter className="w-3.5 h-3.5 text-[#111111]" />
         <span>Bộ lọc tìm kiếm phòng theo giờ</span>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-center">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 items-center">
         {/* Dropdown chọn cơ sở (property_id) */}
         <div>
           <label
             htmlFor="filter-location"
-            className="block text-xs font-medium text-dark/70 mb-1.5"
+            className="block text-[11px] font-medium text-[#707072] uppercase tracking-wider mb-1"
           >
-            Cơ sở / Chi nhánh
+            Chi nhánh
           </label>
           <div className="relative">
-            <MapPin className="w-4 h-4 text-dark/40 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <MapPin className="w-3.5 h-3.5 text-[#707072] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <select
               id="filter-location"
               value={currentLocation}
               onChange={handleLocationChange}
-              className="w-full pl-9 pr-8 py-2.5 bg-light/50 border border-dark/15 rounded-xl text-xs sm:text-sm text-dark font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all appearance-none cursor-pointer"
+              className="w-full pl-9 pr-8 py-2 bg-[#F5F5F5] border border-[#E5E5E5] rounded-full text-xs sm:text-sm text-[#111111] font-medium focus:outline-none focus:border-[#111111] transition-all appearance-none cursor-pointer"
             >
-              <option value="">Tất cả 8 chi nhánh Kapi Stay</option>
+              <option value="">Tất cả chi nhánh</option>
               {properties.map((prop) => (
                 <option key={prop.id} value={prop.id}>
                   {prop.name}
                 </option>
               ))}
             </select>
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-dark/40 text-xs">
+            <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-[#707072] text-[10px]">
               ▼
             </div>
           </div>
@@ -261,19 +261,19 @@ export function RoomFilters({
         <div>
           <label
             htmlFor="filter-checkin"
-            className="block text-xs font-medium text-dark/70 mb-1.5"
+            className="block text-[11px] font-medium text-[#707072] uppercase tracking-wider mb-1"
           >
-            Nhận phòng (Check-in)
+            Nhận phòng
           </label>
           <div className="relative">
-            <Calendar className="w-4 h-4 text-dark/40 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Calendar className="w-3.5 h-3.5 text-[#707072] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               id="filter-checkin"
               type="datetime-local"
               min={minCheckInStr}
               value={currentCheckIn}
               onChange={handleCheckInChange}
-              className="w-full pl-9 pr-3 py-2.5 bg-light/50 border border-dark/15 rounded-xl text-xs sm:text-sm text-dark font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer"
+              className="w-full pl-9 pr-3 py-2 bg-[#F5F5F5] border border-[#E5E5E5] rounded-full text-xs sm:text-sm text-[#111111] font-medium focus:outline-none focus:border-[#111111] transition-all cursor-pointer"
             />
           </div>
         </div>
@@ -282,15 +282,17 @@ export function RoomFilters({
         <div>
           <label
             htmlFor="filter-checkout"
-            className={`block text-xs font-medium mb-1.5 ${!currentCheckIn ? "text-dark/40" : "text-dark/70"
-              }`}
+            className={`block text-[11px] font-medium uppercase tracking-wider mb-1 ${
+              !currentCheckIn ? "text-[#9E9EA0]" : "text-[#707072]"
+            }`}
           >
             Trả phòng (Tối thiểu 2h)
           </label>
           <div className="relative">
             <Calendar
-              className={`w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none ${!currentCheckIn ? "text-dark/25" : "text-dark/40"
-                }`}
+              className={`w-3.5 h-3.5 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none ${
+                !currentCheckIn ? "text-[#9E9EA0]" : "text-[#707072]"
+              }`}
             />
             <input
               id="filter-checkout"
@@ -299,7 +301,7 @@ export function RoomFilters({
               min={minCheckOutStr}
               value={currentCheckIn ? currentCheckOut : ""}
               onChange={handleCheckOutChange}
-              className="w-full pl-9 pr-3 py-2.5 bg-light/50 border border-dark/15 rounded-xl text-xs sm:text-sm text-dark font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-dark/5"
+              className="w-full pl-9 pr-3 py-2 bg-[#F5F5F5] border border-[#E5E5E5] rounded-full text-xs sm:text-sm text-[#111111] font-medium focus:outline-none focus:border-[#111111] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             />
           </div>
         </div>
@@ -308,21 +310,21 @@ export function RoomFilters({
         <div>
           <label
             htmlFor="filter-guests"
-            className="block text-xs font-medium text-dark/70 mb-1.5"
+            className="block text-[11px] font-medium text-[#707072] uppercase tracking-wider mb-1"
           >
             Số lượng khách
           </label>
           <div className="relative">
-            <Users className="w-4 h-4 text-dark/40 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Users className="w-3.5 h-3.5 text-[#707072] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               id="filter-guests"
               type="number"
               min="1"
               max="10"
-              placeholder="Số khách (ví dụ: 2)"
+              placeholder="Số khách"
               value={currentGuests}
               onChange={handleGuestsChange}
-              className="w-full pl-9 pr-3 py-2.5 bg-light/50 border border-dark/15 rounded-xl text-xs sm:text-sm text-dark placeholder:text-dark/40 font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+              className="w-full pl-9 pr-3 py-2 bg-[#F5F5F5] border border-[#E5E5E5] rounded-full text-xs sm:text-sm text-[#111111] placeholder:text-[#707072] font-medium focus:outline-none focus:border-[#111111] transition-all"
             />
           </div>
         </div>
@@ -330,14 +332,14 @@ export function RoomFilters({
 
       {/* Hiển thị nút xóa bộ lọc khi đang có điều kiện lọc */}
       {hasFilters && (
-        <div className="mt-4 pt-3 border-t border-dark/10 flex items-center justify-between">
-          <span className="text-xs text-dark/60">
+        <div className="mt-3 pt-3 border-t border-[#E5E5E5] flex items-center justify-between">
+          <span className="text-xs text-[#707072]">
             Đang áp dụng bộ lọc tùy chỉnh
           </span>
           <button
             type="button"
             onClick={handleReset}
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-[#111111] hover:underline underline-offset-4 transition-colors cursor-pointer"
           >
             <X className="w-3.5 h-3.5" />
             <span>Xóa bộ lọc</span>

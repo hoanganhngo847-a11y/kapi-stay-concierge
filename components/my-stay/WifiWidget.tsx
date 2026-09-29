@@ -31,7 +31,7 @@ export default function WifiWidget({ ssid, password }: WifiWidgetProps) {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       timeoutRef.current = setTimeout(() => {
         setCopied(false);
-      }, 2000);
+      }, 1500);
     } catch {
       setCopied(false);
       setCopyError("Không thể sao chép tự động. Vui lòng sao chép thủ công.");
@@ -43,29 +43,33 @@ export default function WifiWidget({ ssid, password }: WifiWidgetProps) {
   };
 
   return (
-    <div className="bg-white rounded-2xl p-5 shadow-sm border border-dark/10">
-      <div className="flex items-center gap-2 mb-3">
-        <span className="text-xl" aria-hidden="true">📶</span>
-        <h3 className="font-semibold text-dark">Kết nối Wi-Fi</h3>
+    <div className="bg-white p-6 border border-[#E5E5E5]">
+      <div className="mb-4">
+        <span className="text-[11px] font-medium uppercase tracking-wider text-[#707072] block mb-1">
+          Tiện ích kết nối
+        </span>
+        <h3 className="font-medium text-lg text-[#111111]">Kết nối Wi-Fi phòng</h3>
       </div>
 
-      <div className="space-y-2 text-sm bg-dark/2 p-3.5 rounded-xl border border-dark/5">
+      <div className="space-y-3 text-xs sm:text-sm bg-[#F5F5F5] p-4 border border-[#E5E5E5]">
         <div className="flex justify-between items-center">
-          <span className="text-dark/60">Tên mạng (SSID):</span>
-          <span className="font-medium text-dark select-all">{ssid}</span>
+          <span className="text-[#707072]">Tên mạng (SSID):</span>
+          <span className="font-medium text-[#111111] select-all">{ssid}</span>
         </div>
-        <div className="flex justify-between items-center">
-          <span className="text-dark/60">Mật khẩu:</span>
-          <span className="font-mono text-dark select-all">{password}</span>
+        <div className="flex justify-between items-center border-t border-[#E5E5E5] pt-2">
+          <span className="text-[#707072]">Mật khẩu:</span>
+          <span className="font-mono font-medium text-[#111111] select-all">{password}</span>
         </div>
       </div>
 
       <button
         type="button"
         onClick={handleCopy}
-        className="w-full mt-3 py-2.5 bg-primary hover:bg-primary-600 text-white rounded-xl text-sm font-medium transition-colors"
+        className="w-full mt-4 py-3 bg-[#111111] hover:bg-[#2A2A2A] text-white rounded-full text-xs sm:text-sm font-medium transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
       >
-        {copied ? "✓ Đã sao chép mật khẩu" : "Sao chép mật khẩu Wi-Fi"}
+        <span className="inline-block transition-transform duration-200">
+          {copied ? "✓ Đã sao chép mật khẩu" : "Sao chép mật khẩu Wi-Fi"}
+        </span>
       </button>
 
       {copyError && (

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { RoomCard } from "@/components/rooms/RoomCard";
 import { RoomFilters } from "@/components/rooms/RoomFilters";
 import { getPublicRooms, getActiveProperties } from "@/lib/data/rooms";
+import { Reveal } from "@/components/ui/Reveal";
 
 export const metadata = {
   title: "Danh sách phòng | Kapi Stay Concierge",
@@ -125,22 +126,22 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
   const activePropertyName = propertiesList.find((p) => p.id === propertyId)?.name;
 
   return (
-    <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-10 sm:py-16">
+    <div className="w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16 animate-page-entrance">
       {/* Tiêu đề & Điều hướng */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-4 mb-8">
         <div>
           <Link
             href="/"
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-dark/60 hover:text-primary mb-2 transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-[#707072] hover:text-[#111111] mb-3 transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Quay lại trang chủ</span>
           </Link>
-          <h1 className="text-2xl sm:text-3xl font-bold text-dark tracking-tight">
-            Danh sách phòng theo giờ tại Kapi Stay
+          <h1 className="text-3xl sm:text-4xl font-normal text-[#111111] tracking-tight">
+            Danh sách phòng theo giờ
           </h1>
-          <p className="text-sm text-dark/60 mt-1">
-            Thuê phòng theo giờ linh hoạt, tự check-in 24/7 với 8 chi nhánh trên toàn quốc.
+          <p className="text-sm text-[#707072] mt-1.5">
+            Thuê phòng theo giờ linh hoạt, tự check-in 24/7 với các chi nhánh trên toàn quốc.
           </p>
         </div>
       </div>
@@ -148,7 +149,7 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
       {/* Thanh công cụ lọc RoomFilters */}
       <Suspense
         fallback={
-          <div className="h-28 bg-dark/5 rounded-2xl animate-pulse mb-8" />
+          <div className="h-24 bg-[#F5F5F5] rounded-2xl animate-pulse mb-8" />
         }
       >
         <RoomFilters properties={propertiesList} />
@@ -156,11 +157,11 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
 
       {/* Error State: Bắt buộc render khi có lỗi từ getPublicRooms hoặc getActiveProperties */}
       {loadError ? (
-        <div className="bg-red-50/80 border border-red-200 rounded-2xl p-8 sm:p-12 text-center max-w-lg mx-auto my-12 shadow-sm">
-          <div className="w-14 h-14 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-4">
-            <AlertCircle className="w-7 h-7" />
+        <div className="bg-white border border-[#E5E5E5] p-8 sm:p-12 text-center max-w-lg mx-auto my-12">
+          <div className="w-12 h-12 rounded-full bg-[#F5F5F5] text-rose-600 flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="w-6 h-6" />
           </div>
-          <h2 className="text-xl font-bold text-red-700 mb-2">
+          <h2 className="text-lg font-medium text-[#111111] mb-2">
             {loadError === "Số lượng khách không hợp lệ" ||
               loadError === "Vui lòng chọn đầy đủ ngày nhận và trả phòng" ||
               loadError === "Ngày nhận phòng không được nằm trong quá khứ" ||
@@ -169,7 +170,7 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
               ? loadError
               : "Đã xảy ra lỗi khi tải dữ liệu"}
           </h2>
-          <p className="text-sm text-red-500 mb-6 leading-relaxed">
+          <p className="text-xs sm:text-sm text-[#707072] mb-6 leading-relaxed">
             {loadError === "Số lượng khách không hợp lệ" ||
               loadError === "Vui lòng chọn đầy đủ ngày nhận và trả phòng" ||
               loadError === "Ngày nhận phòng không được nằm trong quá khứ" ||
@@ -179,7 +180,7 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
               : "Không thể tải dữ liệu phòng lúc này. Vui lòng thử lại."}
           </p>
           <Link href="/rooms">
-            <Button variant="outline" size="sm" className="border-red-300 text-red-700 hover:bg-red-100">
+            <Button variant="outline" size="sm">
               Xóa bộ lọc và thử lại
             </Button>
           </Link>
@@ -187,43 +188,45 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
       ) : (
         <>
           {/* Số lượng phòng tìm thấy */}
-          <div className="flex items-center justify-between text-xs text-dark/60 mb-6">
+          <div className="flex items-center justify-between text-xs text-[#707072] mb-6 pb-2 border-b border-[#E5E5E5]">
             <span>
-              Tìm thấy <strong className="text-dark font-semibold">{roomsList.length}</strong> phòng phù hợp
+              Tìm thấy <strong className="text-[#111111] font-medium">{roomsList.length}</strong> phòng phù hợp
               {activePropertyName ? ` tại "${activePropertyName}"` : ""}
-              {capacity > 0 ? ` (cho từ ${capacity} khách)` : ""}
-              {checkIn && checkOut ? ` (${checkIn} đến ${checkOut})` : ""}
+              {capacity > 0 ? ` (từ ${capacity} khách)` : ""}
+              {checkIn && checkOut ? ` (${checkIn} → ${checkOut})` : ""}
             </span>
           </div>
 
           {/* Empty State: Hiển thị khi không tìm thấy phòng */}
           {roomsList.length === 0 ? (
-            <div className="bg-white border border-dark/10 rounded-2xl p-10 sm:p-14 text-center max-w-lg mx-auto my-12 shadow-sm">
-              <div className="w-14 h-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto mb-4">
-                <DoorOpen className="w-7 h-7" />
+            <div className="bg-white border border-[#E5E5E5] p-10 sm:p-14 text-center max-w-lg mx-auto my-12">
+              <div className="w-12 h-12 rounded-full bg-[#F5F5F5] text-[#707072] flex items-center justify-center mx-auto mb-4">
+                <DoorOpen className="w-6 h-6" />
               </div>
-              <h2 className="text-xl font-bold text-dark mb-2">
-                Không tìm thấy phòng
+              <h2 className="text-lg font-medium text-[#111111] mb-2">
+                Không tìm thấy phòng phù hợp
               </h2>
-              <p className="text-sm text-dark/60 mb-6 leading-relaxed">
+              <p className="text-xs sm:text-sm text-[#707072] mb-6 leading-relaxed">
                 {hasActiveFilters
-                  ? `Không có phòng nào đáp ứng tiêu chí lọc${activePropertyName ? ` tại "${activePropertyName}"` : ""
-                  }${capacity > 0 ? ` cho từ ${capacity} khách` : ""}${checkIn && checkOut ? ` trong khoảng thời gian ${checkIn} - ${checkOut}` : ""
-                  }. Quý khách vui lòng thử chọn cơ sở khác hoặc điều chỉnh thời gian lưu trú.`
-                  : "Không tìm thấy phòng phù hợp trên hệ thống. Quý khách vui lòng quay lại sau."}
+                  ? `Không có phòng nào đáp ứng tiêu chí lọc${
+                      activePropertyName ? ` tại "${activePropertyName}"` : ""
+                    }${capacity > 0 ? ` cho từ ${capacity} khách` : ""}${
+                      checkIn && checkOut ? ` trong khoảng ${checkIn} → ${checkOut}` : ""
+                    }. Quý khách vui lòng thử chọn chi nhánh khác hoặc điều chỉnh thời gian lưu trú.`
+                  : "Không tìm thấy phòng khả dụng trên hệ thống. Quý khách vui lòng quay lại sau."}
               </p>
               {hasActiveFilters && (
                 <Link href="/rooms">
-                  <Button variant="outline" size="sm">
-                    Xóa bộ lọc & Xem tất cả phòng
+                  <Button variant="primary" size="sm">
+                    Xóa bộ lọc & Xem tất cả
                   </Button>
                 </Link>
               )}
             </div>
           ) : (
-            /* Render danh sách phòng bằng component RoomCard */
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-              {roomsList.map((room) => {
+            /* Render danh sách phòng: Desktop 3 cols, Tablet 2 cols, Mobile 1 col */
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-10 sm:gap-x-8 sm:gap-y-12">
+              {roomsList.map((room, idx) => {
                 const bedType =
                   room.amenities.find(
                     (a) =>
@@ -242,18 +245,21 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
                   room.property?.address ||
                   "Chưa cập nhật";
 
+                const delay = Math.min(360, idx * 60);
+
                 return (
-                  <RoomCard
-                    key={room.id}
-                    id={room.id}
-                    coverImage={coverImage}
-                    name={room.name || "Chưa cập nhật"}
-                    location={locationName}
-                    maxGuests={room.capacity}
-                    bedType={bedType}
-                    price={room.hourly_price_vnd}
-                    room={room}
-                  />
+                  <Reveal key={room.id} delay={delay}>
+                    <RoomCard
+                      id={room.id}
+                      coverImage={coverImage}
+                      name={room.name || "Chưa cập nhật"}
+                      location={locationName}
+                      maxGuests={room.capacity}
+                      bedType={bedType}
+                      price={room.hourly_price_vnd}
+                      room={room}
+                    />
+                  </Reveal>
                 );
               })}
             </div>

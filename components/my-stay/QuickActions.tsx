@@ -16,36 +16,42 @@ export function QuickActions({
   onReportIssue,
 }: QuickActionsProps) {
   return (
-    <div className="flex flex-col gap-3 p-5 bg-white rounded-2xl border border-dark/10 shadow-sm">
-      <h4 className="font-semibold text-sm text-dark">Thao tác nhanh</h4>
-      <div className="flex flex-wrap gap-3">
+    <div className="flex flex-col gap-4 p-6 bg-white border border-[#E5E5E5]">
+      <div>
+        <span className="text-[11px] font-medium uppercase tracking-wider text-[#707072] block mb-1">
+          Hỗ trợ & Thao tác
+        </span>
+        <h4 className="font-medium text-lg text-[#111111]">Thao tác kỳ nghỉ</h4>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-3">
         <button
           type="button"
           disabled={!canReportIssue}
           onClick={onReportIssue}
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl bg-primary text-white hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="group inline-flex items-center justify-center gap-2 px-5 py-3 text-xs sm:text-sm font-medium rounded-full bg-[#111111] text-white hover:bg-[#2A2A2A] hover:scale-[1.02] active:scale-[0.98] disabled:bg-[#9E9EA0] disabled:cursor-not-allowed disabled:transform-none transition-all duration-200"
         >
-          <Wrench className="w-4 h-4" />
+          <Wrench className="w-4 h-4 transition-transform duration-200 group-hover:scale-105" />
           <span>Báo sự cố / Yêu cầu hỗ trợ</span>
         </button>
 
         <button
           type="button"
           disabled={!isCheckoutAllowed}
-          className="px-4 py-2 text-sm font-medium rounded-xl bg-dark/5 text-dark/70 hover:bg-dark/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="inline-flex items-center justify-center px-5 py-3 text-xs sm:text-sm font-medium rounded-full border border-[#E5E5E5] bg-white text-[#111111] hover:bg-[#F5F5F5] hover:scale-[1.02] active:scale-[0.98] disabled:text-[#9E9EA0] disabled:cursor-not-allowed disabled:transform-none transition-all duration-200"
         >
           Trả phòng 1-Click
         </button>
       </div>
 
-      <div className="space-y-1 text-xs text-dark/60">
+      <div className="space-y-1 text-xs text-[#707072] pt-2 border-t border-[#E5E5E5]">
         {!canReportIssue && (
           <p>
             Chức năng gửi yêu cầu hỗ trợ chỉ khả dụng khi kỳ nghỉ đang hoạt động và mã khóa đã được kích hoạt.
           </p>
         )}
         <p>
-          Chức năng trả phòng trực tuyến chưa khả dụng. Vui lòng liên hệ lễ tân để hoàn tất trả phòng.
+          Chức năng trả phòng trực tuyến chưa khả dụng. Quý khách vui lòng liên hệ lễ tân để hoàn tất trả phòng.
         </p>
       </div>
     </div>

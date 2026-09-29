@@ -9,7 +9,6 @@ import {
   ExternalLink,
   ShieldCheck,
   Clock,
-  Sparkles,
 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import {
@@ -20,6 +19,7 @@ import {
 import { Gallery } from "@/components/rooms/Gallery";
 import { RoomAmenities } from "@/components/rooms/RoomAmenities";
 import { RoomBookingWidget } from "@/components/rooms/RoomBookingWidget";
+import { Reveal } from "@/components/ui/Reveal";
 
 type RoomDetailSearchParams = {
   [key: string]: string | string[] | undefined;
@@ -129,11 +129,11 @@ export default async function RoomDetailPage({
   const catalogHref = catalogQuery ? `/rooms?${catalogQuery}` : "/rooms";
 
   return (
-    <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+    <div className="w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 animate-page-entrance">
       {/* Back to catalog navigation */}
       <Link
         href={catalogHref}
-        className="inline-flex items-center gap-1.5 text-xs font-medium text-dark/60 hover:text-primary mb-6 transition-colors"
+        className="inline-flex items-center gap-1.5 text-xs font-medium text-[#707072] hover:text-[#111111] mb-6 transition-colors"
       >
         <ArrowLeft className="w-3.5 h-3.5" />
         <span>Xem tất cả phòng</span>
@@ -146,7 +146,7 @@ export default async function RoomDetailPage({
           <div>
             <div className="flex flex-wrap items-center gap-2 mb-2">
               {room.property && (
-                <Badge variant="primary" size="sm" icon={<Sparkles className="w-3 h-3" />}>
+                <Badge variant="primary" size="sm">
                   {room.property.name}
                 </Badge>
               )}
@@ -155,14 +155,14 @@ export default async function RoomDetailPage({
               </Badge>
             </div>
 
-            <h1 className="text-2xl sm:text-4xl font-bold text-dark tracking-tight mb-3">
+            <h1 className="text-2xl sm:text-4xl font-normal text-[#111111] tracking-tight mb-2">
               {room.name}
             </h1>
 
             {room.property?.address && (
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-dark/70">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs sm:text-sm text-[#707072]">
                 <div className="flex items-center gap-1.5">
-                  <MapPin className="w-3.5 h-3.5 text-primary shrink-0" />
+                  <MapPin className="w-3.5 h-3.5 text-[#707072] shrink-0" />
                   <span>{room.property.address}</span>
                 </div>
                 {room.property.maps_url && (
@@ -170,7 +170,7 @@ export default async function RoomDetailPage({
                     href={room.property.maps_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-primary hover:underline font-medium"
+                    className="inline-flex items-center gap-1 text-[#111111] hover:underline font-medium"
                   >
                     <span>Xem bản đồ</span>
                     <ExternalLink className="w-3 h-3" />
@@ -187,48 +187,53 @@ export default async function RoomDetailPage({
           />
 
           {/* Description Section */}
-          <div className="space-y-3 pt-2">
-            <h2 className="text-xl font-bold text-dark">Mô tả phòng</h2>
-            <p className="text-sm sm:text-base text-dark/70 leading-relaxed whitespace-pre-line">
-              {room.description ||
-                "Phòng nghỉ đầy đủ tiện nghi, thiết kế ấm cúng hiện đại, lý tưởng cho kỳ nghỉ thư giãn và trải nghiệm Đà Lạt trọn vẹn."}
-            </p>
-          </div>
+          <Reveal>
+            <div className="space-y-3 pt-2">
+              <h2 className="text-lg font-medium text-[#111111]">Mô tả phòng</h2>
+              <p className="text-sm sm:text-base text-[#707072] leading-relaxed whitespace-pre-line">
+                {room.description ||
+                  "Phòng nghỉ đầy đủ tiện nghi, thiết kế ấm cúng hiện đại, lý tưởng cho kỳ nghỉ thư giãn và trải nghiệm trọn vẹn."}
+              </p>
+            </div>
+          </Reveal>
 
           {/* Amenities Section */}
-          <div className="pt-4 border-t border-dark/10">
-            <RoomAmenities amenities={room.amenities} />
-          </div>
+          <Reveal>
+            <div className="pt-4 border-t border-[#E5E5E5]">
+              <RoomAmenities amenities={room.amenities} />
+            </div>
+          </Reveal>
 
           {/* Stay Features & House Rules */}
-          <div className="space-y-4 pt-4 border-t border-dark/10">
-            <h2 className="text-xl font-bold text-dark">Quy chuẩn lưu trú Kapi Stay</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-dark/70">
-              <div className="flex items-start gap-2.5 p-3.5 rounded-xl border border-dark/10 bg-white">
-                <Clock className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                <div>
-                  <strong className="block text-dark font-medium mb-0.5">
-                    Nhận phòng tự phục vụ 24/7
-                  </strong>
-                  <span>
-                    Chủ động nhận phòng bất kỳ lúc nào bằng mã khóa điện tử bảo mật.
-                  </span>
+          <Reveal>
+            <div className="space-y-4 pt-4 border-t border-[#E5E5E5]">
+              <h2 className="text-lg font-medium text-[#111111]">Quy chuẩn lưu trú Kapi Stay</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs sm:text-sm text-[#707072]">
+                <div className="flex items-start gap-3 p-4 border border-[#E5E5E5] bg-white">
+                  <Clock className="w-4 h-4 text-[#111111] shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="block text-[#111111] font-medium mb-0.5">
+                      Nhận phòng tự phục vụ 24/7
+                    </strong>
+                    <span>
+                      Chủ động nhận phòng bất kỳ lúc nào bằng mã khóa điện tử bảo mật.
+                    </span>
+                  </div>
                 </div>
-              </div>
-
-              <div className="flex items-start gap-2.5 p-3.5 rounded-xl border border-dark/10 bg-white">
-                <ShieldCheck className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
-                <div>
-                  <strong className="block text-dark font-medium mb-0.5">
-                    Riêng tư & An toàn tuyệt đối
-                  </strong>
-                  <span>
-                    Hệ thống an ninh thông minh cùng đội ngũ hỗ trợ trực tuyến 24/7.
-                  </span>
+                <div className="flex items-start gap-3 p-4 border border-[#E5E5E5] bg-white">
+                  <ShieldCheck className="w-4 h-4 text-[#111111] shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="block text-[#111111] font-medium mb-0.5">
+                      Riêng tư & An toàn
+                    </strong>
+                    <span>
+                      Không gian phòng độc lập hoàn toàn, hỗ trợ trực tuyến 24/7 khi cần.
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          </Reveal>
         </div>
 
         {/* Sidebar Column (1 col): Booking Widget */}
