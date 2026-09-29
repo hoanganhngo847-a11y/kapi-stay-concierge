@@ -397,6 +397,7 @@ export async function validateAndApplyVoucher(
   try {
     const supabase = await createClient();
 
+    // 1. Thử gọi RPC voucher chuẩn (500 pts)
     const { data, error } = await supabase.rpc(
       "reserve_checkout_voucher_atomic",
       {
@@ -405,51 +406,118 @@ export async function validateAndApplyVoucher(
       }
     );
 
-    if (error) {
-      console.error("[checkout] validateAndApplyVoucher RPC error:", error.message);
+    if (!error) {
+      const result = data as {
+        success: boolean;
+        error?: string;
+        voucher_redemption_id?: string;
+        checkout_session?: {
+          discount_amount_vnd: number;
+        };
+      };
+
+      if (result.success) {
+        const discountAmountVnd = result.checkout_session?.discount_amount_vnd ?? 0;
+        const { data: updatedRedemption } = await supabase
+          .from("voucher_redemptions")
+          .select("*")
+          .eq("id", redemptionId)
+          .single();
+
+        return {
+          valid: true,
+          redemption: updatedRedemption ?? null,
+          discountAmountVnd,
+          errorMessage: null,
+        };
+      }
+
+      // Nếu lỗi khác VOUCHER_NOT_FOUND, trả về lỗi ngay
+      if (result.error !== "VOUCHER_NOT_FOUND") {
+        const msg = mapRpcError(
+          result.error,
+          "Không thể áp voucher. Vui lòng thử lại."
+        );
+        return {
+          valid: false,
+          redemption: null,
+          discountAmountVnd: 0,
+          errorMessage: msg,
+        };
+      }
+    }
+
+    // 2. Thử gọi RPC cho streak reward discount voucher (Day 150 30% / Day 365 40%)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: entData, error: entError } = await (supabase.rpc as any)(
+      "reserve_checkout_reward_entitlement_atomic",
+      {
+        p_checkout_session_id: sessionId,
+        p_entitlement_id: redemptionId,
+        p_menu_item_id: null,
+      }
+    );
+
+    if (entError) {
+      console.error("[checkout] reserve_checkout_reward_entitlement_atomic RPC error:", entError.message);
       return {
         valid: false,
         redemption: null,
         discountAmountVnd: 0,
-        errorMessage: "Không thể áp voucher. Vui lòng thử lại.",
+        errorMessage: "Không thể áp voucher chuỗi. Vui lòng thử lại.",
       };
     }
 
-    const result = data as {
+    const entResult = entData as {
       success: boolean;
       error?: string;
-      voucher_redemption_id?: string;
       checkout_session?: {
         discount_amount_vnd: number;
       };
     };
 
-    if (!result.success) {
-      const msg = mapRpcError(
-        result.error,
-        "Không thể áp voucher. Vui lòng thử lại."
-      );
-      console.error("[checkout] validateAndApplyVoucher RPC returned failure:", result.error);
+    if (!entResult.success) {
+      const msgMap: Record<string, string> = {
+        DISCOUNT_ALREADY_RESERVED: "Phiên đặt phòng đã có một voucher giảm giá. Tối đa 1 voucher giảm giá cho mỗi đơn.",
+        ENTITLEMENT_EXPIRED: "Voucher đã hết hạn sử dụng.",
+        ENTITLEMENT_NOT_AVAILABLE: "Voucher không ở trạng thái khả dụng.",
+        CHECKOUT_SESSION_EXPIRED: "Phiên đặt phòng đã hết hạn.",
+      };
       return {
         valid: false,
         redemption: null,
         discountAmountVnd: 0,
-        errorMessage: msg,
+        errorMessage: msgMap[entResult.error ?? ""] || "Không thể áp voucher này.",
       };
     }
 
-    const discountAmountVnd = result.checkout_session?.discount_amount_vnd ?? 0;
+    const discountAmountVnd = entResult.checkout_session?.discount_amount_vnd ?? 0;
 
-    // Đọc lại redemption record đầy đủ để trả về cho caller
-    const { data: updatedRedemption } = await supabase
-      .from("voucher_redemptions")
+    // Đọc lại entitlement record và map sang VoucherRedemption shape để client sử dụng
+    const { data: updatedEnt } = await supabase
+      .from("user_reward_entitlements")
       .select("*")
       .eq("id", redemptionId)
       .single();
 
+    const mappedRedemption: VoucherRedemption | null = updatedEnt
+      ? {
+          id: updatedEnt.id,
+          user_id: updatedEnt.user_id,
+          voucher_id: updatedEnt.reward_definition_id,
+          checkout_session_id: updatedEnt.checkout_session_id,
+          booking_id: updatedEnt.booking_id,
+          discount_amount_vnd: discountAmountVnd,
+          status: updatedEnt.status,
+          expires_at: updatedEnt.expires_at,
+          issued_at: updatedEnt.issued_at,
+          used_at: updatedEnt.used_at,
+        }
+      : null;
+
     return {
       valid: true,
-      redemption: updatedRedemption ?? null,
+      redemption: mappedRedemption,
       discountAmountVnd,
       errorMessage: null,
     };
@@ -491,48 +559,17 @@ export async function releaseVoucherFromSession(
   try {
     const supabase = await createClient();
 
-    const { data, error } = await supabase.rpc(
-      "release_checkout_voucher_atomic",
-      {
+    // Release cả 2 bảng: voucher_redemptions và user_reward_entitlements (discount voucher)
+    await Promise.all([
+      supabase.rpc("release_checkout_voucher_atomic", {
         p_checkout_session_id: sessionId,
-      }
-    );
-
-    if (error) {
-      console.error(
-        "[checkout] releaseVoucherFromSession RPC error:",
-        error.message
-      );
-      return { success: false, error: "Không thể hủy voucher. Vui lòng thử lại." };
-    }
-
-    const result = data as {
-      success: boolean;
-      error?: string;
-    };
-
-    if (!result.success) {
-      // NO_RESERVED_VOUCHER_ATTACHED không phải lỗi nghiêm trọng —
-      // có thể xảy ra nếu user gọi release khi chưa có voucher.
-      if (result.error === "NO_RESERVED_VOUCHER_ATTACHED") {
-        console.info(
-          "[checkout] releaseVoucherFromSession: no reserved voucher to release (session:",
-          sessionId,
-          ")"
-        );
-        return { success: true, error: null };
-      }
-
-      const msg = mapRpcError(
-        result.error,
-        "Không thể hủy voucher. Vui lòng thử lại."
-      );
-      console.error(
-        "[checkout] releaseVoucherFromSession RPC returned failure:",
-        result.error
-      );
-      return { success: false, error: msg };
-    }
+      }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase.rpc as any)("release_checkout_reward_entitlement_atomic", {
+        p_checkout_session_id: sessionId,
+        p_entitlement_id: null,
+      }),
+    ]);
 
     return { success: true, error: null };
   } catch (err) {
@@ -542,81 +579,154 @@ export async function releaseVoucherFromSession(
 }
 
 // ---------------------------------------------------------------------------
-// Hàm phụ trợ — Lấy danh sách voucher AVAILABLE của user
+// Hàm phụ trợ — Lấy danh sách voucher AVAILABLE của user (500 pts + Streak vouchers)
 // ---------------------------------------------------------------------------
 
-/**
- * Lấy tất cả voucher redemptions còn hiệu lực (AVAILABLE, chưa hết hạn) của user.
- * Dùng để hiển thị danh sách voucher có thể áp dụng trong VoucherPicker.
- * Đây là thao tác READ-ONLY — không thay đổi theo RPC migration.
- *
- * @param userId - UUID của authenticated user
- */
+export interface CheckoutVoucherItem extends VoucherRedemption {
+  voucher: (Voucher & {
+    source?: "500_POINTS" | "150_DAY_STREAK" | "365_DAY_STREAK";
+    source_title?: string;
+  }) | null;
+}
+
 export async function getUserAvailableVouchers(
   userId: string
-): Promise<{ data: (VoucherRedemption & { voucher: Voucher | null })[]; error: string | null }> {
+): Promise<{ data: CheckoutVoucherItem[]; error: string | null }> {
   try {
     const supabase = await createClient();
     const now = new Date().toISOString();
 
-    const { data, error } = await supabase
-      .from("voucher_redemptions")
-      .select(
-        `
-        id,
-        user_id,
-        voucher_id,
-        checkout_session_id,
-        booking_id,
-        discount_amount_vnd,
-        status,
-        expires_at,
-        issued_at,
-        used_at,
-        vouchers (
+    const [vouchersRes, streakVouchersRes] = await Promise.all([
+      supabase
+        .from("voucher_redemptions")
+        .select(`
           id,
-          name,
-          voucher_type,
-          discount_percentage,
-          max_eligible_base_vnd,
-          points_cost,
-          is_active,
-          created_at,
-          updated_at
-        )
-      `
-      )
-      .eq("user_id", userId)
-      .eq("status", "AVAILABLE")
-      .gt("expires_at", now)
-      .order("expires_at", { ascending: true });
+          user_id,
+          voucher_id,
+          checkout_session_id,
+          booking_id,
+          discount_amount_vnd,
+          status,
+          expires_at,
+          issued_at,
+          used_at,
+          vouchers (
+            id,
+            name,
+            voucher_type,
+            discount_percentage,
+            max_eligible_base_vnd,
+            points_cost,
+            is_active,
+            created_at,
+            updated_at
+          )
+        `)
+        .eq("user_id", userId)
+        .eq("status", "AVAILABLE")
+        .gt("expires_at", now)
+        .order("expires_at", { ascending: true }),
 
-    if (error) {
-      console.error("[checkout] getUserAvailableVouchers error:", error.message);
-      return { data: [], error: "Không thể tải danh sách voucher. Vui lòng thử lại." };
+      supabase
+        .from("user_reward_entitlements")
+        .select(`
+          id,
+          user_id,
+          reward_definition_id,
+          milestone_day,
+          status,
+          expires_at,
+          issued_at,
+          used_at,
+          streak_reward_definitions (
+            id,
+            milestone_day,
+            reward_type,
+            title,
+            discount_percentage,
+            max_discount_vnd,
+            max_eligible_base_vnd,
+            is_active
+          )
+        `)
+        .eq("user_id", userId)
+        .eq("status", "AVAILABLE")
+        .gt("expires_at", now),
+    ]);
+
+    const result: CheckoutVoucherItem[] = [];
+
+    // 1. Map 500-point loyalty vouchers
+    if (vouchersRes.data) {
+      for (const item of vouchersRes.data) {
+        const voucherRaw = item.vouchers as unknown;
+        const voucherObj = Array.isArray(voucherRaw) ? voucherRaw[0] : voucherRaw;
+        const v = voucherObj as Voucher | null;
+        result.push({
+          id: item.id,
+          user_id: item.user_id,
+          voucher_id: item.voucher_id,
+          checkout_session_id: item.checkout_session_id,
+          booking_id: item.booking_id,
+          discount_amount_vnd: item.discount_amount_vnd,
+          status: item.status,
+          expires_at: item.expires_at,
+          issued_at: item.issued_at,
+          used_at: item.used_at,
+          voucher: v
+            ? {
+                ...v,
+                source: "500_POINTS",
+                source_title: "Đổi từ 500 Points",
+              }
+            : null,
+        });
+      }
     }
 
-    if (!data) {
-      return { data: [], error: null };
+    // 2. Map streak discount vouchers (Day 150 & Day 365)
+    if (streakVouchersRes.data) {
+      for (const ent of streakVouchersRes.data) {
+        const sdRaw = ent.streak_reward_definitions as unknown;
+        const sd = Array.isArray(sdRaw) ? sdRaw[0] : sdRaw;
+        const rType = sd?.reward_type;
+
+        if (rType === "DISCOUNT_30" || rType === "DISCOUNT_40") {
+          const discountPct = Number(sd?.discount_percentage ?? (ent.milestone_day === 150 ? 30 : 40));
+          const maxBase = Number(sd?.max_eligible_base_vnd ?? 1000000);
+          const source = ent.milestone_day === 150 ? "150_DAY_STREAK" : "365_DAY_STREAK";
+
+          result.push({
+            id: ent.id,
+            user_id: ent.user_id,
+            voucher_id: ent.reward_definition_id,
+            checkout_session_id: null,
+            booking_id: null,
+            discount_amount_vnd: null,
+            status: ent.status,
+            expires_at: ent.expires_at,
+            issued_at: ent.issued_at,
+            used_at: ent.used_at,
+            voucher: {
+              id: ent.reward_definition_id,
+              name: sd?.title || `Voucher giảm ${discountPct}%`,
+              voucher_type: "percentage_discount",
+              discount_percentage: discountPct,
+              max_eligible_base_vnd: maxBase,
+              points_cost: 0,
+              is_active: true,
+              created_at: ent.issued_at,
+              updated_at: ent.issued_at,
+              source,
+              source_title: `Phần thưởng chuỗi ${ent.milestone_day} ngày`,
+            },
+          });
+        }
+      }
     }
 
-    const result = data.map((item) => {
-      const voucherRaw = item.vouchers as unknown;
-      const voucherObj = Array.isArray(voucherRaw) ? voucherRaw[0] : voucherRaw;
-      return {
-        id: item.id,
-        user_id: item.user_id,
-        voucher_id: item.voucher_id,
-        checkout_session_id: item.checkout_session_id,
-        booking_id: item.booking_id,
-        discount_amount_vnd: item.discount_amount_vnd,
-        status: item.status,
-        expires_at: item.expires_at,
-        issued_at: item.issued_at,
-        used_at: item.used_at,
-        voucher: (voucherObj as Voucher) ?? null,
-      };
-    });
+    // Sort by expires_at
+    result.sort((a, b) => new Date(a.expires_at).getTime() - new Date(b.expires_at).getTime());
 
     return { data: result, error: null };
   } catch (err) {
@@ -624,3 +734,188 @@ export async function getUserAvailableVouchers(
     return { data: [], error: "Lỗi kết nối cơ sở dữ liệu" };
   }
 }
+
+// ---------------------------------------------------------------------------
+// Phần thưởng hiện vật / ẩm thực trong Checkout
+// ---------------------------------------------------------------------------
+
+export interface CheckoutPhysicalReward {
+  id: string;
+  milestone_day: number;
+  reward_type: string;
+  title: string;
+  description: string;
+  expires_at: string;
+  selection_data?: { menu_item_id?: string; menu_item_name?: string } | null;
+}
+
+export interface CheckoutMenuItem {
+  id: string;
+  name: string;
+  category: string;
+  sort_order: number;
+}
+
+export async function getUserAvailablePhysicalRewards(
+  userId: string
+): Promise<{ data: CheckoutPhysicalReward[]; error: string | null }> {
+  try {
+    const supabase = await createClient();
+    const now = new Date().toISOString();
+
+    const { data, error } = await supabase
+      .from("user_reward_entitlements")
+      .select(`
+        id,
+        milestone_day,
+        status,
+        expires_at,
+        selection_data,
+        streak_reward_definitions (
+          id,
+          reward_type,
+          title,
+          description
+        )
+      `)
+      .eq("user_id", userId)
+      .eq("status", "AVAILABLE")
+      .gt("expires_at", now)
+      .order("expires_at", { ascending: true });
+
+    if (error) {
+      console.error("[checkout] getUserAvailablePhysicalRewards error:", error.message);
+      return { data: [], error: "Không thể tải danh sách phần thưởng." };
+    }
+
+    const items: CheckoutPhysicalReward[] = [];
+    if (data) {
+      for (const row of data) {
+        const sdRaw = row.streak_reward_definitions as unknown;
+        const sd = Array.isArray(sdRaw) ? sdRaw[0] : sdRaw;
+        const rType = sd?.reward_type;
+
+        // Bỏ qua voucher giảm giá (đã được xử lý ở phần voucher)
+        if (rType !== "DISCOUNT_30" && rType !== "DISCOUNT_40") {
+          items.push({
+            id: row.id,
+            milestone_day: row.milestone_day,
+            reward_type: rType || "SNACK_X1",
+            title: sd?.title || "Phần thưởng lưu trú",
+            description: sd?.description || "",
+            expires_at: row.expires_at,
+            selection_data: row.selection_data as CheckoutPhysicalReward["selection_data"],
+          });
+        }
+      }
+    }
+
+    return { data: items, error: null };
+  } catch (err) {
+    console.error("[checkout] getUserAvailablePhysicalRewards exception:", err);
+    return { data: [], error: "Lỗi kết nối cơ sở dữ liệu." };
+  }
+}
+
+export async function getActiveCheckoutMenuItems(): Promise<{
+  data: CheckoutMenuItem[];
+  error: string | null;
+}> {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("reward_menu_items")
+      .select("id, name, category, sort_order")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true });
+
+    if (error) {
+      console.error("[checkout] getActiveCheckoutMenuItems error:", error.message);
+      return { data: [], error: "Không thể tải thực đơn phần thưởng." };
+    }
+
+    return { data: (data as CheckoutMenuItem[]) ?? [], error: null };
+  } catch (err) {
+    console.error("[checkout] getActiveCheckoutMenuItems exception:", err);
+    return { data: [], error: "Lỗi kết nối cơ sở dữ liệu." };
+  }
+}
+
+export async function applyPhysicalReward(
+  sessionId: string,
+  entitlementId: string,
+  menuItemId?: string
+): Promise<{ success: boolean; selectionData?: Record<string, unknown>; error?: string }> {
+  try {
+    const supabase = await createClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: rpcRaw, error: rpcError } = await (supabase.rpc as any)(
+      "reserve_checkout_reward_entitlement_atomic",
+      {
+        p_checkout_session_id: sessionId,
+        p_entitlement_id: entitlementId,
+        p_menu_item_id: menuItemId || null,
+      }
+    );
+
+    if (rpcError) {
+      console.error("[checkout] applyPhysicalReward RPC error:", rpcError.message);
+      return { success: false, error: "Không thể áp dụng phần thưởng. Vui lòng thử lại." };
+    }
+
+    const res = rpcRaw as Record<string, unknown> | null;
+    if (!res || !res.success) {
+      const err = (res?.error as string) || "Không thể áp dụng phần thưởng.";
+      const msgMap: Record<string, string> = {
+        PHYSICAL_REWARD_ALREADY_RESERVED: "Phiên đặt phòng đã có một phần thưởng hiện vật/ẩm thực.",
+        MEAL_SELECTION_REQUIRED: "Vui lòng chọn 1 món ăn từ danh sách trước khi áp dụng.",
+        INVALID_OR_INACTIVE_MEAL_ITEM: "Món ăn đã chọn không khả dụng. Vui lòng chọn món khác.",
+        ENTITLEMENT_EXPIRED: "Phần thưởng đã hết hạn sử dụng.",
+        ENTITLEMENT_NOT_AVAILABLE: "Phần thưởng không ở trạng thái khả dụng.",
+        CHECKOUT_SESSION_EXPIRED: "Phiên đặt phòng đã hết hạn.",
+      };
+      return { success: false, error: msgMap[err] || err };
+    }
+
+    return {
+      success: true,
+      selectionData: res.selection_data as Record<string, unknown>,
+    };
+  } catch (err) {
+    console.error("[checkout] applyPhysicalReward unexpected error:", err);
+    return { success: false, error: "Lỗi kết nối cơ sở dữ liệu." };
+  }
+}
+
+export async function releasePhysicalReward(
+  sessionId: string,
+  entitlementId?: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: rpcRaw, error: rpcError } = await (supabase.rpc as any)(
+      "release_checkout_reward_entitlement_atomic",
+      {
+        p_checkout_session_id: sessionId,
+        p_entitlement_id: entitlementId || null,
+      }
+    );
+
+    if (rpcError) {
+      console.error("[checkout] releasePhysicalReward RPC error:", rpcError.message);
+      return { success: false, error: "Không thể hủy phần thưởng." };
+    }
+
+    const res = rpcRaw as Record<string, unknown> | null;
+    if (!res || !res.success) {
+      return { success: false, error: (res?.error as string) || "Không thể hủy phần thưởng." };
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.error("[checkout] releasePhysicalReward unexpected error:", err);
+    return { success: false, error: "Lỗi kết nối cơ sở dữ liệu." };
+  }
+}
+

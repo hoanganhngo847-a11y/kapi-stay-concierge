@@ -466,12 +466,13 @@ export default function OperationsDashboardClient({
                 <th className="p-3">Mã Booking</th>
                 <th className="p-3">Giờ Check-in / Out</th>
                 <th className="p-3">Trạng Thái Booking</th>
+                <th className="p-3">Phần Thưởng Đi Kèm</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {filteredSchedule.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="p-4 text-center text-gray-500">
+                  <td colSpan={5} className="p-4 text-center text-gray-500">
                     Không có lịch đón trả nào hôm hôm nay.
                   </td>
                 </tr>
@@ -493,6 +494,22 @@ export default function OperationsDashboardClient({
                         : (item.check_out_at ? formatStayDateTime(item.check_out_at) : item.check_out)}
                     </td>
                     <td className="p-3 text-gray-500 text-xs">{item.booking_status || "N/A"}</td>
+                    <td className="p-3">
+                      {item.rewards && item.rewards.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {item.rewards.map((r, rIdx) => (
+                            <span
+                              key={rIdx}
+                              className="px-2 py-0.5 rounded text-[11px] font-medium bg-neutral-100 text-neutral-800 border border-neutral-300"
+                            >
+                              🎁 {r}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 text-xs">—</span>
+                      )}
+                    </td>
                   </tr>
                 ))
               )}

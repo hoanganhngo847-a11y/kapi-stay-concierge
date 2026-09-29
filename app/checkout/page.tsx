@@ -33,6 +33,8 @@ import {
   createCheckoutSession,
   getCheckoutSession,
   getUserAvailableVouchers,
+  getUserAvailablePhysicalRewards,
+  getActiveCheckoutMenuItems,
 } from "@/lib/data/checkout";
 import { getPublicRoomById, isValidUUID } from "@/lib/data/rooms";
 import { CheckoutClient, CheckoutError } from "./CheckoutClient";
@@ -226,14 +228,21 @@ export default async function CheckoutPage({
       }
     }
 
-    // Session hợp lệ — tải voucher và render
-    const { data: vouchers } = await getUserAvailableVouchers(user.id);
+    // Session hợp lệ — tải voucher, phần thưởng hiện vật và thực đơn song song
+    const [{ data: vouchers }, { data: physicalRewards }, { data: menuItems }] =
+      await Promise.all([
+        getUserAvailableVouchers(user.id),
+        getUserAvailablePhysicalRewards(user.id),
+        getActiveCheckoutMenuItems(),
+      ]);
 
     return (
       <CheckoutPageLayout sessionId={existingSession.id}>
         <CheckoutClient
           session={existingSession}
           initialVouchers={vouchers ?? []}
+          initialPhysicalRewards={physicalRewards ?? []}
+          menuItems={menuItems ?? []}
           userId={user.id}
         />
       </CheckoutPageLayout>
