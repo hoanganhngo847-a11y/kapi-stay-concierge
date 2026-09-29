@@ -1,6 +1,10 @@
 import * as React from "react";
 import { notFound } from "next/navigation";
-import { getAdminPropertyRoomSchedule, type AdminPropertyScheduleData } from "@/lib/data/admin";
+import {
+  getAdminPropertyRoomSchedule,
+  isValidUUID,
+  type AdminPropertyScheduleData,
+} from "@/lib/data/admin";
 import AdminPropertyBoardClient from "@/components/admin/AdminPropertyBoardClient";
 
 interface PropertyBoardPageProps {
@@ -16,8 +20,6 @@ export async function generateMetadata({ params }: PropertyBoardPageProps) {
     description: `Quản trị buồng phòng, lịch đặt và F&B cho chi nhánh ${propertyId}`,
   };
 }
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function getTodayVietnamRange(): { startISO: string; endISO: string } {
   // Compute YYYY-MM-DD in Asia/Ho_Chi_Minh
@@ -40,7 +42,7 @@ function getTodayVietnamRange(): { startISO: string; endISO: string } {
 export default async function PropertyBoardPage({ params }: PropertyBoardPageProps) {
   const { propertyId } = await params;
 
-  if (!propertyId || !UUID_REGEX.test(propertyId)) {
+  if (!propertyId || !isValidUUID(propertyId)) {
     notFound();
   }
 
