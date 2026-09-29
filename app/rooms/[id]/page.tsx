@@ -186,6 +186,41 @@ export default async function RoomDetailPage({
             roomName={room.name}
           />
 
+          {/* Video Walkthrough if present */}
+          {room.media?.some((m) => m.media_type === "VIDEO") && (
+            <div className="space-y-3 pt-2">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-[#111111]">
+                Video trải nghiệm phòng
+              </h2>
+              <div className="grid grid-cols-1 gap-4">
+                {room.media
+                  .filter((m) => m.media_type === "VIDEO")
+                  .map((video) => {
+                    const videoUrl =
+                      video.storage_path.startsWith("http://") ||
+                      video.storage_path.startsWith("https://") ||
+                      video.storage_path.startsWith("/")
+                        ? video.storage_path
+                        : `${(process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/$/, "")}/storage/v1/object/public/room-media/${video.storage_path.replace(/^\//, "")}`;
+                    return (
+                      <div
+                        key={video.id}
+                        className="border border-[#E5E5E5] bg-black overflow-hidden aspect-video"
+                      >
+                        <video
+                          src={videoUrl}
+                          controls
+                          playsInline
+                          muted
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+
           {/* Description Section */}
           <Reveal>
             <div className="space-y-3 pt-2">

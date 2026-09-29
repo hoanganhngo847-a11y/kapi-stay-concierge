@@ -8,6 +8,7 @@ import {
   Activity,
   CalendarCheck,
   DoorOpen,
+  UtensilsCrossed,
   Users,
   Award,
   UserCog,
@@ -24,9 +25,10 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
+  { label: "Phòng", href: "/admin/rooms", icon: DoorOpen },
+  { label: "Menu", href: "/admin/menu", icon: UtensilsCrossed },
   { label: "Operations", href: "/operations", icon: Activity },
   { label: "Đặt phòng", icon: CalendarCheck, isComingSoon: true },
-  { label: "Phòng", icon: DoorOpen, isComingSoon: true },
   { label: "Khách hàng", icon: Users, isComingSoon: true },
   { label: "Rewards", icon: Award, isComingSoon: true },
   { label: "Nhân sự", icon: UserCog, isComingSoon: true },
@@ -59,7 +61,10 @@ export function AdminNav() {
               );
             }
 
-            const isActive = pathname === item.href;
+            const isActive =
+              item.href === "/admin"
+                ? pathname === "/admin"
+                : pathname === item.href || (item.href && pathname.startsWith(item.href + "/"));
 
             return (
               <Link

@@ -129,8 +129,12 @@ export function validateTicketStatusBoundary(
   return status;
 }
 
-const UUID_REGEX =
+export const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isValidUUID(val: unknown): val is string {
+  return typeof val === "string" && UUID_REGEX.test(val.trim());
+}
 const DATE_FORMAT_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 export function validateRequiredId(val: unknown, fieldName: string, context?: string): string {
@@ -1260,3 +1264,708 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
 
   return validateAdminDashboardBoundary(rpcRaw);
 }
+
+// ============================================================================
+// ADMIN CONTENT MANAGEMENT — PHASE 2 TYPES & FUNCTIONS
+// ============================================================================
+
+export interface AdminRoomListItem {
+  id: string;
+  name: string;
+  property_id: string;
+  property_name: string;
+  property_address: string;
+  room_number: string | null;
+  floor_number: number | null;
+  hourly_price_vnd: number;
+  nightly_price_vnd: number;
+  capacity: number;
+  is_listed: boolean;
+  operational_status: RoomOperationalStatus;
+  cover_image: string | null;
+  media_count: number;
+}
+
+export interface AdminRoomMediaItem {
+  id: string;
+  room_id: string;
+  media_type: "IMAGE" | "VIDEO";
+  storage_path: string;
+  sort_order: number;
+  is_cover: boolean;
+  alt_text: string | null;
+  created_at: string;
+}
+
+export interface AdminRoomPrivateDetails {
+  door_access_code: string | null;
+  wifi_ssid: string | null;
+  wifi_password: string | null;
+  private_instructions: string | null;
+  updated_at?: string | null;
+}
+
+export interface AdminRoomDetail {
+  room: {
+    id: string;
+    name: string;
+    property_id: string;
+    property_name: string;
+    property_address: string;
+    room_number: string | null;
+    floor_number: number | null;
+    hourly_price_vnd: number;
+    nightly_price_vnd: number;
+    capacity: number;
+    description: string | null;
+    amenities: string[];
+    is_listed: boolean;
+    operational_status: RoomOperationalStatus;
+  };
+  media: AdminRoomMediaItem[];
+  private_details: AdminRoomPrivateDetails;
+}
+
+export interface AdminMenuProductItem {
+  id: string;
+  name: string;
+  slug: string;
+  category: "DRINK" | "SNACK" | "MAIN_FOOD";
+  description: string | null;
+  price_vnd: number;
+  image_url: string | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export { getStorageMediaUrl } from "@/lib/utils/media";
+
+/**
+ * Fetches all rooms for the Admin Room List with optional property and search filters.
+ */
+export async function getAdminRooms(
+  propertyId?: string,
+  search?: string
+): Promise<{ success: boolean; rooms: AdminRoomListItem[]; error?: string }> {
+  await verifyAdminRole();
+  const supabase = await createClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rpcData, error: rpcError } = await (supabase.rpc as any)("get_admin_rooms", {
+    p_property_id: propertyId && isValidUUID(propertyId) ? propertyId : null,
+    p_search: search && search.trim() ? search.trim() : null,
+  });
+
+  if (rpcError) {
+    console.error("[getAdminRooms] RPC error:", rpcError.message);
+    // Fallback direct query
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let query = (supabase as any)
+      .from("rooms")
+      .select(`
+        id,
+        name,
+        property_id,
+        room_number,
+        floor_number,
+        hourly_price_vnd,
+        nightly_price_vnd,
+        capacity,
+        is_listed,
+        properties!inner (
+          id,
+          name,
+          address
+        )
+      `)
+      .order("name", { ascending: true });
+
+    if (propertyId && isValidUUID(propertyId)) {
+      query = query.eq("property_id", propertyId);
+    }
+    if (search && search.trim()) {
+      query = query.ilike("name", `%${search.trim()}%`);
+    }
+
+    const { data: directData, error: directError } = await query;
+    if (directError) {
+      return { success: false, rooms: [], error: directError.message };
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const fallbackRooms: AdminRoomListItem[] = (directData || []).map((raw: any) => {
+      const r = raw as Record<string, unknown>;
+      const prop = (Array.isArray(r.properties) ? r.properties[0] : r.properties) as Record<string, unknown> | null;
+      return {
+        id: String(r.id),
+        name: String(r.name),
+        property_id: String(r.property_id),
+        property_name: typeof prop?.name === "string" ? prop.name : "Chi nhánh",
+        property_address: typeof prop?.address === "string" ? prop.address : "",
+        room_number: typeof r.room_number === "string" ? r.room_number : null,
+        floor_number: typeof r.floor_number === "number" ? r.floor_number : null,
+        hourly_price_vnd: Number(r.hourly_price_vnd) || 0,
+        nightly_price_vnd: Number(r.nightly_price_vnd) || 0,
+        capacity: Number(r.capacity) || 2,
+        is_listed: Boolean(r.is_listed),
+        operational_status: "ready",
+        cover_image: null,
+        media_count: 0,
+      };
+    });
+
+    return { success: true, rooms: fallbackRooms };
+  }
+
+  const res = rpcData as { success: boolean; rooms?: AdminRoomListItem[]; error?: string } | null;
+  if (!res?.success) {
+    return { success: false, rooms: [], error: res?.error || "Lỗi truy vấn danh sách phòng." };
+  }
+
+  return { success: true, rooms: res.rooms || [] };
+}
+
+/**
+ * Fetches single room detail for Admin Room Edit view.
+ */
+export async function getAdminRoomDetail(
+  roomId: string
+): Promise<{ success: boolean; data?: AdminRoomDetail; error?: string }> {
+  await verifyAdminRole();
+  if (!roomId || !isValidUUID(roomId)) {
+    return { success: false, error: "ID phòng không hợp lệ." };
+  }
+
+  const supabase = await createClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rpcData, error: rpcError } = await (supabase.rpc as any)("get_admin_room_detail", {
+    p_room_id: roomId,
+  });
+
+  if (rpcError) {
+    console.error("[getAdminRoomDetail] RPC error:", rpcError.message);
+    // Fallback direct query
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: rData, error: rError } = await (supabase as any)
+      .from("rooms")
+      .select(`
+        id,
+        name,
+        property_id,
+        room_number,
+        floor_number,
+        hourly_price_vnd,
+        nightly_price_vnd,
+        capacity,
+        description,
+        amenities,
+        is_listed,
+        properties!inner (
+          id,
+          name,
+          address
+        )
+      `)
+      .eq("id", roomId)
+      .maybeSingle();
+
+    if (rError || !rData) {
+      return { success: false, error: "Không tìm thấy thông tin phòng." };
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: mData } = await (supabase as any)
+      .from("room_media")
+      .select("*")
+      .eq("room_id", roomId)
+      .order("sort_order", { ascending: true });
+
+    const { data: pData } = await supabase
+      .from("room_private_details")
+      .select("*")
+      .eq("room_id", roomId)
+      .maybeSingle();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rawR = rData as any;
+    const prop = (Array.isArray(rawR.properties) ? rawR.properties[0] : rawR.properties) as Record<string, unknown> | null;
+    const fallbackDetail: AdminRoomDetail = {
+      room: {
+        id: String(rawR.id),
+        name: String(rawR.name),
+        property_id: String(rawR.property_id),
+        property_name: typeof prop?.name === "string" ? prop.name : "Chi nhánh",
+        property_address: typeof prop?.address === "string" ? prop.address : "",
+        room_number: typeof rawR.room_number === "string" ? rawR.room_number : null,
+        floor_number: typeof rawR.floor_number === "number" ? rawR.floor_number : null,
+        hourly_price_vnd: Number(rawR.hourly_price_vnd) || 0,
+        nightly_price_vnd: Number(rawR.nightly_price_vnd) || 0,
+        capacity: Number(rawR.capacity) || 2,
+        description: typeof rawR.description === "string" ? rawR.description : null,
+        amenities: Array.isArray(rawR.amenities) ? (rawR.amenities as string[]) : [],
+        is_listed: Boolean(rawR.is_listed),
+        operational_status: "ready",
+      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      media: (mData || []).map((rawM: any) => {
+        const m = rawM as Record<string, unknown>;
+        return {
+          id: String(m.id),
+          room_id: String(m.room_id),
+          media_type: m.media_type === "VIDEO" ? "VIDEO" : "IMAGE",
+          storage_path: String(m.storage_path),
+          sort_order: Number(m.sort_order) || 0,
+          is_cover: Boolean(m.is_cover),
+          alt_text: typeof m.alt_text === "string" ? m.alt_text : null,
+          created_at: String(m.created_at),
+        };
+      }),
+      private_details: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        door_access_code: (pData as any)?.door_access_code || null,
+        wifi_ssid: pData?.wifi_ssid || null,
+        wifi_password: pData?.wifi_password || null,
+        private_instructions: pData?.private_instructions || null,
+        updated_at: pData?.updated_at || null,
+      },
+    };
+
+    return { success: true, data: fallbackDetail };
+  }
+
+  const res = rpcData as {
+    success: boolean;
+    room?: AdminRoomDetail["room"];
+    media?: AdminRoomMediaItem[];
+    private_details?: AdminRoomPrivateDetails;
+    error?: string;
+  } | null;
+  if (!res?.success || !res.room) {
+    return { success: false, error: res?.error || "Không tìm thấy thông tin phòng." };
+  }
+
+  return {
+    success: true,
+    data: {
+      room: res.room,
+      media: res.media || [],
+      private_details: res.private_details || {
+        door_access_code: null,
+        wifi_ssid: null,
+        wifi_password: null,
+        private_instructions: null,
+      },
+    },
+  };
+}
+
+/**
+ * Updates basic room metadata.
+ */
+export async function adminUpdateRoom(
+  roomId: string,
+  data: {
+    name: string;
+    property_id: string;
+    room_number: string;
+    floor_number: number;
+    hourly_price_vnd: number;
+    nightly_price_vnd?: number;
+    capacity: number;
+    description?: string;
+    amenities: string[];
+    is_listed: boolean;
+  }
+): Promise<{ success: boolean; error?: string }> {
+  await verifyAdminRole();
+  if (!roomId || !isValidUUID(roomId)) {
+    return { success: false, error: "ID phòng không hợp lệ." };
+  }
+
+  const supabase = await createClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rpcData, error: rpcError } = await (supabase.rpc as any)("admin_update_room", {
+    p_room_id: roomId,
+    p_name: data.name,
+    p_property_id: data.property_id,
+    p_room_number: data.room_number,
+    p_floor_number: data.floor_number,
+    p_hourly_price_vnd: data.hourly_price_vnd,
+    p_nightly_price_vnd: data.nightly_price_vnd || data.hourly_price_vnd * 5,
+    p_capacity: data.capacity,
+    p_description: data.description || "",
+    p_amenities: data.amenities || [],
+    p_is_listed: data.is_listed,
+  });
+
+  if (rpcError) {
+    console.error("[adminUpdateRoom] RPC error:", rpcError.message);
+    return { success: false, error: rpcError.message };
+  }
+
+  const res = rpcData as { success: boolean; error?: string } | null;
+  if (!res?.success) {
+    return { success: false, error: res?.error || "Cập nhật phòng thất bại." };
+  }
+
+  return { success: true };
+}
+
+/**
+ * Updates private room access configuration (door access code, Wi-Fi credentials).
+ * Sensitive operation: never logged raw in audit logs.
+ */
+export async function adminUpdateRoomAccess(
+  roomId: string,
+  data: {
+    door_access_code?: string;
+    wifi_ssid?: string;
+    wifi_password?: string;
+    private_instructions?: string;
+  }
+): Promise<{ success: boolean; error?: string }> {
+  await verifyAdminRole();
+  if (!roomId || !isValidUUID(roomId)) {
+    return { success: false, error: "ID phòng không hợp lệ." };
+  }
+
+  const supabase = await createClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rpcData, error: rpcError } = await (supabase.rpc as any)("admin_update_room_access", {
+    p_room_id: roomId,
+    p_door_access_code: data.door_access_code || null,
+    p_wifi_ssid: data.wifi_ssid || null,
+    p_wifi_password: data.wifi_password || null,
+    p_private_instructions: data.private_instructions || null,
+  });
+
+  if (rpcError) {
+    console.error("[adminUpdateRoomAccess] RPC error:", rpcError.message);
+    return { success: false, error: rpcError.message };
+  }
+
+  const res = rpcData as { success: boolean; error?: string } | null;
+  if (!res?.success) {
+    return { success: false, error: res?.error || "Cập nhật thông tin truy cập phòng thất bại." };
+  }
+
+  return { success: true };
+}
+
+/**
+ * Adds a new media item (image or video) to a room.
+ */
+export async function adminAddRoomMedia(
+  roomId: string,
+  data: {
+    media_type: "IMAGE" | "VIDEO";
+    storage_path: string;
+    sort_order?: number;
+    is_cover?: boolean;
+    alt_text?: string;
+  }
+): Promise<{ success: boolean; media_id?: string; error?: string }> {
+  await verifyAdminRole();
+  if (!roomId || !isValidUUID(roomId)) {
+    return { success: false, error: "ID phòng không hợp lệ." };
+  }
+
+  const supabase = await createClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rpcData, error: rpcError } = await (supabase.rpc as any)("admin_add_room_media", {
+    p_room_id: roomId,
+    p_media_type: data.media_type,
+    p_storage_path: data.storage_path,
+    p_sort_order: data.sort_order ?? 0,
+    p_is_cover: Boolean(data.is_cover),
+    p_alt_text: data.alt_text || "",
+  });
+
+  if (rpcError) {
+    console.error("[adminAddRoomMedia] RPC error:", rpcError.message);
+    return { success: false, error: rpcError.message };
+  }
+
+  const res = rpcData as { success: boolean; media_id?: string; error?: string } | null;
+  if (!res?.success) {
+    return { success: false, error: res?.error || "Thêm media thất bại." };
+  }
+
+  return { success: true, media_id: res.media_id };
+}
+
+/**
+ * Deletes a media item from a room.
+ */
+export async function adminDeleteRoomMedia(
+  mediaId: string
+): Promise<{ success: boolean; storage_path?: string; error?: string }> {
+  await verifyAdminRole();
+  if (!mediaId || !isValidUUID(mediaId)) {
+    return { success: false, error: "ID media không hợp lệ." };
+  }
+
+  const supabase = await createClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rpcData, error: rpcError } = await (supabase.rpc as any)("admin_delete_room_media", {
+    p_media_id: mediaId,
+  });
+
+  if (rpcError) {
+    console.error("[adminDeleteRoomMedia] RPC error:", rpcError.message);
+    return { success: false, error: rpcError.message };
+  }
+
+  const res = rpcData as { success: boolean; storage_path?: string; error?: string } | null;
+  if (!res?.success) {
+    return { success: false, error: res?.error || "Xóa media thất bại." };
+  }
+
+  return { success: true, storage_path: res.storage_path };
+}
+
+/**
+ * Sets a specific image as the cover image of a room.
+ */
+export async function adminSetCoverRoomMedia(
+  roomId: string,
+  mediaId: string
+): Promise<{ success: boolean; error?: string }> {
+  await verifyAdminRole();
+  if (!roomId || !isValidUUID(roomId) || !mediaId || !isValidUUID(mediaId)) {
+    return { success: false, error: "ID không hợp lệ." };
+  }
+
+  const supabase = await createClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rpcData, error: rpcError } = await (supabase.rpc as any)("admin_set_cover_room_media", {
+    p_room_id: roomId,
+    p_media_id: mediaId,
+  });
+
+  if (rpcError) {
+    console.error("[adminSetCoverRoomMedia] RPC error:", rpcError.message);
+    return { success: false, error: rpcError.message };
+  }
+
+  const res = rpcData as { success: boolean; error?: string } | null;
+  if (!res?.success) {
+    return { success: false, error: res?.error || "Đặt ảnh bìa thất bại." };
+  }
+
+  return { success: true };
+}
+
+/**
+ * Reorders room media items by updating sort_order according to array sequence.
+ */
+export async function adminReorderRoomMedia(
+  roomId: string,
+  mediaIds: string[]
+): Promise<{ success: boolean; error?: string }> {
+  await verifyAdminRole();
+  if (!roomId || !isValidUUID(roomId)) {
+    return { success: false, error: "ID phòng không hợp lệ." };
+  }
+
+  const supabase = await createClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rpcData, error: rpcError } = await (supabase.rpc as any)("admin_reorder_room_media", {
+    p_room_id: roomId,
+    p_media_ids: mediaIds,
+  });
+
+  if (rpcError) {
+    console.error("[adminReorderRoomMedia] RPC error:", rpcError.message);
+    return { success: false, error: rpcError.message };
+  }
+
+  const res = rpcData as { success: boolean; error?: string } | null;
+  if (!res?.success) {
+    return { success: false, error: res?.error || "Sắp xếp media thất bại." };
+  }
+
+  return { success: true };
+}
+
+/**
+ * Fetches menu products for the Admin Menu list (including active and inactive items).
+ */
+export async function getAdminMenuProducts(
+  category?: string,
+  search?: string
+): Promise<{ success: boolean; products: AdminMenuProductItem[]; error?: string }> {
+  await verifyAdminRole();
+  const supabase = await createClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rpcData, error: rpcError } = await (supabase.rpc as any)("get_admin_menu_products", {
+    p_category: category && category !== "ALL" ? category : null,
+    p_search: search && search.trim() ? search.trim() : null,
+  });
+
+  if (rpcError) {
+    console.error("[getAdminMenuProducts] RPC error:", rpcError.message);
+    // Fallback direct query
+    let query = supabase
+      .from("menu_products")
+      .select("id, name, slug, category, description, price_vnd, image_url, is_active, sort_order, created_at, updated_at")
+      .order("category", { ascending: true })
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true });
+
+    if (category && category !== "ALL") {
+      query = query.eq("category", category);
+    }
+    if (search && search.trim()) {
+      query = query.ilike("name", `%${search.trim()}%`);
+    }
+
+    const { data: directData, error: directError } = await query;
+    if (directError) {
+      return { success: false, products: [], error: directError.message };
+    }
+
+    return { success: true, products: (directData as AdminMenuProductItem[]) || [] };
+  }
+
+  const res = rpcData as { success: boolean; products?: AdminMenuProductItem[]; error?: string } | null;
+  if (!res?.success) {
+    return { success: false, products: [], error: res?.error || "Lỗi truy vấn thực đơn." };
+  }
+
+  return { success: true, products: res.products || [] };
+}
+
+/**
+ * Creates a new menu product (Admin only).
+ */
+export async function adminCreateMenuProduct(data: {
+  name: string;
+  slug: string;
+  category: "DRINK" | "SNACK" | "MAIN_FOOD";
+  description?: string;
+  price_vnd: number;
+  image_url?: string;
+  sort_order?: number;
+  is_active?: boolean;
+}): Promise<{ success: boolean; id?: string; error?: string }> {
+  await verifyAdminRole();
+  const supabase = await createClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rpcData, error: rpcError } = await (supabase.rpc as any)("admin_create_menu_product", {
+    p_name: data.name,
+    p_slug: data.slug,
+    p_category: data.category,
+    p_description: data.description || "",
+    p_price_vnd: data.price_vnd,
+    p_image_url: data.image_url || "",
+    p_sort_order: data.sort_order ?? 0,
+    p_is_active: data.is_active ?? true,
+  });
+
+  if (rpcError) {
+    console.error("[adminCreateMenuProduct] RPC error:", rpcError.message);
+    return { success: false, error: rpcError.message };
+  }
+
+  const res = rpcData as { success: boolean; id?: string; error?: string } | null;
+  if (!res?.success) {
+    return { success: false, error: res?.error || "Thêm món mới thất bại." };
+  }
+
+  return { success: true, id: res.id };
+}
+
+/**
+ * Updates an existing menu product (Admin only).
+ */
+export async function adminUpdateMenuProduct(
+  id: string,
+  data: {
+    name: string;
+    slug: string;
+    category: "DRINK" | "SNACK" | "MAIN_FOOD";
+    description?: string;
+    price_vnd: number;
+    image_url?: string;
+    sort_order?: number;
+    is_active?: boolean;
+  }
+): Promise<{ success: boolean; error?: string }> {
+  await verifyAdminRole();
+  if (!id || !isValidUUID(id)) {
+    return { success: false, error: "ID món ăn không hợp lệ." };
+  }
+
+  const supabase = await createClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rpcData, error: rpcError } = await (supabase.rpc as any)("admin_update_menu_product", {
+    p_id: id,
+    p_name: data.name,
+    p_slug: data.slug,
+    p_category: data.category,
+    p_description: data.description || "",
+    p_price_vnd: data.price_vnd,
+    p_image_url: data.image_url || "",
+    p_sort_order: data.sort_order ?? 0,
+    p_is_active: data.is_active ?? true,
+  });
+
+  if (rpcError) {
+    console.error("[adminUpdateMenuProduct] RPC error:", rpcError.message);
+    return { success: false, error: rpcError.message };
+  }
+
+  const res = rpcData as { success: boolean; error?: string } | null;
+  if (!res?.success) {
+    return { success: false, error: res?.error || "Cập nhật món thất bại." };
+  }
+
+  return { success: true };
+}
+
+/**
+ * Activates or deactivates (soft delete/hide) a menu product (Admin only).
+ */
+export async function adminSetMenuProductActive(
+  id: string,
+  isActive: boolean
+): Promise<{ success: boolean; error?: string }> {
+  await verifyAdminRole();
+  if (!id || !isValidUUID(id)) {
+    return { success: false, error: "ID món ăn không hợp lệ." };
+  }
+
+  const supabase = await createClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rpcData, error: rpcError } = await (supabase.rpc as any)("admin_set_menu_product_active", {
+    p_id: id,
+    p_is_active: isActive,
+  });
+
+  if (rpcError) {
+    console.error("[adminSetMenuProductActive] RPC error:", rpcError.message);
+    return { success: false, error: rpcError.message };
+  }
+
+  const res = rpcData as { success: boolean; error?: string } | null;
+  if (!res?.success) {
+    return { success: false, error: res?.error || "Thay đổi trạng thái món thất bại." };
+  }
+
+  return { success: true };
+}
+
