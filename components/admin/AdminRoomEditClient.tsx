@@ -255,11 +255,11 @@ export function AdminRoomEditClient({
       {/* Top Header & Breadcrumb */}
       <div>
         <Link
-          href="/admin/rooms"
+          href={`/admin/properties/${initialData.room.property_id}`}
           className="inline-flex items-center gap-1.5 text-xs text-[#707072] hover:text-[#111111] transition-colors mb-3"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Quay lại danh sách phòng</span>
+          <span>Quay lại lịch phòng {initialData.room.property_name}</span>
         </Link>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-[#E5E5E5] pb-5">
           <div>

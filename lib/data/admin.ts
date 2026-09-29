@@ -1969,3 +1969,237 @@ export async function adminSetMenuProductActive(
   return { success: true };
 }
 
+// ============================================================================
+// UNIFIED ADMIN PROPERTY / ROOM OPERATIONS BOARD
+// ============================================================================
+
+export interface AdminPropertyOverviewItem {
+  property_id: string;
+  property_name: string;
+  property_address: string;
+  room_count: number;
+  ready_count: number;
+  occupied_count: number;
+  cleaning_count: number;
+  maintenance_count: number;
+  today_checkins: number;
+  today_checkouts: number;
+  today_booking_count: number;
+}
+
+export interface AdminTimelineBooking {
+  booking_id: string;
+  room_id: string;
+  check_in_at: string;
+  check_out_at: string;
+  booking_status: string;
+  payment_status: string;
+  guest_name: string;
+  guest_count: number;
+  menu_item_count: number;
+}
+
+export interface AdminPropertyRoomScheduleItem {
+  room_id: string;
+  room_name: string;
+  room_number: string | null;
+  floor_number: number | null;
+  operational_status: RoomOperationalStatus;
+  is_listed: boolean;
+  hourly_price_vnd: number;
+  nightly_price_vnd: number;
+  capacity: number;
+  bookings: AdminTimelineBooking[];
+}
+
+export interface AdminPropertyTicketItem {
+  id: string;
+  room_id: string;
+  room_number: string | null;
+  room_name: string;
+  category: string;
+  description: string;
+  status: TicketStatus;
+  media_paths: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminPropertyScheduleData {
+  property: {
+    id: string;
+    name: string;
+    address: string;
+  };
+  rooms: AdminPropertyRoomScheduleItem[];
+  tickets: AdminPropertyTicketItem[];
+}
+
+export interface AdminBookingMenuItem {
+  id: string;
+  menu_product_id: string;
+  product_name_snapshot: string;
+  current_image_url: string | null;
+  category: string | null;
+  quantity: number;
+  source_type: "PURCHASE" | "REWARD";
+  unit_price_vnd: number;
+  total_price_vnd: number;
+  normal_price_vnd: number;
+  reward_source: string | null;
+}
+
+export interface AdminBookingDetail {
+  id: string;
+  room_id: string;
+  room_name: string;
+  room_number: string | null;
+  floor_number: number | null;
+  property_id: string;
+  property_name: string;
+  property_address: string;
+  guest_name: string;
+  guest_phone: string | null;
+  guest_email: string | null;
+  guest_count: number;
+  check_in_at: string;
+  check_out_at: string;
+  booking_status: string;
+  payment_status: string;
+  gross_amount_vnd: number;
+  discount_amount_vnd: number;
+  final_paid_amount_vnd: number;
+  menu_amount_vnd: number;
+  created_at: string;
+}
+
+export interface AdminBookingDetailResult {
+  success: boolean;
+  booking?: AdminBookingDetail;
+  menu_items?: AdminBookingMenuItem[];
+  error?: string;
+}
+
+/**
+ * Fetches overview stats for all active properties (Admin only).
+ * Used on Level 1 /admin.
+ */
+export async function getAdminPropertyOverview(): Promise<{
+  success: boolean;
+  properties: AdminPropertyOverviewItem[];
+  error?: string;
+}> {
+  await verifyAdminRole();
+  const supabase = await createClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rpcData, error: rpcError } = await (supabase.rpc as any)("get_admin_property_overview");
+
+  if (rpcError) {
+    console.error("[getAdminPropertyOverview] RPC error:", rpcError.message);
+    return { success: false, properties: [], error: rpcError.message };
+  }
+
+  const res = rpcData as {
+    success: boolean;
+    properties?: AdminPropertyOverviewItem[];
+    error?: string;
+  } | null;
+
+  if (!res?.success) {
+    return { success: false, properties: [], error: res?.error || "Không thể tải tổng quan chi nhánh." };
+  }
+
+  return { success: true, properties: res.properties || [] };
+}
+
+/**
+ * Fetches room schedule & bookings for a property within a date range (Admin only).
+ * Max range: 14 days.
+ */
+export async function getAdminPropertyRoomSchedule(
+  propertyId: string,
+  rangeStart: string,
+  rangeEnd: string
+): Promise<{
+  success: boolean;
+  data?: AdminPropertyScheduleData;
+  error?: string;
+}> {
+  await verifyAdminRole();
+  if (!propertyId || !isValidUUID(propertyId)) {
+    return { success: false, error: "ID chi nhánh không hợp lệ." };
+  }
+
+  const supabase = await createClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rpcData, error: rpcError } = await (supabase.rpc as any)("get_admin_property_room_schedule", {
+    p_property_id: propertyId,
+    p_range_start: rangeStart,
+    p_range_end: rangeEnd,
+  });
+
+  if (rpcError) {
+    console.error("[getAdminPropertyRoomSchedule] RPC error:", rpcError.message);
+    return { success: false, error: rpcError.message };
+  }
+
+  const res = rpcData as {
+    success: boolean;
+    property?: AdminPropertyScheduleData["property"];
+    rooms?: AdminPropertyRoomScheduleItem[];
+    tickets?: AdminPropertyTicketItem[];
+    error?: string;
+  } | null;
+
+  if (!res?.success || !res.property) {
+    return { success: false, error: res?.error || "Không thể tải lịch phòng chi nhánh." };
+  }
+
+  return {
+    success: true,
+    data: {
+      property: res.property,
+      rooms: res.rooms || [],
+      tickets: res.tickets || [],
+    },
+  };
+}
+
+/**
+ * Fetches complete booking details including historical F&B snapshot (Admin only).
+ * Strictly excludes door credentials and secret passwords.
+ */
+export async function getAdminBookingDetail(
+  bookingId: string
+): Promise<AdminBookingDetailResult> {
+  await verifyAdminRole();
+  if (!bookingId || !isValidUUID(bookingId)) {
+    return { success: false, error: "ID đặt phòng không hợp lệ." };
+  }
+
+  const supabase = await createClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rpcData, error: rpcError } = await (supabase.rpc as any)("get_admin_booking_detail", {
+    p_booking_id: bookingId,
+  });
+
+  if (rpcError) {
+    console.error("[getAdminBookingDetail] RPC error:", rpcError.message);
+    return { success: false, error: rpcError.message };
+  }
+
+  const res = rpcData as AdminBookingDetailResult | null;
+  if (!res?.success || !res.booking) {
+    return { success: false, error: res?.error || "Không tìm thấy thông tin đặt phòng." };
+  }
+
+  return {
+    success: true,
+    booking: res.booking,
+    menu_items: res.menu_items || [],
+  };
+}
+

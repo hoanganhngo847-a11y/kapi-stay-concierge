@@ -87,7 +87,13 @@ import {
   adminCreateMenuProduct,
   adminUpdateMenuProduct,
   adminSetMenuProductActive,
+  getAdminBookingDetail,
+  getAdminPropertyRoomSchedule,
+  updateRoomStatus,
+  updateTicketStatusAdmin,
   verifyAdminRole,
+  type StaffMutableRoomOperationalStatus,
+  type TicketStatus,
 } from "@/lib/data/admin";
 import { getStorageMediaUrl } from "@/lib/utils/media";
 
@@ -383,4 +389,67 @@ export async function adminUploadMenuMediaFileAction(formData: FormData): Promis
     };
   }
 }
+
+// ---------------------------------------------------------------------------
+// UNIFIED OPERATIONS BOARD ACTIONS
+// ---------------------------------------------------------------------------
+
+export async function fetchAdminBookingDetailAction(bookingId: string) {
+  try {
+    return await getAdminBookingDetail(bookingId);
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Không thể tải chi tiết đặt phòng.",
+    };
+  }
+}
+
+export async function fetchAdminPropertyScheduleAction(
+  propertyId: string,
+  rangeStart: string,
+  rangeEnd: string
+) {
+  try {
+    return await getAdminPropertyRoomSchedule(propertyId, rangeStart, rangeEnd);
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Không thể tải lịch phòng.",
+    };
+  }
+}
+
+export async function updateAdminRoomStatusAction(
+  roomId: string,
+  status: StaffMutableRoomOperationalStatus
+) {
+  try {
+    await verifyAdminRole();
+    const res = await updateRoomStatus(roomId, status);
+    return { success: true, data: res };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Không thể cập nhật trạng thái phòng.",
+    };
+  }
+}
+
+export async function updateAdminTicketStatusAction(
+  ticketId: string,
+  status: TicketStatus
+) {
+  try {
+    await verifyAdminRole();
+    const res = await updateTicketStatusAdmin(ticketId, status);
+    return { success: true, data: res };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Không thể cập nhật sự cố.",
+    };
+  }
+}
+
 

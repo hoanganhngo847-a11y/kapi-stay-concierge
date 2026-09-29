@@ -62,14 +62,14 @@ test("Phase 2 — SQL Migration Structure & Security Verification", () => {
   assert.match(sql, /SELECT 1 FROM public\.staff_roles WHERE user_id = v_user_id AND role = 'admin'/i);
 });
 
-test("Phase 2 — Navigation Contract: /admin/rooms and /admin/menu are enabled", () => {
+test("Phase 2 — Navigation Contract: Unified /admin and /admin/menu are enabled", () => {
   const adminNavPath = path.resolve(process.cwd(), "components/admin/AdminNav.tsx");
   const content = fs.readFileSync(adminNavPath, "utf8");
 
-  assert.match(content, /href:\s*["']\/admin\/rooms["']/);
+  assert.match(content, /href:\s*["']\/admin["']/);
   assert.match(content, /href:\s*["']\/admin\/menu["']/);
-  // Ensure "Sắp có" tags are removed from Rooms and Menu
-  assert.doesNotMatch(content, /Phòng.*Sắp có/);
+  // Ensure "Sắp có" tags are removed from active modules
+  assert.doesNotMatch(content, /Vận hành phòng.*Sắp có/);
   assert.doesNotMatch(content, /Menu.*Sắp có/);
 });
 
