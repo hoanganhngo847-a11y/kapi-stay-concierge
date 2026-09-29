@@ -316,6 +316,7 @@ export interface StaffDashboardData {
     payment_status: string;
     is_checkin_today: boolean;
     is_checkout_today: boolean;
+    rewards?: string[];
   }>;
   error?: string;
 }
@@ -830,6 +831,9 @@ export function validateStaffDashboardBoundary(data: unknown): StaffDashboardDat
 
     const isCheckinToday = b.is_checkin_today;
     const isCheckoutToday = b.is_checkout_today;
+    const rewards = Array.isArray(b.rewards)
+      ? b.rewards.filter((r): r is string => typeof r === "string" && r.trim().length > 0)
+      : undefined;
 
     return {
       id,
@@ -847,6 +851,7 @@ export function validateStaffDashboardBoundary(data: unknown): StaffDashboardDat
       payment_status: paymentStatus,
       is_checkin_today: isCheckinToday,
       is_checkout_today: isCheckoutToday,
+      rewards,
     };
   });
 

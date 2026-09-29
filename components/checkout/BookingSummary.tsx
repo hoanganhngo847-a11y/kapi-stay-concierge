@@ -25,13 +25,15 @@ import {
   Phone,
   Mail,
   BedDouble,
+  Gift,
 } from "lucide-react";
 import { Button, Input, Badge, Reveal } from "@/components/ui";
 import { formatVND } from "@/lib/utils/format";
 import type {
   CheckoutSessionWithRoom,
-  VoucherRedemption,
-  Voucher,
+  CheckoutVoucherItem,
+  CheckoutPhysicalReward,
+  CheckoutMenuItem,
 } from "@/lib/data/checkout";
 
 // ---------------------------------------------------------------------------
@@ -54,7 +56,7 @@ export interface BookingSummaryProps {
   /** Dữ liệu phiên checkout kèm chi tiết phòng */
   session: CheckoutSessionWithRoom;
   /** Danh sách voucher còn hiệu lực của user */
-  availableVouchers: (VoucherRedemption & { voucher: Voucher | null })[];
+  availableVouchers: CheckoutVoucherItem[];
   /** ID redemption đang được chọn (null = chưa chọn) */
   selectedRedemptionId: string | null;
   /** Số tiền được giảm hiện tại */
@@ -66,6 +68,22 @@ export interface BookingSummaryProps {
   isVoucherLoading: boolean;
   /** Lỗi voucher từ server */
   voucherError: string | null;
+  /** Danh sách phần thưởng hiện vật / ẩm thực còn hiệu lực */
+  availablePhysicalRewards?: CheckoutPhysicalReward[];
+  /** ID entitlement phần thưởng hiện vật đang chọn */
+  selectedPhysicalRewardId?: string | null;
+  /** ID món ăn đã chọn (nếu là MEAL_CHOICE) */
+  selectedMenuItemId?: string | null;
+  /** Danh mục thực đơn phần thưởng đang active */
+  menuItems?: CheckoutMenuItem[];
+  /** Callback áp phần thưởng hiện vật */
+  onApplyPhysicalReward?: (entitlementId: string, menuItemId?: string) => Promise<void>;
+  /** Callback hủy phần thưởng hiện vật */
+  onReleasePhysicalReward?: () => Promise<void>;
+  /** Trạng thái đang xử lý phần thưởng */
+  isPhysicalRewardLoading?: boolean;
+  /** Lỗi phần thưởng từ server */
+  physicalRewardError?: string | null;
   /** Thông tin khách hiện tại */
   guestInfo: GuestInfo;
   /** Lỗi validation thông tin khách */
@@ -137,7 +155,7 @@ function formatVoucherExpiry(expiresAt: string): string {
 // ---------------------------------------------------------------------------
 
 interface VoucherCardProps {
-  item: VoucherRedemption & { voucher: Voucher | null };
+  item: CheckoutVoucherItem;
   isSelected: boolean;
   grossAmountVnd: number;
   onSelect: (redemptionId: string) => void;
@@ -156,6 +174,13 @@ function VoucherCard({
 
   const eligibleBase = Math.min(grossAmountVnd, v.max_eligible_base_vnd);
   const discount = Math.floor((eligibleBase * v.discount_percentage) / 100);
+
+  const sourceLabel =
+    v.source === "150_DAY_STREAK"
+      ? "150-Day Streak Reward"
+      : v.source === "365_DAY_STREAK"
+      ? "365-Day Streak Reward"
+      : "500 Points Reward";
 
   return (
     <button
@@ -186,7 +211,12 @@ function VoucherCard({
             <Ticket className="w-4 h-4" aria-hidden="true" />
           </span>
           <div className="min-w-0">
-            <p className="text-sm font-medium text-[#111111] truncate">{v.name}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium text-[#111111] truncate">{v.name}</p>
+              <span className="text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 bg-[#EAEAEA] text-[#333333]">
+                {sourceLabel}
+              </span>
+            </div>
             <p className="text-xs text-[#707072] mt-0.5">
               Giảm {v.discount_percentage}% · Tối đa{" "}
               {formatVND(
@@ -237,6 +267,14 @@ export function BookingSummary({
   onReleaseVoucher,
   isVoucherLoading,
   voucherError,
+  availablePhysicalRewards = [],
+  selectedPhysicalRewardId = null,
+  selectedMenuItemId = null,
+  menuItems = [],
+  onApplyPhysicalReward,
+  onReleasePhysicalReward,
+  isPhysicalRewardLoading = false,
+  physicalRewardError = null,
   guestInfo,
   guestInfoErrors,
   onGuestInfoChange,
@@ -244,6 +282,10 @@ export function BookingSummary({
   isSubmitting,
 }: BookingSummaryProps) {
   const [showVoucherPanel, setShowVoucherPanel] = useState(false);
+  const [showPhysicalRewardPanel, setShowPhysicalRewardPanel] = useState(false);
+  const [tempMenuItemId, setTempMenuItemId] = useState<string | null>(
+    selectedMenuItemId || (menuItems.length > 0 ? menuItems[0].id : null)
+  );
   const [isPending, startTransition] = useTransition();
 
   const hours = calcHours(
@@ -479,6 +521,210 @@ export function BookingSummary({
         </section>
       </Reveal>
 
+      {/* ── Card 2B: Phần thưởng hiện vật & ẩm thực (Tùy chọn) ──────────── */}
+      {availablePhysicalRewards.length > 0 && (
+        <Reveal distance={12} delay={120}>
+          <section
+            className="bg-white border border-[#E5E5E5]"
+            aria-labelledby="physical-reward-heading"
+          >
+            <button
+              type="button"
+              onClick={() => setShowPhysicalRewardPanel((prev) => !prev)}
+              aria-expanded={showPhysicalRewardPanel}
+              aria-controls="physical-reward-panel"
+              className="w-full flex items-center justify-between p-5 sm:p-6 text-left hover:bg-[#FAFAFA] transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <span className="w-8 h-8 bg-[#F5F5F5] text-[#111111] flex items-center justify-center shrink-0">
+                  <Gift className="w-4 h-4" aria-hidden="true" />
+                </span>
+                <div>
+                  <h2
+                    id="physical-reward-heading"
+                    className="text-sm font-medium text-[#111111]"
+                  >
+                    Phần thưởng hiện vật & ẩm thực
+                  </h2>
+                  <p className="text-xs text-[#707072] mt-0.5">
+                    {selectedPhysicalRewardId
+                      ? "Đã chọn phần thưởng đi kèm"
+                      : `${availablePhysicalRewards.length} phần thưởng chuỗi khả dụng · Dùng kèm voucher`}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {selectedPhysicalRewardId && (
+                  <Badge variant="primary" size="sm" dot>
+                    Đã áp
+                  </Badge>
+                )}
+                {showPhysicalRewardPanel ? (
+                  <ChevronUp className="w-4 h-4 text-[#707072]" aria-hidden="true" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-[#707072]" aria-hidden="true" />
+                )}
+              </div>
+            </button>
+
+            {showPhysicalRewardPanel && (
+              <div
+                id="physical-reward-panel"
+                className="px-5 pb-5 border-t border-[#E5E5E5] pt-4 space-y-3"
+              >
+                {physicalRewardError && (
+                  <div
+                    role="alert"
+                    className="flex items-start gap-2.5 bg-[#F5F5F5] border border-[#E5E5E5] p-3.5"
+                  >
+                    <X
+                      className="w-4 h-4 text-[#111111] shrink-0 mt-0.5"
+                      aria-hidden="true"
+                    />
+                    <p className="text-sm text-[#111111]">{physicalRewardError}</p>
+                  </div>
+                )}
+
+                <div className="space-y-3" role="radiogroup" aria-label="Chọn phần thưởng hiện vật">
+                  {availablePhysicalRewards.map((reward) => {
+                    const isSelected = selectedPhysicalRewardId === reward.id;
+                    const isMeal = reward.reward_type === "MEAL_CHOICE";
+
+                    return (
+                      <div
+                        key={reward.id}
+                        className={[
+                          "border p-4 transition-all duration-150",
+                          isSelected
+                            ? "border-[#111111] bg-[#F5F5F5]"
+                            : "border-[#E5E5E5] bg-white",
+                        ].join(" ")}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span
+                              className={[
+                                "shrink-0 w-8 h-8 flex items-center justify-center",
+                                isSelected
+                                  ? "bg-[#111111] text-white"
+                                  : "bg-[#F5F5F5] text-[#111111]",
+                              ].join(" ")}
+                            >
+                              <Gift className="w-4 h-4" aria-hidden="true" />
+                            </span>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-medium text-[#111111] truncate">
+                                  {reward.title}
+                                </p>
+                                <span className="text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 bg-[#EAEAEA] text-[#333333]">
+                                  Chuỗi {reward.milestone_day} ngày
+                                </span>
+                              </div>
+                              <p className="text-xs text-[#707072] mt-0.5">
+                                {reward.description || "Phần thưởng lưu trú chuỗi điểm danh"}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="shrink-0 text-right">
+                            <span className="text-xs text-[#707072]">
+                              {formatVoucherExpiry(reward.expires_at)}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Nếu là MEAL_CHOICE, hiển thị radio chọn món active */}
+                        {isMeal && (
+                          <div className="mt-4 pt-3 border-t border-[#E5E5E5] space-y-2">
+                            <p className="text-xs font-medium text-[#111111]">
+                              Chọn 1 món ăn từ thực đơn Kapi:
+                            </p>
+                            <div className="space-y-1.5">
+                              {menuItems.length > 0 ? (
+                                menuItems.map((item) => (
+                                  <label
+                                    key={item.id}
+                                    className="flex items-center gap-2 text-xs text-[#111111] cursor-pointer hover:bg-white/60 p-1.5 rounded transition-colors"
+                                  >
+                                    <input
+                                      type="radio"
+                                      name={`meal-item-${reward.id}`}
+                                      checked={
+                                        (isSelected && selectedMenuItemId === item.id) ||
+                                        (!isSelected && tempMenuItemId === item.id)
+                                      }
+                                      onChange={() => {
+                                        setTempMenuItemId(item.id);
+                                        if (isSelected && onApplyPhysicalReward) {
+                                          onApplyPhysicalReward(reward.id, item.id);
+                                        }
+                                      }}
+                                      className="accent-[#111111]"
+                                    />
+                                    <span>{item.name}</span>
+                                  </label>
+                                ))
+                              ) : (
+                                <p className="text-xs text-[#707072]">Đang tải thực đơn...</p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="mt-3 pt-3 border-t border-[#E5E5E5] flex items-center justify-between">
+                          {isSelected ? (
+                            <div className="flex items-center gap-1.5">
+                              <CheckCircle2
+                                className="w-3.5 h-3.5 text-[#111111] shrink-0"
+                                aria-hidden="true"
+                              />
+                              <span className="text-xs font-medium text-[#111111]">
+                                Đã chọn phần thưởng này
+                              </span>
+                            </div>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={isPhysicalRewardLoading}
+                              onClick={() => {
+                                if (onApplyPhysicalReward) {
+                                  onApplyPhysicalReward(
+                                    reward.id,
+                                    isMeal ? tempMenuItemId || menuItems[0]?.id : undefined
+                                  );
+                                }
+                              }}
+                              className="text-xs"
+                            >
+                              Áp dụng phần thưởng
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {selectedPhysicalRewardId && onReleasePhysicalReward && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onReleasePhysicalReward}
+                    isLoading={isPhysicalRewardLoading}
+                    className="w-full text-[#707072] hover:text-[#111111] hover:bg-[#F5F5F5] mt-1"
+                  >
+                    Hủy áp dụng phần thưởng hiện vật
+                  </Button>
+                )}
+              </div>
+            )}
+          </section>
+        </Reveal>
+      )}
+
       {/* ── Card 3: Bảng kê chi phí ──────────────────────────────────────── */}
       <Reveal distance={12} delay={160}>
         <section
@@ -510,6 +756,22 @@ export function BookingSummary({
                 <span className="font-medium text-[#111111]">
                   -{formatVND(discount)}
                 </span>
+              </div>
+            )}
+
+            {selectedPhysicalRewardId && (
+              <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center gap-1.5">
+                  <Gift className="w-3.5 h-3.5 text-[#111111]" aria-hidden="true" />
+                  <span className="text-[#111111] font-medium">
+                    Quà tặng kèm:{" "}
+                    {availablePhysicalRewards.find((r) => r.id === selectedPhysicalRewardId)?.title || "Phần thưởng chuỗi"}
+                    {selectedMenuItemId && menuItems.find((m) => m.id === selectedMenuItemId)
+                      ? ` (${menuItems.find((m) => m.id === selectedMenuItemId)?.name})`
+                      : ""}
+                  </span>
+                </div>
+                <span className="font-medium text-[#111111]">Miễn phí</span>
               </div>
             )}
           </div>

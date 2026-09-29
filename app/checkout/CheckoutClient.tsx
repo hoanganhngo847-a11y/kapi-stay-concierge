@@ -25,11 +25,15 @@ import {
   applyVoucherAction,
   releaseVoucherAction,
   refreshAvailableVouchersAction,
+  applyPhysicalRewardAction,
+  releasePhysicalRewardAction,
+  getPhysicalRewardsAction,
 } from "./actions";
 import type {
   CheckoutSessionWithRoom,
-  VoucherRedemption,
-  Voucher,
+  CheckoutVoucherItem,
+  CheckoutPhysicalReward,
+  CheckoutMenuItem,
 } from "@/lib/data/checkout";
 
 // ---------------------------------------------------------------------------
@@ -38,7 +42,9 @@ import type {
 
 interface CheckoutClientProps {
   session: CheckoutSessionWithRoom;
-  initialVouchers: (VoucherRedemption & { voucher: Voucher | null })[];
+  initialVouchers: CheckoutVoucherItem[];
+  initialPhysicalRewards?: CheckoutPhysicalReward[];
+  menuItems?: CheckoutMenuItem[];
   /** userId được page.tsx truyền vào; auth thực tế do Server Actions xử lý */
   userId: string;
 }
@@ -81,6 +87,8 @@ function validateGuestInfo(info: GuestInfo): GuestInfoErrors {
 export function CheckoutClient({
   session,
   initialVouchers,
+  initialPhysicalRewards = [],
+  menuItems = [],
   userId: _userId, // eslint-disable-line @typescript-eslint/no-unused-vars
 }: CheckoutClientProps) {
 
@@ -98,6 +106,15 @@ export function CheckoutClient({
   const [discountAmountVnd, setDiscountAmountVnd] = useState(0);
   const [isVoucherLoading, setIsVoucherLoading] = useState(false);
   const [voucherError, setVoucherError] = useState<string | null>(null);
+
+  // ── State: physical rewards & meal choice ──────────────────────────────────
+  const [availablePhysicalRewards, setAvailablePhysicalRewards] = useState<CheckoutPhysicalReward[]>(
+    initialPhysicalRewards
+  );
+  const [selectedPhysicalRewardId, setSelectedPhysicalRewardId] = useState<string | null>(null);
+  const [selectedMenuItemId, setSelectedMenuItemId] = useState<string | null>(null);
+  const [isPhysicalRewardLoading, setIsPhysicalRewardLoading] = useState(false);
+  const [physicalRewardError, setPhysicalRewardError] = useState<string | null>(null);
 
   // ── State: QRModal ────────────────────────────────────────────────────────
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
@@ -181,6 +198,56 @@ export function CheckoutClient({
     [selectedRedemptionId, session.id, handleReleaseVoucher]
   );
 
+  // ── Handler: hủy phần thưởng hiện vật ─────────────────────────────────────
+  const handleReleasePhysicalReward = useCallback(async () => {
+    if (!selectedPhysicalRewardId) return;
+    setIsPhysicalRewardLoading(true);
+    setPhysicalRewardError(null);
+
+    await releasePhysicalRewardAction(session.id, selectedPhysicalRewardId);
+
+    setSelectedPhysicalRewardId(null);
+    setSelectedMenuItemId(null);
+    setIsPhysicalRewardLoading(false);
+  }, [selectedPhysicalRewardId, session.id]);
+
+  // ── Handler: áp phần thưởng hiện vật / món ăn ─────────────────────────────
+  const handleApplyPhysicalReward = useCallback(
+    async (entitlementId: string, menuItemId?: string) => {
+      // Toggle off nếu bấm lại chính phần thưởng đó
+      if (
+        selectedPhysicalRewardId === entitlementId &&
+        (!menuItemId || selectedMenuItemId === menuItemId)
+      ) {
+        await handleReleasePhysicalReward();
+        return;
+      }
+
+      setIsPhysicalRewardLoading(true);
+      setPhysicalRewardError(null);
+
+      // Nếu đang chọn phần thưởng khác → hủy trước
+      if (selectedPhysicalRewardId && selectedPhysicalRewardId !== entitlementId) {
+        await releasePhysicalRewardAction(session.id, selectedPhysicalRewardId);
+      }
+
+      const res = await applyPhysicalRewardAction(session.id, entitlementId, menuItemId);
+      setIsPhysicalRewardLoading(false);
+
+      if (!res.success) {
+        setPhysicalRewardError(res.error || "Không thể áp dụng phần thưởng.");
+        const { data: refreshed } = await getPhysicalRewardsAction();
+        if (refreshed) setAvailablePhysicalRewards(refreshed);
+        return;
+      }
+
+      setSelectedPhysicalRewardId(entitlementId);
+      setSelectedMenuItemId(menuItemId || null);
+      setPhysicalRewardError(null);
+    },
+    [selectedPhysicalRewardId, selectedMenuItemId, session.id, handleReleasePhysicalReward]
+  );
+
   // ── Handler: bấm "Tiến hành thanh toán" ──────────────────────────────────
   function handleProceedToPayment() {
     // Validate form thông tin khách
@@ -218,6 +285,14 @@ export function CheckoutClient({
         onReleaseVoucher={handleReleaseVoucher}
         isVoucherLoading={isVoucherLoading}
         voucherError={voucherError}
+        availablePhysicalRewards={availablePhysicalRewards}
+        selectedPhysicalRewardId={selectedPhysicalRewardId}
+        selectedMenuItemId={selectedMenuItemId}
+        menuItems={menuItems}
+        onApplyPhysicalReward={handleApplyPhysicalReward}
+        onReleasePhysicalReward={handleReleasePhysicalReward}
+        isPhysicalRewardLoading={isPhysicalRewardLoading}
+        physicalRewardError={physicalRewardError}
         guestInfo={guestInfo}
         guestInfoErrors={guestInfoErrors}
         onGuestInfoChange={handleGuestInfoChange}

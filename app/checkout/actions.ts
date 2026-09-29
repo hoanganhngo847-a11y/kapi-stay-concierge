@@ -95,3 +95,53 @@ export async function refreshAvailableVouchersAction(): Promise<{
 
   return getUserAvailableVouchers(userId);
 }
+
+// ---------------------------------------------------------------------------
+// Actions cho Phần thưởng hiện vật / ẩm thực
+// ---------------------------------------------------------------------------
+
+export async function getPhysicalRewardsAction(): Promise<{
+  data: Awaited<ReturnType<typeof import("@/lib/data/checkout").getUserAvailablePhysicalRewards>>["data"];
+  error: string | null;
+}> {
+  const userId = await getAuthenticatedUserId();
+  if (!userId) {
+    return { data: [], error: "Phiên đăng nhập đã hết hạn." };
+  }
+  const { getUserAvailablePhysicalRewards } = await import("@/lib/data/checkout");
+  return getUserAvailablePhysicalRewards(userId);
+}
+
+export async function getMenuItemsAction(): Promise<{
+  data: Awaited<ReturnType<typeof import("@/lib/data/checkout").getActiveCheckoutMenuItems>>["data"];
+  error: string | null;
+}> {
+  const { getActiveCheckoutMenuItems } = await import("@/lib/data/checkout");
+  return getActiveCheckoutMenuItems();
+}
+
+export async function applyPhysicalRewardAction(
+  sessionId: string,
+  entitlementId: string,
+  menuItemId?: string
+): Promise<{ success: boolean; selectionData?: Record<string, unknown>; error?: string }> {
+  const userId = await getAuthenticatedUserId();
+  if (!userId) {
+    return { success: false, error: "Phiên đăng nhập đã hết hạn." };
+  }
+  const { applyPhysicalReward } = await import("@/lib/data/checkout");
+  return applyPhysicalReward(sessionId, entitlementId, menuItemId);
+}
+
+export async function releasePhysicalRewardAction(
+  sessionId: string,
+  entitlementId?: string
+): Promise<{ success: boolean; error?: string }> {
+  const userId = await getAuthenticatedUserId();
+  if (!userId) {
+    return { success: false, error: "Phiên đăng nhập đã hết hạn." };
+  }
+  const { releasePhysicalReward } = await import("@/lib/data/checkout");
+  return releasePhysicalReward(sessionId, entitlementId);
+}
+

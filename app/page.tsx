@@ -7,7 +7,6 @@ import { BookingSearchControl } from "@/components/rooms/BookingSearchControl";
 import { Reveal } from "@/components/ui/Reveal";
 import { FixedBackgroundVideo } from "@/components/home/FixedBackgroundVideo";
 import { RewardsSection } from "@/components/rewards";
-import { getRewardsSummary } from "@/lib/data/rewards";
 
 export const dynamic = "force-dynamic";
 
@@ -41,8 +40,7 @@ const DEFAULT_TILES = [
 ];
 
 export default async function HomePage() {
-  const [{ data: properties = [] }, { data: rewardsSummary, error: rewardsError }] =
-    await Promise.all([getActiveProperties(), getRewardsSummary()]);
+  const { data: properties = [] } = await getActiveProperties();
 
   // Ghép nối danh sách properties thực tế với visual tiles
   const propertyTiles = DEFAULT_TILES.map((tile) => {
@@ -191,10 +189,7 @@ export default async function HomePage() {
         </section>
 
         {/* ── 4. KAPI REWARDS PRESENTATION ── */}
-        <RewardsSection
-          initialSummary={rewardsSummary}
-          initialError={rewardsError}
-        />
+        <RewardsSection />
 
         {/* ── 5. THREE CORE SERVICE PRINCIPLES (Minimal typography rows) ── */}
         <section className="relative w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20 border-t border-[#E5E5E5]/60 bg-transparent">
