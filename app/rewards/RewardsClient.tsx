@@ -543,16 +543,25 @@ export function RewardsClient({
       {/* ── D. STREAK REWARD ROADMAP (Lộ Trình Phần Thưởng Chuỗi) ── */}
       <section className="space-y-6">
         <Reveal variant="fade-up" duration={600}>
-          <div className="space-y-1">
-            <span className="text-xs uppercase tracking-widest text-[#707072]">
-              Lộ trình chuỗi
-            </span>
-            <h2 className="text-2xl sm:text-3xl font-normal text-[#111111]">
-              CÁC MỐC PHẦN THƯỞNG
-            </h2>
-            <p className="text-xs sm:text-sm text-[#707072]">
-              Phần thưởng tự động được phát hành vào kho quà ngay khi đạt mốc liên tiếp. Hạn dùng 7 ngày kể từ lúc cấp.
-            </p>
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+            <div className="space-y-1">
+              <span className="text-xs uppercase tracking-widest text-[#707072]">
+                Lộ trình chuỗi
+              </span>
+              <h2 className="text-2xl sm:text-3xl font-normal text-[#111111]">
+                CÁC MỐC PHẦN THƯỞNG
+              </h2>
+              <p className="text-xs sm:text-sm text-[#707072]">
+                Phần thưởng tự động được phát hành vào kho quà ngay khi đạt mốc liên tiếp. Hạn dùng 7 ngày kể từ lúc cấp.
+              </p>
+            </div>
+            <Link
+              href="/menu"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-[#111111] bg-white text-[#111111] text-xs font-medium hover:bg-[#111111] hover:text-white transition-colors self-start sm:self-auto shrink-0"
+            >
+              Xem Menu Kapi
+              <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
         </Reveal>
 
