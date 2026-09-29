@@ -14,12 +14,28 @@ export type StaffMutableRoomOperationalStatus =
 export type TicketStatus = "pending" | "in_progress" | "resolved";
 
 export class StaffAuthError extends Error {
+  code: "UNAUTHENTICATED" | "FORBIDDEN" | "AUTH_BACKEND_ERROR";
+
   constructor(
-    public code: "UNAUTHENTICATED" | "FORBIDDEN" | "AUTH_BACKEND_ERROR",
+    code: "UNAUTHENTICATED" | "FORBIDDEN" | "AUTH_BACKEND_ERROR",
     message: string
   ) {
     super(message);
     this.name = "StaffAuthError";
+    this.code = code;
+  }
+}
+
+export class AdminAuthError extends Error {
+  code: "UNAUTHENTICATED" | "FORBIDDEN" | "AUTH_BACKEND_ERROR";
+
+  constructor(
+    code: "UNAUTHENTICATED" | "FORBIDDEN" | "AUTH_BACKEND_ERROR",
+    message: string
+  ) {
+    super(message);
+    this.name = "AdminAuthError";
+    this.code = code;
   }
 }
 
@@ -31,12 +47,15 @@ export type RoomOperationErrorCode =
   | "OPERATION_FAILED";
 
 export class RoomOperationError extends Error {
+  code: RoomOperationErrorCode;
+
   constructor(
-    public code: RoomOperationErrorCode,
+    code: RoomOperationErrorCode,
     message: string
   ) {
     super(message);
     this.name = "RoomOperationError";
+    this.code = code;
   }
 }
 
@@ -423,6 +442,59 @@ export async function verifyStaffRole(): Promise<{
     id: user.id,
     email: user.email,
     role: roleData.role,
+  };
+}
+
+/**
+ * Verifies that the current authenticated user has strictly 'admin' privileges.
+ * Authoritative check against database table public.staff_roles.
+ * Does NOT trust client-side user_metadata.
+ * Rejects unauthenticated users, staff-only accounts, and customer accounts.
+ */
+export async function verifyAdminRole(): Promise<{
+  id: string;
+  email?: string;
+  role: "admin";
+}> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  // 1. Supabase Auth connection error
+  if (authError) {
+    console.error("[verifyAdminRole] Lỗi kết nối Supabase Auth:", authError.message);
+    throw new AdminAuthError("AUTH_BACKEND_ERROR", authError.message);
+  }
+
+  // 2. Unauthenticated user
+  if (!user) {
+    throw new AdminAuthError("UNAUTHENTICATED", "Chưa đăng nhập");
+  }
+
+  // 3. Authoritative role check against database table public.staff_roles
+  const { data: roleData, error: roleError } = await supabase
+    .from("staff_roles")
+    .select("role")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (roleError) {
+    console.error("[verifyAdminRole] Lỗi truy vấn bảng staff_roles:", roleError.message);
+    throw new AdminAuthError("AUTH_BACKEND_ERROR", roleError.message);
+  }
+
+  // 4. Must be strictly 'admin'
+  if (!roleData || roleData.role !== "admin") {
+    throw new AdminAuthError("FORBIDDEN", "Bạn không có quyền quản trị viên.");
+  }
+
+  return {
+    id: user.id,
+    email: user.email,
+    role: "admin",
   };
 }
 
@@ -918,4 +990,172 @@ export async function getStaffDashboardData(): Promise<StaffDashboardData> {
   }
 
   return validateStaffDashboardBoundary(rpcRaw);
+}
+
+export interface AdminKPIs {
+  today_bookings_count: number;
+  today_checkins_count: number;
+  today_checkouts_count: number;
+  occupied_rooms_count: number;
+  ready_rooms_count: number;
+  cleaning_rooms_count: number;
+  maintenance_rooms_count: number;
+  total_rooms_count: number;
+  pending_tickets_count: number;
+}
+
+export interface AdminRecentBooking {
+  id: string;
+  short_id: string;
+  room_id: string;
+  room_name: string;
+  user_id: string;
+  guest_name: string;
+  guest_phone: string | null;
+  check_in: string | null;
+  check_out: string | null;
+  check_in_at: string | null;
+  check_out_at: string | null;
+  booking_status: string;
+  payment_status: string;
+  final_paid_amount_vnd: number;
+  created_at: string;
+}
+
+export interface AdminPendingTicket {
+  id: string;
+  short_id: string;
+  booking_id: string;
+  room_id: string;
+  room_name: string;
+  user_id: string;
+  guest_name: string;
+  guest_phone: string | null;
+  category: string;
+  description: string;
+  status: TicketStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminRoomSummary {
+  room_id: string;
+  room_name: string;
+  operational_status: RoomOperationalStatus;
+  updated_at: string | null;
+  updated_by: string | null;
+}
+
+export interface AdminDashboardData {
+  success: boolean;
+  kpis: AdminKPIs;
+  recent_bookings: AdminRecentBooking[];
+  pending_tickets: AdminPendingTicket[];
+  room_summaries: AdminRoomSummary[];
+}
+
+export function validateAdminDashboardBoundary(data: unknown): AdminDashboardData {
+  if (!data || typeof data !== "object") {
+    throw new Error("Dữ liệu Admin Dashboard không đúng định dạng đối tượng.");
+  }
+
+  const payload = data as Record<string, unknown>;
+  if (payload.success !== true) {
+    const errorMsg = typeof payload.error === "string" ? payload.error : "Không rõ nguyên nhân";
+    throw new Error(`Admin Dashboard thất bại từ RPC: ${errorMsg}`);
+  }
+
+  const rawKpis = (payload.kpis || {}) as Record<string, unknown>;
+  const kpis: AdminKPIs = {
+    today_bookings_count: typeof rawKpis.today_bookings_count === "number" ? rawKpis.today_bookings_count : 0,
+    today_checkins_count: typeof rawKpis.today_checkins_count === "number" ? rawKpis.today_checkins_count : 0,
+    today_checkouts_count: typeof rawKpis.today_checkouts_count === "number" ? rawKpis.today_checkouts_count : 0,
+    occupied_rooms_count: typeof rawKpis.occupied_rooms_count === "number" ? rawKpis.occupied_rooms_count : 0,
+    ready_rooms_count: typeof rawKpis.ready_rooms_count === "number" ? rawKpis.ready_rooms_count : 0,
+    cleaning_rooms_count: typeof rawKpis.cleaning_rooms_count === "number" ? rawKpis.cleaning_rooms_count : 0,
+    maintenance_rooms_count: typeof rawKpis.maintenance_rooms_count === "number" ? rawKpis.maintenance_rooms_count : 0,
+    total_rooms_count: typeof rawKpis.total_rooms_count === "number" ? rawKpis.total_rooms_count : 0,
+    pending_tickets_count: typeof rawKpis.pending_tickets_count === "number" ? rawKpis.pending_tickets_count : 0,
+  };
+
+  const rawBookings = Array.isArray(payload.recent_bookings) ? payload.recent_bookings : [];
+  const recent_bookings: AdminRecentBooking[] = rawBookings.map((rawItem: unknown) => {
+    const b = (rawItem && typeof rawItem === "object" ? rawItem : {}) as Record<string, unknown>;
+    return {
+      id: String(b.id || ""),
+      short_id: String(b.short_id || (b.id ? String(b.id).slice(0, 8) : "")),
+      room_id: String(b.room_id || ""),
+      room_name: String(b.room_name || "N/A"),
+      user_id: String(b.user_id || ""),
+      guest_name: String(b.guest_name || "Khách vãng lai"),
+      guest_phone: b.guest_phone ? String(b.guest_phone) : null,
+      check_in: b.check_in ? String(b.check_in) : null,
+      check_out: b.check_out ? String(b.check_out) : null,
+      check_in_at: b.check_in_at ? String(b.check_in_at) : null,
+      check_out_at: b.check_out_at ? String(b.check_out_at) : null,
+      booking_status: String(b.booking_status || "UNKNOWN"),
+      payment_status: String(b.payment_status || "UNKNOWN"),
+      final_paid_amount_vnd: typeof b.final_paid_amount_vnd === "number" ? b.final_paid_amount_vnd : 0,
+      created_at: String(b.created_at || ""),
+    };
+  });
+
+  const rawTickets = Array.isArray(payload.pending_tickets) ? payload.pending_tickets : [];
+  const pending_tickets: AdminPendingTicket[] = rawTickets.map((rawItem: unknown) => {
+    const t = (rawItem && typeof rawItem === "object" ? rawItem : {}) as Record<string, unknown>;
+    return {
+      id: String(t.id || ""),
+      short_id: String(t.short_id || (t.id ? String(t.id).slice(0, 8) : "")),
+      booking_id: String(t.booking_id || ""),
+      room_id: String(t.room_id || ""),
+      room_name: String(t.room_name || "N/A"),
+      user_id: String(t.user_id || ""),
+      guest_name: String(t.guest_name || "Khách"),
+      guest_phone: t.guest_phone ? String(t.guest_phone) : null,
+      category: String(t.category || ""),
+      description: String(t.description || ""),
+      status: (t.status === "in_progress" || t.status === "resolved") ? t.status : "pending",
+      created_at: String(t.created_at || ""),
+      updated_at: String(t.updated_at || ""),
+    };
+  });
+
+  const rawRooms = Array.isArray(payload.room_summaries) ? payload.room_summaries : [];
+  const room_summaries: AdminRoomSummary[] = rawRooms.map((rawItem: unknown) => {
+    const r = (rawItem && typeof rawItem === "object" ? rawItem : {}) as Record<string, unknown>;
+    return {
+      room_id: String(r.room_id || ""),
+      room_name: String(r.room_name || "N/A"),
+      operational_status: isValidRoomOperationalStatus(r.operational_status) ? r.operational_status : "ready",
+      updated_at: r.updated_at ? String(r.updated_at) : null,
+      updated_by: r.updated_by ? String(r.updated_by) : null,
+    };
+  });
+
+  return {
+    success: true,
+    kpis,
+    recent_bookings,
+    pending_tickets,
+    room_summaries,
+  };
+}
+
+/**
+ * Retrieves comprehensive admin dashboard data for Admin Portal (Phase 1).
+ * Calls trusted RPC `get_admin_dashboard_data`.
+ * Requires strictly authenticated admin role.
+ */
+export async function getAdminDashboardData(): Promise<AdminDashboardData> {
+  await verifyAdminRole();
+
+  const supabase = await createClient();
+  const { data: rpcRaw, error: rpcError } = await supabase.rpc("get_admin_dashboard_data");
+
+  if (rpcError) {
+    console.error("[getAdminDashboardData] Lỗi RPC get_admin_dashboard_data:", rpcError.message);
+    throw new Error("Không thể tải dữ liệu bảng điều khiển quản trị.");
+  }
+
+  return validateAdminDashboardBoundary(rpcRaw);
 }
