@@ -106,10 +106,10 @@ export default async function HomePage() {
           <Reveal duration={800} distance={30}>
             <div className="mb-6 inline-block bg-white/85 backdrop-blur-[4px] px-5 py-3 border border-[#E5E5E5]">
               <p className="text-xs font-medium uppercase tracking-[0.2em] text-[#707072] mb-1">
-                Tìm phòng nhanh
+                Tìm phòng theo chi nhánh
               </p>
               <h2 className="text-2xl sm:text-3xl font-medium tracking-tight text-[#111111]">
-                Chọn điểm đến và khung giờ của bạn
+                Chọn chi nhánh Kapi Stay của bạn
               </h2>
             </div>
 

@@ -38,40 +38,14 @@ export function RoomCard(props: RoomCardProps) {
 
   const hasImage = Boolean(rawCover && rawCover.trim() !== "");
 
-  // Đọc các query params hiện tại để giữ nguyên context khi đi sang Room Detail
+  // Chỉ giữ property_id để Back button trên Room Detail có thể quay lại đúng chi nhánh.
+  // Không mang theo các tham số thời gian lưu trú hay số lượng khách sang Room Detail.
   const propertyId = searchParams?.get("property_id") ?? "";
-  const checkIn =
-    searchParams?.get("check_in_at") ??
-    searchParams?.get("checkInAt") ??
-    searchParams?.get("check_in") ??
-    searchParams?.get("check-in") ??
-    searchParams?.get("checkin") ??
-    "";
-  const checkOut =
-    searchParams?.get("check_out_at") ??
-    searchParams?.get("checkOutAt") ??
-    searchParams?.get("check_out") ??
-    searchParams?.get("check-out") ??
-    searchParams?.get("checkout") ??
-    "";
-  const capacityParam =
-    searchParams?.get("capacity") ??
-    searchParams?.get("max_guests") ??
-    searchParams?.get("guests") ??
-    "";
 
-  // Nối các tham số lọc vào đường dẫn detailHref
   const queryParams = new URLSearchParams();
-  if (propertyId) queryParams.set("property_id", propertyId);
-  if (checkIn) {
-    queryParams.set("check_in", checkIn);
-    queryParams.set("check_in_at", checkIn);
+  if (propertyId) {
+    queryParams.set("property_id", propertyId);
   }
-  if (checkOut) {
-    queryParams.set("check_out", checkOut);
-    queryParams.set("check_out_at", checkOut);
-  }
-  if (capacityParam) queryParams.set("capacity", capacityParam);
 
   const queryString = queryParams.toString();
   const basePath = id ? `/rooms/${id}` : "/rooms";
