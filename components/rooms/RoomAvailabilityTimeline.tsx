@@ -2,15 +2,12 @@
 
 import * as React from "react";
 import {
-  ChevronLeft,
-  ChevronRight,
   Clock,
   RefreshCw,
-  Info,
   AlertCircle,
   Calendar,
-  X,
   RotateCcw,
+  Check,
 } from "lucide-react";
 import {
   getPublicRoomAvailabilityTimeline,
@@ -27,20 +24,6 @@ export interface RoomAvailabilityTimelineProps {
   onClearConflictMessage?: () => void;
 }
 
-export type SlotState =
-  | "PAST"
-  | "AVAILABLE"
-  | "BOOKED"
-  | "HELD"
-  | "BLOCKED"
-  | "SELECTED_IN"
-  | "SELECTED_OUT"
-  | "IN_RANGE"
-  | "VALID_CHECKOUT"
-  | "DISABLED_UNDER_MIN"
-  | "DISABLED_OVER_24H"
-  | "DISABLED_CONFLICT";
-
 /**
  * Returns current YYYY-MM-DD in Asia/Ho_Chi_Minh timezone.
  */
@@ -55,7 +38,7 @@ function getTodayVietnamDateStr(): string {
 }
 
 /**
- * Adds N days to YYYY-MM-DD string and returns YYYY-MM-DD in Asia/Ho_Chi_Minh.
+ * Adds N days to YYYY-MM-DD string in Asia/Ho_Chi_Minh.
  */
 function addDaysToDateStr(dateStr: string, days: number): string {
   const [y, m, d] = dateStr.split("-").map(Number);
@@ -69,7 +52,7 @@ function addDaysToDateStr(dateStr: string, days: number): string {
 }
 
 /**
- * Formats YYYY-MM-DD to human-readable label: "Hôm nay — 30/09", "Ngày mai — 01/10", or "Thứ 4 — 01/10".
+ * Formats YYYY-MM-DD to human label: "Hôm nay — 30/09", "Ngày mai — 01/10", or "Thứ X — DD/MM".
  */
 function formatDisplayDateLabel(dateStr: string, todayStr: string): string {
   const [y, m, d] = dateStr.split("-").map(Number);
@@ -83,6 +66,7 @@ function formatDisplayDateLabel(dateStr: string, todayStr: string): string {
 
   if (diffDays === 0) return `Hôm nay — ${dayMonth}`;
   if (diffDays === 1) return `Ngày mai — ${dayMonth}`;
+  if (diffDays === 2) return `Ngày kia — ${dayMonth}`;
 
   const weekdayFormatter = new Intl.DateTimeFormat("vi-VN", {
     timeZone: "Asia/Ho_Chi_Minh",
@@ -93,15 +77,33 @@ function formatDisplayDateLabel(dateStr: string, todayStr: string): string {
 }
 
 /**
- * Formats YYYY-MM-DDTHH:mm to friendly string "HH:mm ngày DD/MM".
+ * Short date pill label: "Hôm nay 30/09", "Ngày mai 01/10", "02/10".
+ */
+function formatShortChipLabel(dateStr: string, todayStr: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const targetDate = new Date(Date.UTC(y, m - 1, d));
+
+  const [ty, tm, td] = todayStr.split("-").map(Number);
+  const todayDate = new Date(Date.UTC(ty, tm - 1, td));
+
+  const diffDays = Math.round((targetDate.getTime() - todayDate.getTime()) / 86400000);
+  const dayMonth = `${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}`;
+
+  if (diffDays === 0) return `Hôm nay ${dayMonth}`;
+  if (diffDays === 1) return `Ngày mai ${dayMonth}`;
+  return dayMonth;
+}
+
+/**
+ * Formats YYYY-MM-DDTHH:mm to friendly string "HH:mm, DD/MM/YYYY".
  */
 function formatFriendlyDateTime(isoStr: string): string {
   if (!isoStr) return "";
   const [datePart, timePart] = isoStr.split("T");
   if (!datePart) return isoStr;
-  const [, m, d] = datePart.split("-");
+  const [y, m, d] = datePart.split("-");
   const time = timePart ? timePart.slice(0, 5) : "00:00";
-  return `${time} (${d}/${m})`;
+  return `${time} · ${d}/${m}/${y}`;
 }
 
 export function RoomAvailabilityTimeline({
@@ -114,49 +116,78 @@ export function RoomAvailabilityTimeline({
   onClearConflictMessage,
 }: RoomAvailabilityTimelineProps) {
   const todayStr = React.useMemo(() => getTodayVietnamDateStr(), []);
+  const maxHorizonDateStr = React.useMemo(() => addDaysToDateStr(todayStr, 14), [todayStr]);
 
-  // Active date displayed in the slot picker
-  const [activeDateStr, setActiveDateStr] = React.useState<string>(() => {
+  // 4-step state
+  const [checkInDate, setCheckInDate] = React.useState<string>(() => {
     if (selectedCheckIn) return selectedCheckIn.slice(0, 10);
     return todayStr;
   });
 
-  // Track pending check-in selection when user is picking checkout time
-  const [pendingCheckIn, setPendingCheckIn] = React.useState<string | null>(
-    selectedCheckIn || null
-  );
+  const [checkInTime, setCheckInTime] = React.useState<string | null>(() => {
+    if (selectedCheckIn && selectedCheckIn.includes("T")) {
+      return selectedCheckIn.slice(11, 16);
+    }
+    return null;
+  });
 
-  // Friendly alert/message to explain rules (e.g. max 24h, min 2h, conflict)
-  const [userNotice, setUserNotice] = React.useState<string | null>(null);
+  const [checkOutDate, setCheckOutDate] = React.useState<string>(() => {
+    if (selectedCheckOut) return selectedCheckOut.slice(0, 10);
+    return todayStr;
+  });
 
-  // Intervals data fetched from server (48-hour window from activeDateStr)
+  const [checkOutTime, setCheckOutTime] = React.useState<string | null>(() => {
+    if (selectedCheckOut && selectedCheckOut.includes("T")) {
+      return selectedCheckOut.slice(11, 16);
+    }
+    return null;
+  });
+
+  // Track external prop changes cleanly during render
+  const [prevCheckInProp, setPrevCheckInProp] = React.useState(selectedCheckIn);
+  const [prevCheckOutProp, setPrevCheckOutProp] = React.useState(selectedCheckOut);
+
+  if (selectedCheckIn !== prevCheckInProp || selectedCheckOut !== prevCheckOutProp) {
+    setPrevCheckInProp(selectedCheckIn);
+    setPrevCheckOutProp(selectedCheckOut);
+
+    if (selectedCheckIn) {
+      setCheckInDate(selectedCheckIn.slice(0, 10));
+      setCheckInTime(selectedCheckIn.includes("T") ? selectedCheckIn.slice(11, 16) : null);
+    } else {
+      setCheckInTime(null);
+    }
+
+    if (selectedCheckOut) {
+      setCheckOutDate(selectedCheckOut.slice(0, 10));
+      setCheckOutTime(selectedCheckOut.includes("T") ? selectedCheckOut.slice(11, 16) : null);
+    } else {
+      setCheckOutTime(null);
+    }
+  }
+
+  // Active step in 4-step wizard
+  // Step 1: Chọn ngày nhận
+  // Step 2: Chọn giờ nhận
+  // Step 3: Chọn ngày trả
+  // Step 4: Chọn giờ trả
+  const activeStep = React.useMemo(() => {
+    if (!checkInTime) return 2; // Date is chosen (defaults to today), picking check-in time
+    if (!checkOutTime) return 4; // Check-in time chosen, picking check-out
+    return 5; // Complete selection
+  }, [checkInTime, checkOutTime]);
+
+  // Intervals data fetched from server across full 14-day booking horizon
   const [intervals, setIntervals] = React.useState<PublicTimelineInterval[]>([]);
   const [isLoading, setIsLoading] = React.useState<boolean>(true);
   const [fetchError, setFetchError] = React.useState<string | null>(null);
 
-  // Max 14 days ahead
-  const maxDateStr = React.useMemo(() => addDaysToDateStr(todayStr, 14), [todayStr]);
-
-  // Synchronize state from prop adjustments without triggering cascading renders in effects
-  const [prevCheckInProp, setPrevCheckInProp] = React.useState(selectedCheckIn);
-  if (selectedCheckIn !== prevCheckInProp) {
-    setPrevCheckInProp(selectedCheckIn);
-    setPendingCheckIn(selectedCheckIn || null);
-    if (selectedCheckIn && !selectedCheckOut) {
-      const selDate = selectedCheckIn.slice(0, 10);
-      if (selDate >= todayStr && selDate <= maxDateStr) {
-        setActiveDateStr(selDate);
-      }
-    }
-  }
-
-  // Fetch 48-hour timeline window starting from activeDateStr
+  // Fetch full 14-day horizon so multi-day collision checks are instantaneous and zero-waterfall
   const fetchTimeline = React.useCallback(async () => {
     if (!roomId) return;
     try {
-      const rangeStart = `${activeDateStr}T00:00:00+07:00`;
-      const twoDaysLaterStr = addDaysToDateStr(activeDateStr, 2);
-      const rangeEnd = `${twoDaysLaterStr}T00:00:00+07:00`;
+      const rangeStart = `${todayStr}T00:00:00+07:00`;
+      const rangeEnd = `${addDaysToDateStr(todayStr, 15)}T00:00:00+07:00`;
 
       const res = await getPublicRoomAvailabilityTimeline(roomId, rangeStart, rangeEnd);
       if (res.success) {
@@ -170,9 +201,9 @@ export function RoomAvailabilityTimeline({
     } finally {
       setIsLoading(false);
     }
-  }, [roomId, activeDateStr]);
+  }, [roomId, todayStr]);
 
-  // Fetch on mount or activeDateStr change
+  // Fetch on mount
   React.useEffect(() => {
     let isMounted = true;
     async function run() {
@@ -212,28 +243,8 @@ export function RoomAvailabilityTimeline({
     };
   }, [fetchTimeline]);
 
-  // Date Navigation handlers
-  const canGoPrev = activeDateStr > todayStr;
-  const canGoNext = activeDateStr < maxDateStr;
-
-  const handlePrevDay = () => {
-    if (!canGoPrev) return;
-    setIsLoading(true);
-    setActiveDateStr(addDaysToDateStr(activeDateStr, -1));
-    setUserNotice(null);
-    onClearConflictMessage?.();
-  };
-
-  const handleNextDay = () => {
-    if (!canGoNext) return;
-    setIsLoading(true);
-    setActiveDateStr(addDaysToDateStr(activeDateStr, 1));
-    setUserNotice(null);
-    onClearConflictMessage?.();
-  };
-
   // Helper: check raw interval collision for a single hour [slotStartMs, slotEndMs)
-  const getRawHourIntervalState = React.useCallback(
+  const getRawHourState = React.useCallback(
     (slotStartMs: number, slotEndMs: number): "PAST" | "BOOKED" | "HELD" | "BLOCKED" | "AVAILABLE" => {
       const nowMs = Date.now();
       if (slotEndMs <= nowMs) {
@@ -254,199 +265,37 @@ export function RoomAvailabilityTimeline({
     [intervals]
   );
 
-  // Helper: check if check-in is currently being chosen vs check-out
-  const isChoosingCheckOut = Boolean(pendingCheckIn && (!selectedCheckOut || pendingCheckIn !== selectedCheckIn));
-  const hasFullSelection = Boolean(selectedCheckIn && selectedCheckOut && pendingCheckIn === selectedCheckIn);
-
-  // If pendingCheckIn is set, get its timestamp and date parts
-  const pendingCheckInMs = React.useMemo(() => {
-    if (!pendingCheckIn) return null;
-    return new Date(
-      pendingCheckIn.includes("+") || pendingCheckIn.includes("Z")
-        ? pendingCheckIn
-        : `${pendingCheckIn}:00+07:00`
-    ).getTime();
-  }, [pendingCheckIn]);
-
-  const checkInDateStr = pendingCheckIn ? pendingCheckIn.slice(0, 10) : null;
-  const checkInNextDateStr = checkInDateStr ? addDaysToDateStr(checkInDateStr, 1) : null;
-
-  // Selected timestamps for highlighting confirmed range
-  const confirmedInMs = React.useMemo(() => {
-    if (!selectedCheckIn) return null;
-    return new Date(
-      selectedCheckIn.includes("+") || selectedCheckIn.includes("Z")
-        ? selectedCheckIn
-        : `${selectedCheckIn}:00+07:00`
-    ).getTime();
-  }, [selectedCheckIn]);
-
-  const confirmedOutMs = React.useMemo(() => {
-    if (!selectedCheckOut) return null;
-    return new Date(
-      selectedCheckOut.includes("+") || selectedCheckOut.includes("Z")
-        ? selectedCheckOut
-        : `${selectedCheckOut}:00+07:00`
-    ).getTime();
-  }, [selectedCheckOut]);
+  // Check-In Datetime in ms
+  const checkInMs = React.useMemo(() => {
+    if (!checkInDate || !checkInTime) return null;
+    return new Date(`${checkInDate}T${checkInTime}:00+07:00`).getTime();
+  }, [checkInDate, checkInTime]);
 
   /**
-   * Evaluates the presentation state and action for an hour slot on activeDateStr.
-   * Hour `h` represents:
-   * - In Step 1 (Check-in): Starting check-in at `activeDateStr T h:00`
-   * - In Step 2 (Check-out): Ending check-out at `activeDateStr T h:00`
+   * Evaluates check-in hour slot (00:00 to 23:00) on checkInDate.
    */
-  const evaluateSlot = React.useCallback(
+  const evaluateCheckInSlot = React.useCallback(
     (hour: number) => {
-      const slotTimeStr = `${activeDateStr}T${String(hour).padStart(2, "0")}:00`;
-      const slotStartMs = new Date(`${slotTimeStr}:00+07:00`).getTime();
+      const slotTimeStr = `${String(hour).padStart(2, "0")}:00`;
+      const slotStartMs = new Date(`${checkInDate}T${slotTimeStr}:00+07:00`).getTime();
       const slotEndMs = slotStartMs + 3600 * 1000;
 
-      // -------------------------------------------------------------
-      // Case A: Confirmed selection range display
-      // -------------------------------------------------------------
-      if (hasFullSelection && confirmedInMs && confirmedOutMs) {
-        if (slotStartMs === confirmedInMs) {
-          return {
-            state: "SELECTED_IN" as SlotState,
-            label: "Nhận",
-            subtext: "Giờ nhận",
-            clickable: true,
-            hint: "Giờ nhận phòng đã chọn",
-          };
-        }
-        if (slotStartMs === confirmedOutMs) {
-          return {
-            state: "SELECTED_OUT" as SlotState,
-            label: "Trả",
-            subtext: "Giờ trả",
-            clickable: true,
-            hint: "Giờ trả phòng đã chọn",
-          };
-        }
-        if (slotStartMs > confirmedInMs && slotStartMs < confirmedOutMs) {
-          return {
-            state: "IN_RANGE" as SlotState,
-            label: "Đang chọn",
-            subtext: "Trong đợt",
-            clickable: true,
-            hint: "Trong thời gian lưu trú",
-          };
-        }
-      }
+      const isSelected = checkInTime === slotTimeStr;
+      const raw = getRawHourState(slotStartMs, slotEndMs);
 
-      // -------------------------------------------------------------
-      // Case B: Step 2 — User is choosing Check-Out
-      // -------------------------------------------------------------
-      if (pendingCheckInMs !== null) {
-        // If this slot exactly matches the pending check-in point
-        if (slotStartMs === pendingCheckInMs) {
-          return {
-            state: "SELECTED_IN" as SlotState,
-            label: "Nhận",
-            subtext: "Đã chọn",
-            clickable: true,
-            hint: "Bấm để đổi giờ nhận phòng",
-          };
-        }
-
-        const durationHours = (slotStartMs - pendingCheckInMs) / (3600 * 1000);
-
-        // Before or equal to check-in
-        if (durationHours <= 0) {
-          // If available, let user click to change check-in directly!
-          const raw = getRawHourIntervalState(slotStartMs, slotEndMs);
-          if (raw === "AVAILABLE") {
-            return {
-              state: "AVAILABLE" as SlotState,
-              label: "Trống",
-              subtext: "Đổi nhận",
-              clickable: true,
-              hint: "Bấm để đổi giờ nhận phòng sang khung giờ này",
-            };
-          }
-          return {
-            state: (raw === "PAST" ? "PAST" : raw) as SlotState,
-            label: raw === "BOOKED" ? "Đã đặt" : raw === "HELD" ? "Đang giữ" : raw === "BLOCKED" ? "Khóa" : "Đã qua",
-            subtext: "Không chọn",
-            clickable: false,
-            hint: "Khung giờ này không khả dụng",
-          };
-        }
-
-        // Under minimum 2 hours
-        if (durationHours < 2) {
-          return {
-            state: "DISABLED_UNDER_MIN" as SlotState,
-            label: "< 2 giờ",
-            subtext: "Tối thiểu 2h",
-            clickable: true, // Clickable to show explanation
-            hint: "Thời lượng đặt phòng tối thiểu là 2 giờ",
-          };
-        }
-
-        // Over maximum 24 hours (e.g. 08:00 today -> 23:00 tomorrow = 39h)
-        if (durationHours > 24) {
-          return {
-            state: "DISABLED_OVER_24H" as SlotState,
-            label: "> 24h",
-            subtext: "Tối đa 24h",
-            clickable: true, // Clickable to explain friendly max 24h rule
-            hint: "Hiện tại Kapi chỉ hỗ trợ đặt phòng theo giờ tối đa 24 tiếng",
-          };
-        }
-
-        // Duration is between 2h and 24h: check if any conflict exists in [pendingCheckInMs, slotStartMs]
-        let hasConflict = false;
-        for (const item of intervals) {
-          const intStart = new Date(item.start_at).getTime();
-          const intEnd = new Date(item.end_at).getTime();
-          if (intStart < slotStartMs && intEnd > pendingCheckInMs) {
-            hasConflict = true;
-            break;
-          }
-        }
-
-        if (hasConflict) {
-          return {
-            state: "DISABLED_CONFLICT" as SlotState,
-            label: "Bị trùng",
-            subtext: "Đã có khách",
-            clickable: true,
-            hint: "Không thể chọn do có khoảng thời gian đã được đặt ở giữa",
-          };
-        }
-
-        // VALID CHECK-OUT OPTION!
+      if (raw !== "AVAILABLE") {
         return {
-          state: "VALID_CHECKOUT" as SlotState,
-          label: `+${durationHours}h`,
-          subtext: "Chọn trả",
-          clickable: true,
-          durationHours,
-          hint: `Bấm để chọn trả phòng lúc ${String(hour).padStart(2, "0")}:00 (${durationHours} giờ)`,
-        };
-      }
-
-      // -------------------------------------------------------------
-      // Case C: Step 1 — User is choosing Check-In
-      // -------------------------------------------------------------
-      const rawState = getRawHourIntervalState(slotStartMs, slotEndMs);
-
-      if (rawState !== "AVAILABLE") {
-        return {
-          state: rawState as SlotState,
+          state: raw,
           label:
-            rawState === "BOOKED"
+            raw === "BOOKED"
               ? "Đã đặt"
-              : rawState === "HELD"
+              : raw === "HELD"
               ? "Đang giữ"
-              : rawState === "BLOCKED"
+              : raw === "BLOCKED"
               ? "Khóa"
               : "Đã qua",
-          subtext: rawState === "PAST" ? "Đã qua" : "Không thể nhận",
           clickable: false,
-          hint: "Khung giờ không khả dụng để nhận phòng",
+          isSelected,
         };
       }
 
@@ -464,134 +313,160 @@ export function RoomAvailabilityTimeline({
 
       if (!has2hRoom) {
         return {
-          state: "DISABLED_UNDER_MIN" as SlotState,
+          state: "UNDER_MIN",
           label: "Cần 2h",
-          subtext: "Ít hơn 2h trống",
           clickable: false,
-          hint: "Khung giờ này không đủ 2 giờ trống liên tục",
+          isSelected,
         };
       }
 
       return {
-        state: "AVAILABLE" as SlotState,
-        label: "Trống",
-        subtext: "Nhận phòng",
+        state: "AVAILABLE",
+        label: isSelected ? "Đã chọn" : null,
         clickable: true,
-        hint: `Bấm để chọn nhận phòng lúc ${String(hour).padStart(2, "0")}:00`,
+        isSelected,
       };
     },
-    [
-      activeDateStr,
-      confirmedInMs,
-      confirmedOutMs,
-      getRawHourIntervalState,
-      hasFullSelection,
-      intervals,
-      pendingCheckInMs,
-    ]
+    [checkInDate, checkInTime, getRawHourState, intervals]
   );
 
-  // Slot click handler
-  const handleSlotClick = (hour: number) => {
-    const slotInfo = evaluateSlot(hour);
-    if (!slotInfo.clickable) return;
-
-    setUserNotice(null);
-    onClearConflictMessage?.();
-
-    const clickedIsoStr = `${activeDateStr}T${String(hour).padStart(2, "0")}:00`;
-    const clickedMs = new Date(`${clickedIsoStr}:00+07:00`).getTime();
-
-    // 1. If user clicked a slot with > 24h
-    if (slotInfo.state === "DISABLED_OVER_24H") {
-      setUserNotice(
-        "Hiện tại Kapi chỉ hỗ trợ đặt phòng theo giờ tối đa 24 tiếng. Vui lòng chọn giờ trả phòng trong vòng 24 giờ kể từ lúc nhận."
-      );
-      return;
-    }
-
-    // 2. If user clicked a slot with < 2h
-    if (slotInfo.state === "DISABLED_UNDER_MIN") {
-      setUserNotice("Thời lượng đặt phòng tối thiểu là 2 giờ cho mỗi lượt.");
-      return;
-    }
-
-    // 3. If user clicked a slot with middle conflict
-    if (slotInfo.state === "DISABLED_CONFLICT") {
-      setUserNotice(
-        "Khung giờ này không khả dụng vì có khoảng thời gian đã được đặt hoặc khóa ở giữa."
-      );
-      return;
-    }
-
-    // 4. If user clicked the check-in slot itself -> clear or reset
-    if (pendingCheckInMs !== null && clickedMs === pendingCheckInMs) {
-      setPendingCheckIn(null);
-      return;
-    }
-
-    // 5. In Step 1: User chooses Check-In slot
-    if (pendingCheckInMs === null || slotInfo.state === "AVAILABLE") {
-      setPendingCheckIn(clickedIsoStr);
-      onSelectCheckIn?.(clickedIsoStr);
-      // Auto-suggest next day tab if check-in is late (>= 22:00)
-      if (hour >= 22) {
-        setActiveDateStr(addDaysToDateStr(activeDateStr, 1));
+  /**
+   * Evaluates check-out hour slot on checkOutDate.
+   * Full interval check across entire multi-day span [checkInMs, slotStartMs).
+   */
+  const evaluateCheckOutSlot = React.useCallback(
+    (hour: number) => {
+      if (checkInMs === null) {
+        return { state: "DISABLED", label: "—", clickable: false, isSelected: false };
       }
-      return;
-    }
 
-    // 6. In Step 2: User chooses Valid Check-Out slot
-    if (slotInfo.state === "VALID_CHECKOUT" && pendingCheckIn) {
-      onSelectInterval?.(pendingCheckIn, clickedIsoStr);
-      return;
+      const slotTimeStr = `${String(hour).padStart(2, "0")}:00`;
+      const slotStartMs = new Date(`${checkOutDate}T${slotTimeStr}:00+07:00`).getTime();
+      const isSelected = checkOutTime === slotTimeStr;
+
+      const durationMinutes = (slotStartMs - checkInMs) / 60000;
+
+      // 1. Must be chronologically after check-in
+      if (durationMinutes <= 0) {
+        return {
+          state: "BEFORE_CHECKIN",
+          label: "—",
+          clickable: false,
+          isSelected: false,
+        };
+      }
+
+      // 2. Minimum 2 hours
+      if (durationMinutes < 120) {
+        return {
+          state: "UNDER_MIN",
+          label: "< 2h",
+          clickable: false,
+          isSelected: false,
+        };
+      }
+
+      // 3. Full interval check: Any overlap in [checkInMs, slotStartMs)
+      let hasOverlap = false;
+      for (const item of intervals) {
+        const intStart = new Date(item.start_at).getTime();
+        const intEnd = new Date(item.end_at).getTime();
+        // Half-open interval overlap
+        if (intStart < slotStartMs && intEnd > checkInMs) {
+          hasOverlap = true;
+          break;
+        }
+      }
+
+      if (hasOverlap) {
+        return {
+          state: "CONFLICT",
+          label: "Bị trùng",
+          clickable: false,
+          isSelected: false,
+        };
+      }
+
+      // Valid multi-day checkout slot!
+      const totalHours = Math.ceil(durationMinutes / 60);
+      return {
+        state: "AVAILABLE",
+        label: isSelected ? "Đã chọn" : null,
+        durationHours: totalHours,
+        clickable: true,
+        isSelected,
+      };
+    },
+    [checkInMs, checkOutDate, checkOutTime, intervals]
+  );
+
+  // Check-In Date chips (First 4 days from today)
+  const checkInDateChips = React.useMemo(() => {
+    return Array.from({ length: 4 }, (_, i) => addDaysToDateStr(todayStr, i));
+  }, [todayStr]);
+
+  // Check-Out Date chips (4 days starting from checkInDate)
+  const checkOutDateChips = React.useMemo(() => {
+    const baseDate = checkInDate >= todayStr ? checkInDate : todayStr;
+    return Array.from({ length: 4 }, (_, i) => addDaysToDateStr(baseDate, i));
+  }, [checkInDate, todayStr]);
+
+  // Handle Check-In Date Selection
+  const handleSelectCheckInDate = (dStr: string) => {
+    onClearConflictMessage?.();
+    setCheckInDate(dStr);
+    setCheckInTime(null);
+    setCheckOutTime(null);
+    // If checkout date is before new check-in date, move it to check-in date
+    if (checkOutDate < dStr) {
+      setCheckOutDate(dStr);
     }
   };
 
-  // Dedicated button handler for midnight (24:00 / 00:00 of next day)
-  const handleMidnightCheckoutClick = () => {
-    if (!pendingCheckIn) return;
-    const nextDayStr = addDaysToDateStr(activeDateStr, 1);
-    const midnightIsoStr = `${nextDayStr}T00:00`;
-    const midnightMs = new Date(`${midnightIsoStr}:00+07:00`).getTime();
-    const durationHours = (midnightMs - pendingCheckInMs!) / (3600 * 1000);
+  // Handle Check-In Time Selection
+  const handleSelectCheckInTime = (hStr: string) => {
+    onClearConflictMessage?.();
+    setCheckInTime(hStr);
+    setCheckOutTime(null);
 
-    if (durationHours < 2) {
-      setUserNotice("Thời lượng đặt phòng tối thiểu là 2 giờ.");
-      return;
-    }
-    if (durationHours > 24) {
-      setUserNotice("Hiện tại Kapi chỉ hỗ trợ đặt phòng theo giờ tối đa 24 tiếng.");
-      return;
-    }
+    const fullCheckInIso = `${checkInDate}T${hStr}`;
+    onSelectCheckIn?.(fullCheckInIso);
 
-    let hasConflict = false;
-    for (const item of intervals) {
-      const intStart = new Date(item.start_at).getTime();
-      const intEnd = new Date(item.end_at).getTime();
-      if (intStart < midnightMs && intEnd > pendingCheckInMs!) {
-        hasConflict = true;
-        break;
-      }
+    // If check-in is late in the day (>= 23:00), same-day checkout (min 2h) is impossible,
+    // so automatically advance check-out date to next day
+    const hourNum = parseInt(hStr.slice(0, 2), 10);
+    if (hourNum >= 23 && checkOutDate <= checkInDate) {
+      setCheckOutDate(addDaysToDateStr(checkInDate, 1));
     }
-    if (hasConflict) {
-      setUserNotice("Không thể chọn do có khoảng thời gian đã được đặt ở giữa.");
-      return;
-    }
-
-    onSelectInterval?.(pendingCheckIn, midnightIsoStr);
   };
 
-  // Reset all selections
-  const handleReset = () => {
-    setPendingCheckIn(null);
-    setUserNotice(null);
+  // Handle Check-Out Date Selection
+  const handleSelectCheckOutDate = (dStr: string) => {
     onClearConflictMessage?.();
+    setCheckOutDate(dStr);
+    setCheckOutTime(null);
+  };
+
+  // Handle Check-Out Time Selection
+  const handleSelectCheckOutTime = (hStr: string) => {
+    onClearConflictMessage?.();
+    setCheckOutTime(hStr);
+
+    const inIso = `${checkInDate}T${checkInTime}`;
+    const outIso = `${checkOutDate}T${hStr}`;
+    onSelectInterval?.(inIso, outIso);
+  };
+
+  // Reset flow
+  const handleResetAll = () => {
+    onClearConflictMessage?.();
+    setCheckInTime(null);
+    setCheckOutTime(null);
   };
 
   return (
-    <div className="border border-[#E5E5E5] bg-white p-4 sm:p-5 mb-5 rounded-xl shadow-xs">
-      {/* Header & Badges */}
+    <div className="border border-[#E5E5E5] bg-white p-4 sm:p-5 mb-5 rounded-2xl shadow-xs">
+      {/* Header */}
       <div className="pb-3 border-b border-[#E5E5E5]">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
@@ -605,149 +480,47 @@ export function RoomAvailabilityTimeline({
           </div>
 
           <span className="text-[10px] font-semibold text-[#707072] bg-[#F5F5F5] px-2 py-0.5 rounded">
-            Tối thiểu 2h • Tối đa 24h
+            Tối thiểu 2 giờ
           </span>
         </div>
 
-        {/* Step Guide Banner */}
-        <div className="mt-3 flex items-center justify-between text-xs bg-[#F9FAFB] border border-[#E5E5E5] p-2.5 rounded-lg">
-          <div className="flex items-center gap-2">
-            <span
-              className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                pendingCheckInMs === null
-                  ? "bg-[#111111] text-white"
-                  : "bg-emerald-600 text-white"
-              }`}
-            >
-              {pendingCheckInMs === null ? "1" : "✓"}
-            </span>
-
-            {pendingCheckInMs === null ? (
-              <div>
-                <span className="font-semibold text-[#111111]">
-                  Bước 1: Chọn giờ nhận phòng
-                </span>
-                <p className="text-[11px] text-[#707072]">
-                  Nhấp chọn một khung giờ trống bên dưới
-                </p>
+        {/* Selected Summary Card Preview or Reset */}
+        {checkInTime && (
+          <div className="mt-3 p-3 bg-[#F9FAFB] border border-[#E5E5E5] rounded-xl text-xs flex items-center justify-between">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                <span className="text-[11px] text-[#707072]">Nhận phòng:</span>
+                <strong className="text-[#111111] font-semibold">
+                  {formatFriendlyDateTime(`${checkInDate}T${checkInTime}`)}
+                </strong>
               </div>
-            ) : (
-              <div>
-                <span className="font-semibold text-[#111111]">
-                  Bước 2: Chọn giờ trả phòng
-                </span>
-                <p className="text-[11px] text-[#707072]">
-                  Nhận:{" "}
-                  <strong className="text-[#111111]">
-                    {formatFriendlyDateTime(pendingCheckIn!)}
-                  </strong>{" "}
-                  — Chọn giờ trả (tối thiểu 2h)
-                </p>
-              </div>
-            )}
-          </div>
+              {checkOutTime && (
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-neutral-900 shrink-0" />
+                  <span className="text-[11px] text-[#707072]">Trả phòng:</span>
+                  <strong className="text-[#111111] font-semibold">
+                    {formatFriendlyDateTime(`${checkOutDate}T${checkOutTime}`)}
+                  </strong>
+                </div>
+              )}
+            </div>
 
-          {pendingCheckInMs !== null && (
             <button
               type="button"
-              onClick={handleReset}
-              className="text-[11px] font-medium text-[#707072] hover:text-[#111111] flex items-center gap-1 underline underline-offset-2 ml-2 shrink-0 transition-colors"
+              onClick={handleResetAll}
+              className="text-[11px] font-medium text-[#707072] hover:text-[#111111] flex items-center gap-1 underline underline-offset-2 transition-colors ml-2 shrink-0"
             >
               <RotateCcw className="w-3 h-3" />
               Chọn lại
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
-      {/* Cross-Day Quick Tabs (shown when choosing checkout) */}
-      {pendingCheckIn && checkInDateStr && (
-        <div className="mt-3 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setActiveDateStr(checkInDateStr);
-              setUserNotice(null);
-            }}
-            className={`flex-1 py-1.5 px-2.5 text-xs font-semibold rounded-lg border transition-all text-center ${
-              activeDateStr === checkInDateStr
-                ? "bg-[#111111] text-white border-[#111111] shadow-xs"
-                : "bg-white text-[#707072] border-[#E5E5E5] hover:bg-[#F9FAFB]"
-            }`}
-          >
-            Hôm nhận ({formatDisplayDateLabel(checkInDateStr, todayStr)})
-          </button>
-
-          {checkInNextDateStr && (
-            <button
-              type="button"
-              onClick={() => {
-                setActiveDateStr(checkInNextDateStr);
-                setUserNotice(null);
-              }}
-              className={`flex-1 py-1.5 px-2.5 text-xs font-semibold rounded-lg border transition-all text-center ${
-                activeDateStr === checkInNextDateStr
-                  ? "bg-[#111111] text-white border-[#111111] shadow-xs"
-                  : "bg-white text-[#707072] border-[#E5E5E5] hover:bg-[#F9FAFB]"
-              }`}
-            >
-              Ngày mai ({formatDisplayDateLabel(checkInNextDateStr, todayStr)})
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Date Stepper & Picker */}
-      <div className="mt-3 flex items-center justify-between gap-2 p-2 bg-[#F9FAFB] border border-[#E5E5E5] rounded-lg">
-        <button
-          type="button"
-          onClick={handlePrevDay}
-          disabled={!canGoPrev}
-          aria-label="Ngày trước đó"
-          className="w-8 h-8 flex items-center justify-center rounded-md border border-[#E5E5E5] bg-white text-[#111111] hover:bg-[#F3F4F6] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-        >
-          <ChevronLeft className="w-4 h-4" />
-        </button>
-
-        <div className="flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-[#707072]" />
-          <span className="text-xs font-bold text-[#111111]">
-            {formatDisplayDateLabel(activeDateStr, todayStr)}
-          </span>
-
-          <label className="cursor-pointer text-[11px] font-medium text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-0.5 ml-1">
-            <span>Đổi ngày</span>
-            <input
-              type="date"
-              min={todayStr}
-              max={maxDateStr}
-              value={activeDateStr}
-              onChange={(e) => {
-                if (e.target.value) {
-                  setActiveDateStr(e.target.value);
-                  setUserNotice(null);
-                  onClearConflictMessage?.();
-                }
-              }}
-              className="sr-only"
-            />
-          </label>
-        </div>
-
-        <button
-          type="button"
-          onClick={handleNextDay}
-          disabled={!canGoNext}
-          aria-label="Ngày tiếp theo"
-          className="w-8 h-8 flex items-center justify-center rounded-md border border-[#E5E5E5] bg-white text-[#111111] hover:bg-[#F3F4F6] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-        >
-          <ChevronRight className="w-4 h-4" />
-        </button>
-      </div>
-
-      {/* Conflict / Race Alert */}
+      {/* Conflict Alert */}
       {holdConflictMessage && (
-        <div className="mt-3 p-3 bg-red-50 border border-red-200 text-red-800 text-xs rounded-lg flex items-start gap-2">
+        <div className="mt-3 p-3 bg-red-50 border border-red-200 text-red-800 text-xs rounded-xl flex items-start gap-2 animate-fadeIn">
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
           <div className="flex-1">
             <p className="font-semibold">{holdConflictMessage}</p>
@@ -758,111 +531,267 @@ export function RoomAvailabilityTimeline({
         </div>
       )}
 
-      {/* Friendly Rule Notice Banner */}
-      {userNotice && (
-        <div className="mt-3 p-3 bg-blue-50 border border-blue-200 text-blue-900 text-xs rounded-lg flex items-start justify-between gap-2 animate-fadeIn">
-          <div className="flex items-start gap-2">
-            <Info className="w-4 h-4 shrink-0 mt-0.5 text-blue-600" />
-            <p className="font-medium text-[11px] leading-relaxed">{userNotice}</p>
+      {/* Main 4-Step Booking Container */}
+      <div className="mt-4 space-y-5">
+        {/* ============================================================== */}
+        {/* STEP 1: NGÀY NHẬN                                             */}
+        {/* ============================================================== */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#111111] flex items-center gap-1.5">
+              <span className="w-4 h-4 rounded-full bg-[#111111] text-white text-[10px] flex items-center justify-center font-bold">
+                1
+              </span>
+              Ngày nhận
+            </span>
+            <span className="text-[11px] text-[#707072]">
+              {formatDisplayDateLabel(checkInDate, todayStr)}
+            </span>
           </div>
-          <button
-            type="button"
-            onClick={() => setUserNotice(null)}
-            className="text-blue-500 hover:text-blue-800 p-0.5"
-            aria-label="Đóng thông báo"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
+
+          {/* Quick Date Chips + Custom Date Picker */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+            {checkInDateChips.map((dStr) => {
+              const isSelected = checkInDate === dStr;
+              return (
+                <button
+                  key={dStr}
+                  type="button"
+                  onClick={() => handleSelectCheckInDate(dStr)}
+                  className={`py-2 px-2 text-xs font-semibold rounded-lg border transition-all text-center ${
+                    isSelected
+                      ? "bg-[#111111] text-white border-[#111111] shadow-xs"
+                      : "bg-white text-[#111111] border-[#E5E5E5] hover:border-black hover:bg-neutral-50"
+                  }`}
+                >
+                  {formatShortChipLabel(dStr, todayStr)}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Calendar Picker label */}
+          <div className="mt-1.5 flex items-center justify-end">
+            <label className="cursor-pointer text-[11px] font-medium text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1">
+              <Calendar className="w-3 h-3" />
+              <span>Chọn ngày khác</span>
+              <input
+                type="date"
+                min={todayStr}
+                max={maxHorizonDateStr}
+                value={checkInDate}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    handleSelectCheckInDate(e.target.value);
+                  }
+                }}
+                className="sr-only"
+              />
+            </label>
+          </div>
         </div>
-      )}
 
-      {/* Main 24-Hour Structured Slot Grid */}
-      <div className="mt-3.5">
-        {isLoading && intervals.length === 0 ? (
-          <div className="py-10 flex flex-col items-center justify-center text-xs text-[#707072]">
-            <RefreshCw className="w-5 h-5 animate-spin mb-2 text-[#111111]" />
-            <span>Đang đồng bộ tình trạng phòng...</span>
+        {/* ============================================================== */}
+        {/* STEP 2: GIỜ NHẬN                                             */}
+        {/* ============================================================== */}
+        {activeStep >= 2 && (
+          <div className="pt-3 border-t border-[#E5E5E5] animate-fadeIn">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-[#111111] flex items-center gap-1.5">
+                <span className="w-4 h-4 rounded-full bg-[#111111] text-white text-[10px] flex items-center justify-center font-bold">
+                  2
+                </span>
+                Giờ nhận
+              </span>
+              <span className="text-[11px] text-[#707072]">
+                {checkInTime ? `Đã chọn: ${checkInTime}` : "Chọn khung giờ bắt đầu"}
+              </span>
+            </div>
+
+            {isLoading && intervals.length === 0 ? (
+              <div className="py-8 flex flex-col items-center justify-center text-xs text-[#707072]">
+                <RefreshCw className="w-4 h-4 animate-spin mb-2 text-[#111111]" />
+                <span>Đang tải tình trạng phòng...</span>
+              </div>
+            ) : fetchError ? (
+              <div className="py-4 text-center text-xs text-red-600 bg-red-50 p-2.5 rounded-lg border border-red-200">
+                {fetchError}
+              </div>
+            ) : (
+              /* Maximum 4 columns on desktop sidebar & mobile (Section 6 & 27) */
+              <div className="grid grid-cols-4 gap-2 select-none">
+                {Array.from({ length: 24 }, (_, i) => {
+                  const hourStr = `${String(i).padStart(2, "0")}:00`;
+                  const { state, label, clickable, isSelected } = evaluateCheckInSlot(i);
+
+                  let btnStyle = "bg-white border-[#E5E5E5] text-[#111111] hover:border-black";
+
+                  if (isSelected) {
+                    btnStyle = "bg-[#111111] border-[#111111] text-white font-bold shadow-xs";
+                  } else if (!clickable) {
+                    if (state === "BOOKED") {
+                      btnStyle = "bg-neutral-100 border-neutral-200 text-neutral-400 cursor-not-allowed";
+                    } else if (state === "HELD") {
+                      btnStyle = "bg-amber-50 border-amber-200 text-amber-800 cursor-not-allowed";
+                    } else if (state === "BLOCKED") {
+                      btnStyle = "bg-rose-50 border-rose-200 text-rose-700 cursor-not-allowed";
+                    } else {
+                      btnStyle = "bg-neutral-50/70 border-neutral-100 text-neutral-300 cursor-not-allowed";
+                    }
+                  }
+
+                  return (
+                    <button
+                      key={hourStr}
+                      type="button"
+                      onClick={() => clickable && handleSelectCheckInTime(hourStr)}
+                      disabled={!clickable}
+                      className={`h-12 min-w-[72px] rounded-lg border flex flex-col items-center justify-center transition-all p-1 text-center ${btnStyle}`}
+                    >
+                      <span className="text-sm font-semibold tracking-tight font-mono">
+                        {hourStr}
+                      </span>
+                      {label && (
+                        <span className="text-[10px] leading-tight font-medium mt-0.5">
+                          {label}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        ) : fetchError ? (
-          <div className="py-6 text-center text-xs text-red-600 bg-red-50 border border-red-200 p-3 rounded-lg">
-            {fetchError}
-          </div>
-        ) : (
-          <div>
-            {/* 4 columns on mobile, 6 columns on sm/md/lg */}
-            <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 select-none">
-              {Array.from({ length: 24 }, (_, i) => {
-                const { state, label, subtext, clickable, hint } = evaluateSlot(i);
-                const hourFormatted = `${String(i).padStart(2, "0")}:00`;
+        )}
 
-                let btnStyle =
-                  "border bg-white text-[#111111] hover:border-black hover:bg-neutral-50";
+        {/* ============================================================== */}
+        {/* STEP 3: NGÀY TRẢ                                             */}
+        {/* ============================================================== */}
+        {checkInTime && (
+          <div className="pt-3 border-t border-[#E5E5E5] animate-fadeIn">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-[#111111] flex items-center gap-1.5">
+                <span className="w-4 h-4 rounded-full bg-[#111111] text-white text-[10px] flex items-center justify-center font-bold">
+                  3
+                </span>
+                Ngày trả
+              </span>
+              <span className="text-[11px] text-[#707072]">
+                {formatDisplayDateLabel(checkOutDate, todayStr)}
+              </span>
+            </div>
 
-                if (state === "SELECTED_IN" || state === "SELECTED_OUT") {
-                  btnStyle =
-                    "bg-[#111111] border-[#111111] text-white font-semibold shadow-xs ring-2 ring-[#111111] ring-offset-1 z-10";
-                } else if (state === "IN_RANGE") {
-                  btnStyle =
-                    "bg-neutral-100 border-neutral-300 text-[#111111] font-medium";
-                } else if (state === "VALID_CHECKOUT") {
-                  btnStyle =
-                    "bg-white border-emerald-500 text-emerald-900 hover:bg-emerald-50 hover:border-emerald-600 font-semibold shadow-2xs active:scale-[0.98]";
-                } else if (state === "AVAILABLE") {
-                  btnStyle =
-                    "bg-emerald-50/70 border-emerald-200 text-emerald-800 hover:bg-emerald-100 hover:border-emerald-300 font-medium active:scale-[0.98]";
-                } else if (state === "HELD") {
-                  btnStyle =
-                    "bg-amber-50 border-amber-200 text-amber-800 cursor-not-allowed opacity-90";
-                } else if (state === "BOOKED") {
-                  btnStyle =
-                    "bg-neutral-100 border-neutral-200 text-neutral-400 cursor-not-allowed opacity-70";
-                } else if (state === "BLOCKED") {
-                  btnStyle =
-                    "bg-rose-50 border-rose-200 text-rose-700 cursor-not-allowed opacity-80";
-                } else if (state === "DISABLED_OVER_24H") {
-                  btnStyle =
-                    "bg-neutral-50 border-dashed border-neutral-200 text-neutral-400 hover:border-neutral-400 cursor-pointer";
-                } else if (state === "DISABLED_UNDER_MIN") {
-                  btnStyle =
-                    "bg-neutral-50 border-neutral-200 text-neutral-400 hover:border-neutral-300 cursor-pointer";
-                } else if (state === "DISABLED_CONFLICT") {
-                  btnStyle =
-                    "bg-neutral-50 border-neutral-200 text-neutral-400 hover:border-neutral-300 cursor-pointer";
-                } else if (state === "PAST") {
-                  btnStyle =
-                    "bg-neutral-50/50 border-neutral-100 text-neutral-300 cursor-not-allowed";
-                }
-
+            {/* Quick Date Chips for Check-Out */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+              {checkOutDateChips.map((dStr) => {
+                const isSelected = checkOutDate === dStr;
                 return (
                   <button
-                    key={i}
+                    key={dStr}
                     type="button"
-                    onClick={() => handleSlotClick(i)}
-                    disabled={!clickable && state !== "DISABLED_OVER_24H" && state !== "DISABLED_UNDER_MIN" && state !== "DISABLED_CONFLICT"}
-                    title={hint}
-                    className={`h-13 rounded-lg flex flex-col items-center justify-center p-1 transition-all text-xs leading-tight ${btnStyle}`}
+                    onClick={() => handleSelectCheckOutDate(dStr)}
+                    className={`py-2 px-2 text-xs font-semibold rounded-lg border transition-all text-center ${
+                      isSelected
+                        ? "bg-[#111111] text-white border-[#111111] shadow-xs"
+                        : "bg-white text-[#111111] border-[#E5E5E5] hover:border-black hover:bg-neutral-50"
+                    }`}
                   >
-                    <span className="font-mono font-bold tracking-tight text-xs">
-                      {hourFormatted}
-                    </span>
-                    <span className="text-[10px] mt-0.5 truncate max-w-full font-medium">
-                      {state === "VALID_CHECKOUT" ? label : subtext}
-                    </span>
+                    {formatShortChipLabel(dStr, todayStr)}
                   </button>
                 );
               })}
             </div>
 
-            {/* Special 24:00 (Midnight) Check-Out Slot option for same-day checkout */}
-            {isChoosingCheckOut && activeDateStr === checkInDateStr && (
-              <div className="mt-2.5 pt-2 border-t border-[#E5E5E5] flex items-center justify-between">
-                <span className="text-xs text-[#707072]">
-                  Cần trả phòng vào lúc nửa đêm (hết ngày)?
+            {/* Calendar Picker for Check-out */}
+            <div className="mt-1.5 flex items-center justify-end">
+              <label className="cursor-pointer text-[11px] font-medium text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1">
+                <Calendar className="w-3 h-3" />
+                <span>Chọn ngày trả khác</span>
+                <input
+                  type="date"
+                  min={checkInDate}
+                  max={maxHorizonDateStr}
+                  value={checkOutDate}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      handleSelectCheckOutDate(e.target.value);
+                    }
+                  }}
+                  className="sr-only"
+                />
+              </label>
+            </div>
+          </div>
+        )}
+
+        {/* ============================================================== */}
+        {/* STEP 4: GIỜ TRẢ                                             */}
+        {/* ============================================================== */}
+        {checkInTime && checkOutDate && (
+          <div className="pt-3 border-t border-[#E5E5E5] animate-fadeIn">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-[#111111] flex items-center gap-1.5">
+                <span className="w-4 h-4 rounded-full bg-[#111111] text-white text-[10px] flex items-center justify-center font-bold">
+                  4
                 </span>
+                Giờ trả
+              </span>
+              <span className="text-[11px] text-[#707072]">
+                {checkOutTime ? `Đã chọn: ${checkOutTime}` : "Chọn khung giờ kết thúc"}
+              </span>
+            </div>
+
+            {/* Maximum 4 columns on desktop sidebar & mobile (Section 6 & 27) */}
+            <div className="grid grid-cols-4 gap-2 select-none">
+              {Array.from({ length: 24 }, (_, i) => {
+                const hourStr = `${String(i).padStart(2, "0")}:00`;
+                const { state, label, clickable, isSelected } = evaluateCheckOutSlot(i);
+
+                let btnStyle = "bg-white border-[#E5E5E5] text-[#111111] hover:border-black";
+
+                if (isSelected) {
+                  btnStyle = "bg-[#111111] border-[#111111] text-white font-bold shadow-xs";
+                } else if (!clickable) {
+                  if (state === "CONFLICT") {
+                    btnStyle = "bg-neutral-100 border-neutral-200 text-neutral-400 cursor-not-allowed";
+                  } else {
+                    btnStyle = "bg-neutral-50/70 border-neutral-100 text-neutral-300 cursor-not-allowed";
+                  }
+                }
+
+                return (
+                  <button
+                    key={hourStr}
+                    type="button"
+                    onClick={() => clickable && handleSelectCheckOutTime(hourStr)}
+                    disabled={!clickable}
+                    className={`h-12 min-w-[72px] rounded-lg border flex flex-col items-center justify-center transition-all p-1 text-center ${btnStyle}`}
+                  >
+                    <span className="text-sm font-semibold tracking-tight font-mono">
+                      {hourStr}
+                    </span>
+                    {label && (
+                      <span className="text-[10px] leading-tight font-medium mt-0.5">
+                        {label}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Same-day Midnight (24:00) Option */}
+            {checkInDate === checkOutDate && (
+              <div className="mt-3 pt-2.5 border-t border-[#E5E5E5] flex items-center justify-between">
+                <span className="text-xs text-[#707072]">Trả phòng hết ngày?</span>
                 <button
                   type="button"
-                  onClick={handleMidnightCheckoutClick}
-                  className="px-3 py-1.5 text-xs font-semibold rounded-md border border-emerald-500 bg-emerald-50 text-emerald-900 hover:bg-emerald-100 transition-colors"
+                  onClick={() => {
+                    const nextDateStr = addDaysToDateStr(checkInDate, 1);
+                    setCheckOutDate(nextDateStr);
+                    handleSelectCheckOutTime("00:00");
+                  }}
+                  className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[#E5E5E5] bg-white text-[#111111] hover:border-black hover:bg-neutral-50 transition-colors"
                 >
                   24:00 (00:00 ngày mai)
                 </button>
@@ -872,23 +801,31 @@ export function RoomAvailabilityTimeline({
         )}
       </div>
 
+      {/* Selection Complete confirmation badge */}
+      {activeStep === 5 && (
+        <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2">
+          <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>Đã hoàn tất chọn khung giờ. Xem chi tiết tạm tính bên dưới.</span>
+        </div>
+      )}
+
       {/* Compact Clean Legend */}
       <div className="mt-4 pt-3 border-t border-[#E5E5E5] flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#707072]">
         <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
+          <span className="w-2.5 h-2.5 rounded-full bg-white border border-[#111111] inline-block" />
           <span>Trống</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-neutral-400 inline-block" />
+          <span className="w-2.5 h-2.5 rounded-full bg-neutral-300 inline-block" />
           <span>Đã đặt</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block" />
+          <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" />
           <span>Đang giữ</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" />
-          <span>Không khả dụng</span>
+          <span className="w-2.5 h-2.5 rounded-full bg-rose-400 inline-block" />
+          <span>Khóa</span>
         </div>
       </div>
     </div>

@@ -359,13 +359,6 @@ export function RoomBookingWidget({
       return;
     }
 
-    if (durationHours > 24) {
-      setValidationError(
-        "Thời lượng đặt phòng tối đa là 24 giờ cho mỗi lượt. Hiện tại Kapi chỉ hỗ trợ đặt phòng theo giờ tối đa 24 tiếng."
-      );
-      return;
-    }
-
     if (guests < 1 || guests > maxCapacity) {
       setValidationError("Số lượng khách vượt quá sức chứa của phòng.");
       return;
@@ -472,11 +465,11 @@ export function RoomBookingWidget({
           aria-hidden="true"
         />
 
-        {/* Selected Summary Card (Section 10) */}
-        {checkIn && checkOut && hours >= 2 && hours <= 24 ? (
+        {/* Selected Summary Card (Section 22 & 23) */}
+        {checkIn && checkOut && hours >= 2 ? (
           <div className="border border-[#E5E5E5] bg-[#F9FAFB] p-4 rounded-xl space-y-3">
             <div className="text-[11px] font-bold text-[#111111] uppercase tracking-wider pb-2 border-b border-[#E5E5E5] flex items-center justify-between">
-              <span>Thông tin đặt phòng</span>
+              <span>Lựa chọn của bạn</span>
               <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
                 Khung giờ hợp lệ
               </span>
@@ -503,14 +496,19 @@ export function RoomBookingWidget({
 
             <div className="pt-2 border-t border-[#E5E5E5] flex items-center justify-between text-xs">
               <div>
-                <span className="text-[#707072]">Thời lượng: </span>
-                <strong className="text-[#111111] font-bold">{hours} giờ</strong>
+                <span className="text-[#707072] block text-[11px]">Thời lượng</span>
+                <strong className="text-[#111111] font-bold text-sm">{hours} giờ</strong>
               </div>
-              <div>
-                <span className="text-[#707072]">Tạm tính: </span>
-                <strong className="font-bold text-sm sm:text-base text-[#111111]">
-                  {formatVND(estimatedTotal)}
-                </strong>
+              <div className="text-right">
+                <span className="text-[11px] text-[#707072] block font-medium">
+                  {formatVND(hourlyPrice)} × {hours} giờ
+                </span>
+                <div className="flex items-baseline justify-end gap-1.5 mt-0.5">
+                  <span className="text-[11px] text-[#707072]">Tạm tính:</span>
+                  <strong className="font-bold text-sm sm:text-base text-[#111111]">
+                    {formatVND(estimatedTotal)}
+                  </strong>
+                </div>
               </div>
             </div>
           </div>
@@ -521,21 +519,21 @@ export function RoomBookingWidget({
                 Nhận phòng đã chọn
               </span>
               <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
-                Bước 2: Chọn giờ trả
+                Bước 3 & 4: Chọn ngày & giờ trả
               </span>
             </div>
             <p className="font-bold text-[#111111] text-sm">
               {formatDisplayDateTime(checkIn)}
             </p>
             <p className="text-[11px] text-[#707072]">
-              Vui lòng nhấp vào khung giờ trả phòng mong muốn trên lịch trống (tối thiểu 2h, tối đa 24h).
+              Vui lòng chọn ngày và giờ trả phòng mong muốn trên lịch trống (tối thiểu 2 giờ).
             </p>
           </div>
         ) : (
           <div className="p-3.5 bg-[#F9FAFB] border border-[#E5E5E5] rounded-xl text-xs text-[#707072] flex items-center gap-2.5">
             <Info className="w-4 h-4 text-[#111111] shrink-0" />
             <span className="leading-relaxed">
-              Vui lòng nhấp chọn ngày và giờ nhận phòng trên bảng lịch trống bên trên.
+              Vui lòng chọn ngày và giờ nhận phòng trên bảng lịch trống bên trên.
             </span>
           </div>
         )}

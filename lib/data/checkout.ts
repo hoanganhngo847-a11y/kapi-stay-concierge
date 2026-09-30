@@ -100,7 +100,6 @@ const RPC_ERROR_MESSAGES: Record<string, string> = {
   UNAUTHORIZED: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
   INVALID_DATE_RANGE: "Thời gian nhận / trả phòng không hợp lệ.",
   MINIMUM_BOOKING_DURATION_2_HOURS: "Thời lượng đặt phòng tối thiểu là 2 giờ.",
-  MAXIMUM_BOOKING_DURATION_24_HOURS: "Thời lượng đặt phòng tối đa là 24 giờ cho mỗi lượt.",
   CANNOT_BOOK_IN_PAST: "Thời gian nhận phòng không thể ở trong quá khứ.",
   INVALID_GUEST_COUNT: "Số khách không hợp lệ.",
   ROOM_NOT_FOUND_OR_UNLISTED:

@@ -318,19 +318,6 @@ export default async function CheckoutPage({
     );
   }
 
-  if (durationHours > 24) {
-    return (
-      <CheckoutPageLayout>
-        <CheckoutError
-          title="Thời lượng thuê vượt quá giới hạn"
-          message="Thời lượng đặt phòng tối đa là 24 giờ cho mỗi phiên."
-          backHref={`/rooms/${roomId}`}
-          backLabel="Quay lại trang phòng"
-        />
-      </CheckoutPageLayout>
-    );
-  }
-
   // Parse số khách
   const guestCount = Math.max(1, parseInt(guestsStr ?? "1", 10) || 1);
 
