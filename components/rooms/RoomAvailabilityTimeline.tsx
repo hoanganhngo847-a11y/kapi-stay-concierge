@@ -106,6 +106,29 @@ function formatFriendlyDateTime(isoStr: string): string {
   return `${time} · ${d}/${m}/${y}`;
 }
 
+/**
+ * Safely maps raw backend / RPC availability error codes to customer-friendly Vietnamese messages.
+ * Never exposes raw internal error strings like RANGE_TOO_LARGE directly to users.
+ */
+export function mapAvailabilityError(errorCode?: string | null): string {
+  if (!errorCode) {
+    return "Không thể tải lịch trống của phòng lúc này. Vui lòng thử lại.";
+  }
+  switch (errorCode.trim()) {
+    case "RANGE_TOO_LARGE":
+      return "Không thể tải lịch phòng cho khoảng ngày này. Vui lòng thử lại.";
+    case "ROOM_NOT_FOUND":
+      return "Không tìm thấy thông tin phòng. Vui lòng thử lại.";
+    case "INVALID_PARAMETERS":
+      return "Khoảng thời gian không hợp lệ. Vui lòng thử lại.";
+    default:
+      if (/^[A-Z0-9_]+$/.test(errorCode) || /error|exception|rpc|postgres|database/i.test(errorCode)) {
+        return "Không thể tải lịch trống của phòng lúc này. Vui lòng thử lại.";
+      }
+      return errorCode;
+  }
+}
+
 export function RoomAvailabilityTimeline({
   roomId,
   selectedCheckIn,
@@ -194,10 +217,14 @@ export function RoomAvailabilityTimeline({
         setIntervals(res.intervals || []);
         setFetchError(null);
       } else {
-        setFetchError(res.error || "Không thể tải lịch phòng.");
+        if (res.error) {
+          console.warn("[RoomAvailabilityTimeline] RPC returned error code:", res.error);
+        }
+        setFetchError(mapAvailabilityError(res.error));
       }
-    } catch {
-      setFetchError("Lỗi kết nối khi tải lịch phòng.");
+    } catch (err) {
+      console.error("[RoomAvailabilityTimeline] Fetch timeline failed:", err);
+      setFetchError("Không thể tải lịch trống của phòng lúc này. Vui lòng thử lại.");
     } finally {
       setIsLoading(false);
     }
@@ -615,7 +642,7 @@ export function RoomAvailabilityTimeline({
               </div>
             ) : fetchError ? (
               <div className="py-4 text-center text-xs text-red-600 bg-red-50 p-2.5 rounded-lg border border-red-200">
-                {fetchError}
+                {mapAvailabilityError(fetchError)}
               </div>
             ) : (
               /* Maximum 4 columns on desktop sidebar & mobile (Section 6 & 27) */
