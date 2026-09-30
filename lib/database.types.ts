@@ -1219,6 +1219,7 @@ export type Database = {
       }
       get_menu_products: { Args: { p_category?: string }; Returns: Json }
       get_my_rewards_summary: { Args: never; Returns: Json }
+      get_my_stay_booking_details: { Args: { p_booking_id: string }; Returns: Json }
       get_my_stay_credentials: { Args: { p_booking_id: string }; Returns: Json }
       get_staff_dashboard_data: { Args: never; Returns: Json }
       redeem_loyalty_voucher: { Args: never; Returns: Json }

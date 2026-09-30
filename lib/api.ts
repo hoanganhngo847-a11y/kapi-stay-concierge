@@ -10,6 +10,11 @@ export {
   type MyStayBookingDetails,
 } from "@/lib/data/my-stay";
 
+export {
+  MyStayError,
+  type MyStayErrorCode,
+} from "@/lib/types/my-stay";
+
 // Admin Operations & Security
 export {
   verifyStaffRole,
