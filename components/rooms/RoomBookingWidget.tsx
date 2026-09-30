@@ -189,11 +189,29 @@ export function RoomBookingWidget({
   }, [checkIn, minNowStr]);
 
   // Handle timeline slot selection
+  const handleSelectCheckIn = (inStr: string) => {
+    setCheckIn(inStr);
+    setCheckOut("");
+    setValidationError(null);
+    setHoldConflictMessage(null);
+    setAvailability({ status: "IDLE" });
+  };
+
   const handleSelectTimelineInterval = (inStr: string, outStr: string) => {
     setCheckIn(inStr);
     setCheckOut(outStr);
     setValidationError(null);
     setHoldConflictMessage(null);
+  };
+
+  // Helper formatting for Selected Summary card (Section 10: 30/09/2026 — 08:00)
+  const formatDisplayDateTime = (dtStr: string): string => {
+    if (!dtStr) return "—";
+    const [datePart, timePart] = dtStr.split("T");
+    if (!datePart) return dtStr;
+    const [y, m, d] = datePart.split("-");
+    const time = timePart ? timePart.slice(0, 5) : "00:00";
+    return `${d}/${m}/${y} — ${time}`;
   };
 
   // Handle Check-in change
@@ -342,7 +360,9 @@ export function RoomBookingWidget({
     }
 
     if (durationHours > 24) {
-      setValidationError("Thời lượng đặt phòng tối đa là 24 giờ cho mỗi lượt.");
+      setValidationError(
+        "Thời lượng đặt phòng tối đa là 24 giờ cho mỗi lượt. Hiện tại Kapi chỉ hỗ trợ đặt phòng theo giờ tối đa 24 tiếng."
+      );
       return;
     }
 
@@ -405,16 +425,18 @@ export function RoomBookingWidget({
   };
 
   return (
-    <div className="bg-white border border-[#E5E5E5] p-6 lg:p-7 sticky top-24">
+    <div className="bg-white border border-[#E5E5E5] p-5 sm:p-6 lg:p-7 sticky top-24 rounded-2xl shadow-sm">
       {/* Price header */}
-      <div className="flex items-baseline justify-between pb-5 border-b border-[#E5E5E5] mb-6">
+      <div className="flex items-baseline justify-between pb-4 border-b border-[#E5E5E5] mb-5">
         <div>
-          <span className="text-3xl font-medium text-[#111111]">
+          <span className="text-2xl sm:text-3xl font-bold text-[#111111] tracking-tight">
             {formatVND(hourlyPrice)}
           </span>
-          <span className="text-sm text-[#707072]"> / giờ</span>
+          <span className="text-xs sm:text-sm text-[#707072]"> / giờ</span>
         </div>
-        <span className="text-xs text-[#707072]">Tối đa {room.capacity} khách</span>
+        <span className="text-xs font-medium text-[#707072] bg-[#F5F5F5] px-2.5 py-1 rounded-full">
+          Tối đa {room.capacity} khách
+        </span>
       </div>
 
       {/* Visual Public Availability Timeline */}
@@ -422,53 +444,101 @@ export function RoomBookingWidget({
         roomId={room.id}
         selectedCheckIn={checkIn}
         selectedCheckOut={checkOut}
+        onSelectCheckIn={handleSelectCheckIn}
         onSelectInterval={handleSelectTimelineInterval}
         holdConflictMessage={holdConflictMessage}
         onClearConflictMessage={() => setHoldConflictMessage(null)}
       />
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* DateTime Selection Box */}
-        <div className="border border-[#E5E5E5] overflow-hidden">
-          <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-[#E5E5E5]">
-            {/* Check-in */}
-            <div className="p-3 bg-[#F5F5F5]/60">
-              <label
-                htmlFor="checkin-datetime"
-                className="block text-[11px] font-medium text-[#707072] uppercase tracking-wider mb-1"
-              >
-                Nhận phòng
-              </label>
-              <input
-                id="checkin-datetime"
-                type="datetime-local"
-                min={minNowStr}
-                value={checkIn}
-                onChange={handleCheckInChange}
-                className="w-full bg-transparent text-sm font-medium text-[#111111] focus:outline-none cursor-pointer"
-              />
+        {/* Hidden inputs to preserve DOM contracts, form serialization, and accessibility */}
+        <input
+          id="checkin-datetime"
+          type="datetime-local"
+          value={checkIn}
+          onChange={handleCheckInChange}
+          className="sr-only"
+          tabIndex={-1}
+          aria-hidden="true"
+        />
+        <input
+          id="checkout-datetime"
+          type="datetime-local"
+          min={minCheckOutStr}
+          value={checkOut}
+          onChange={handleCheckOutChange}
+          className="sr-only"
+          tabIndex={-1}
+          aria-hidden="true"
+        />
+
+        {/* Selected Summary Card (Section 10) */}
+        {checkIn && checkOut && hours >= 2 && hours <= 24 ? (
+          <div className="border border-[#E5E5E5] bg-[#F9FAFB] p-4 rounded-xl space-y-3">
+            <div className="text-[11px] font-bold text-[#111111] uppercase tracking-wider pb-2 border-b border-[#E5E5E5] flex items-center justify-between">
+              <span>Thông tin đặt phòng</span>
+              <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                Khung giờ hợp lệ
+              </span>
             </div>
 
-            {/* Check-out */}
-            <div className="p-3 bg-[#F5F5F5]/60">
-              <label
-                htmlFor="checkout-datetime"
-                className="block text-[11px] font-medium text-[#707072] uppercase tracking-wider mb-1"
-              >
-                Trả phòng (Tối thiểu 2h)
-              </label>
-              <input
-                id="checkout-datetime"
-                type="datetime-local"
-                disabled={!checkIn}
-                min={minCheckOutStr}
-                value={checkOut}
-                onChange={handleCheckOutChange}
-                className="w-full bg-transparent text-sm font-medium text-[#111111] focus:outline-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              />
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="bg-white p-2.5 rounded-lg border border-[#E5E5E5]">
+                <span className="block text-[10px] text-[#707072] uppercase font-semibold">
+                  Nhận phòng
+                </span>
+                <span className="font-bold text-[#111111] text-xs sm:text-sm mt-0.5 block">
+                  {formatDisplayDateTime(checkIn)}
+                </span>
+              </div>
+              <div className="bg-white p-2.5 rounded-lg border border-[#E5E5E5]">
+                <span className="block text-[10px] text-[#707072] uppercase font-semibold">
+                  Trả phòng
+                </span>
+                <span className="font-bold text-[#111111] text-xs sm:text-sm mt-0.5 block">
+                  {formatDisplayDateTime(checkOut)}
+                </span>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-[#E5E5E5] flex items-center justify-between text-xs">
+              <div>
+                <span className="text-[#707072]">Thời lượng: </span>
+                <strong className="text-[#111111] font-bold">{hours} giờ</strong>
+              </div>
+              <div>
+                <span className="text-[#707072]">Tạm tính: </span>
+                <strong className="font-bold text-sm sm:text-base text-[#111111]">
+                  {formatVND(estimatedTotal)}
+                </strong>
+              </div>
             </div>
           </div>
-        </div>
+        ) : checkIn ? (
+          <div className="border border-[#E5E5E5] bg-[#F9FAFB] p-3.5 rounded-xl space-y-2 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-[#707072] uppercase font-semibold">
+                Nhận phòng đã chọn
+              </span>
+              <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+                Bước 2: Chọn giờ trả
+              </span>
+            </div>
+            <p className="font-bold text-[#111111] text-sm">
+              {formatDisplayDateTime(checkIn)}
+            </p>
+            <p className="text-[11px] text-[#707072]">
+              Vui lòng nhấp vào khung giờ trả phòng mong muốn trên lịch trống (tối thiểu 2h, tối đa 24h).
+            </p>
+          </div>
+        ) : (
+          <div className="p-3.5 bg-[#F9FAFB] border border-[#E5E5E5] rounded-xl text-xs text-[#707072] flex items-center gap-2.5">
+            <Info className="w-4 h-4 text-[#111111] shrink-0" />
+            <span className="leading-relaxed">
+              Vui lòng nhấp chọn ngày và giờ nhận phòng trên bảng lịch trống bên trên.
+            </span>
+          </div>
+        )}
 
         {/* Guest Selection Stepper */}
         <div className="p-3 border border-[#E5E5E5] bg-[#F5F5F5]/60 flex items-center justify-between">
