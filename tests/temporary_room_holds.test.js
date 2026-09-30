@@ -71,9 +71,6 @@ class MockHoldEngine {
       if (durationHours < 2) {
         throw new Error("MINIMUM_BOOKING_DURATION_2_HOURS");
       }
-      if (durationHours > 24) {
-        throw new Error("MAXIMUM_BOOKING_DURATION_24_HOURS");
-      }
       if (guestCount < 1 || guestCount > room.capacity) {
         throw new Error("GUEST_COUNT_EXCEEDS_CAPACITY");
       }
@@ -368,6 +365,7 @@ test("Hold Test 3: Back-to-back intervals: 10:00-12:00 and 12:00-14:00 both allo
     checkInAt: "2026-09-30T10:00:00+07:00",
     checkOutAt: "2026-09-30T12:00:00+07:00",
     guestCount: 1,
+    now: new Date("2026-09-30T08:00:00+07:00"),
   });
   assert.equal(res1.success, true);
 
@@ -377,6 +375,7 @@ test("Hold Test 3: Back-to-back intervals: 10:00-12:00 and 12:00-14:00 both allo
     checkInAt: "2026-09-30T12:00:00+07:00",
     checkOutAt: "2026-09-30T14:00:00+07:00",
     guestCount: 1,
+    now: new Date("2026-09-30T08:00:00+07:00"),
   });
   assert.equal(res2.success, true);
 });

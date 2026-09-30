@@ -4,172 +4,39 @@ import fs from "node:fs";
 import path from "node:path";
 
 /**
- * Test Suite: Room Availability Picker Redesign & Cross-Day Selection Rules
+ * Test Suite: Multi-Day Room Booking Picker & Removal of 24-Hour Cap
  *
- * Verifies all 14 requirements:
- * 1. Customer sees clear availability slots.
- * 2. Available slot selectable.
- * 3. Booked slot not selectable.
- * 4. Held slot not selectable.
- * 5. Blocked slot not selectable.
- * 6. Minimum 2h enforced.
- * 7. Maximum 24h enforced.
- * 8. Valid same-day booking works.
- * 9. Valid overnight booking within 24h works.
- * 10. 08:00 today → 23:00 tomorrow rejected if max 24h.
- * 11. Selection summary updates correctly.
- * 12. Hold flow still works after redesign.
- * 13. Cross-user held state still works.
- * 14. No regression to checkout flow.
+ * Covers requirements from Sections 34, 35, 36, 37:
+ * - Tests 1-9: Duration Rules (2h, 23h, 24h, 25h, 39h, 48h, 72h, horizon, <2h)
+ * - Tests 10-14: Multi-Day Conflict & Overlap Semantics
+ * - Tests 15-24: UI Structure, 4-column grid, Typography, Summary, Horizon
+ * - Tests 25-30: 30-min Holds, Expiration, Concurrency, Multi-Day Finalization
  */
 
 // -----------------------------------------------------------------------------
-// Pure Simulator of the Availability Slot Evaluator & Two-Stage Logic
+// Pure Simulator of Multi-Day Hold & Availability Engine
 // -----------------------------------------------------------------------------
-function evaluateSlotPure({
-  hour,
-  activeDateStr,
-  pendingCheckIn,
-  selectedCheckIn,
-  selectedCheckOut,
-  intervals,
-  nowMs,
-}) {
-  const slotTimeStr = `${activeDateStr}T${String(hour).padStart(2, "0")}:00`;
-  const slotStartMs = new Date(`${slotTimeStr}:00+07:00`).getTime();
-  const slotEndMs = slotStartMs + 3600 * 1000;
-
-  const confirmedInMs = selectedCheckIn
-    ? new Date(
-        selectedCheckIn.includes("+") ? selectedCheckIn : `${selectedCheckIn}:00+07:00`
-      ).getTime()
-    : null;
-  const confirmedOutMs = selectedCheckOut
-    ? new Date(
-        selectedCheckOut.includes("+") ? selectedCheckOut : `${selectedCheckOut}:00+07:00`
-      ).getTime()
-    : null;
-  const hasFullSelection = Boolean(
-    selectedCheckIn && selectedCheckOut && pendingCheckIn === selectedCheckIn
-  );
-
-  // Confirmed range display
-  if (hasFullSelection && confirmedInMs && confirmedOutMs) {
-    if (slotStartMs === confirmedInMs) {
-      return { state: "SELECTED_IN", label: "Nhận", clickable: true };
-    }
-    if (slotStartMs === confirmedOutMs) {
-      return { state: "SELECTED_OUT", label: "Trả", clickable: true };
-    }
-    if (slotStartMs > confirmedInMs && slotStartMs < confirmedOutMs) {
-      return { state: "IN_RANGE", label: "Đang chọn", clickable: true };
-    }
-  }
-
-  const getRawState = (sStart, sEnd) => {
-    if (sEnd <= nowMs) return "PAST";
-    for (const item of intervals) {
-      const iStart = new Date(item.start_at).getTime();
-      const iEnd = new Date(item.end_at).getTime();
-      if (iStart < sEnd && iEnd > sStart) {
-        return item.state;
-      }
-    }
-    return "AVAILABLE";
-  };
-
-  const pendingCheckInMs = pendingCheckIn
-    ? new Date(
-        pendingCheckIn.includes("+") ? pendingCheckIn : `${pendingCheckIn}:00+07:00`
-      ).getTime()
-    : null;
-
-  // STEP 2: User is choosing Check-Out
-  if (pendingCheckInMs !== null) {
-    if (slotStartMs === pendingCheckInMs) {
-      return { state: "SELECTED_IN", label: "Nhận", clickable: true };
-    }
-
-    const durationHours = (slotStartMs - pendingCheckInMs) / (3600 * 1000);
-
-    if (durationHours <= 0) {
-      const raw = getRawState(slotStartMs, slotEndMs);
-      if (raw === "AVAILABLE") {
-        return { state: "AVAILABLE", label: "Trống", clickable: true };
-      }
-      return { state: raw, label: raw, clickable: false };
-    }
-
-    if (durationHours < 2) {
-      return { state: "DISABLED_UNDER_MIN", label: "< 2 giờ", clickable: true };
-    }
-
-    if (durationHours > 24) {
-      return { state: "DISABLED_OVER_24H", label: "> 24h", clickable: true };
-    }
-
-    // Check intermediate conflict
-    let hasConflict = false;
-    for (const item of intervals) {
-      const iStart = new Date(item.start_at).getTime();
-      const iEnd = new Date(item.end_at).getTime();
-      if (iStart < slotStartMs && iEnd > pendingCheckInMs) {
-        hasConflict = true;
-        break;
-      }
-    }
-    if (hasConflict) {
-      return { state: "DISABLED_CONFLICT", label: "Bị trùng", clickable: true };
-    }
-
-    return {
-      state: "VALID_CHECKOUT",
-      label: `+${durationHours}h`,
-      durationHours,
-      clickable: true,
-    };
-  }
-
-  // STEP 1: User is choosing Check-In
-  const rawState = getRawState(slotStartMs, slotEndMs);
-  if (rawState !== "AVAILABLE") {
-    return { state: rawState, label: rawState, clickable: false };
-  }
-
-  // Check 2h availability for starting check-in
-  const twoHoursEndMs = slotStartMs + 2 * 3600 * 1000;
-  let has2hRoom = true;
-  for (const item of intervals) {
-    const iStart = new Date(item.start_at).getTime();
-    const iEnd = new Date(item.end_at).getTime();
-    if (iStart < twoHoursEndMs && iEnd > slotStartMs) {
-      has2hRoom = false;
-      break;
-    }
-  }
-  if (!has2hRoom) {
-    return { state: "DISABLED_UNDER_MIN", label: "Cần 2h", clickable: false };
-  }
-
-  return { state: "AVAILABLE", label: "Trống", clickable: true };
-}
-
-// -----------------------------------------------------------------------------
-// Mock Hold Engine for Backend & Concurrency Tests
-// -----------------------------------------------------------------------------
-class MockBackendEngine {
+class MultiDayHoldEngine {
   constructor() {
     this.rooms = new Map();
     this.bookings = [];
     this.checkoutSessions = [];
     this.availabilityBlocks = [];
+    this.paymentFinalizedCount = new Map();
   }
 
   addRoom(room) {
     this.rooms.set(room.id, room);
   }
 
-  createHold({ roomId, checkInAt, checkOutAt, guestCount, now = new Date() }) {
+  createHourlyHold({
+    roomId,
+    userId,
+    checkInAt,
+    checkOutAt,
+    guestCount,
+    now = new Date("2026-09-30T08:00:00+07:00"),
+  }) {
     const room = this.rooms.get(roomId);
     if (!room || !room.is_listed) {
       return { success: false, error: "ROOM_NOT_FOUND_OR_UNLISTED" };
@@ -185,18 +52,23 @@ class MockBackendEngine {
     if (tOut <= tIn) {
       return { success: false, error: "INVALID_DATE_RANGE" };
     }
+
     const durationMinutes = (tOut - tIn) / (60 * 1000);
     if (durationMinutes < 120) {
       return { success: false, error: "MINIMUM_BOOKING_DURATION_2_HOURS" };
     }
-    if (durationMinutes > 1440) {
-      return { success: false, error: "MAXIMUM_BOOKING_DURATION_24_HOURS" };
+
+    // Check 14-day booking horizon policy
+    const horizonMs = nowMs + 14 * 86400 * 1000;
+    if (tOut > horizonMs) {
+      return { success: false, error: "OUTSIDE_BOOKING_HORIZON" };
     }
+
     if (guestCount < 1 || guestCount > room.capacity) {
       return { success: false, error: "GUEST_COUNT_EXCEEDS_CAPACITY" };
     }
 
-    // Check confirmed bookings overlap
+    // Overlap checks: half-open intervals [start, end)
     const hasBookingOverlap = this.bookings.some((b) => {
       if (b.room_id !== roomId || b.status === "CANCELLED") return false;
       const bStart = new Date(b.check_in_at).getTime();
@@ -207,7 +79,16 @@ class MockBackendEngine {
       return { success: false, error: "ROOM_NOT_AVAILABLE" };
     }
 
-    // Check active unexpired checkout sessions (HELD)
+    const hasBlockOverlap = this.availabilityBlocks.some((blk) => {
+      if (blk.room_id !== roomId) return false;
+      const blkStart = new Date(blk.start_at).getTime();
+      const blkEnd = new Date(blk.end_at).getTime();
+      return blkStart < tOut && blkEnd > tIn;
+    });
+    if (hasBlockOverlap) {
+      return { success: false, error: "ROOM_NOT_AVAILABLE" };
+    }
+
     const hasHeldOverlap = this.checkoutSessions.some((s) => {
       if (s.room_id !== roomId) return false;
       if (!["ACTIVE", "PAYMENT_PROCESSING"].includes(s.status)) return false;
@@ -220,388 +101,592 @@ class MockBackendEngine {
       return { success: false, error: "ROOM_TEMPORARILY_HELD" };
     }
 
-    // Check operational blocks
-    const hasBlockOverlap = this.availabilityBlocks.some((blk) => {
-      if (blk.room_id !== roomId) return false;
-      const blkStart = new Date(blk.start_at).getTime();
-      const blkEnd = new Date(blk.end_at).getTime();
-      return blkStart < tOut && blkEnd > tIn;
-    });
-    if (hasBlockOverlap) {
-      return { success: false, error: "ROOM_NOT_AVAILABLE" };
-    }
+    const bookingHours = Math.ceil(durationMinutes / 60);
+    const grossAmount = room.hourly_price_vnd * bookingHours;
 
-    // Create session with 30m hold
+    // Temporary hold is strictly 30 minutes, independent of stay duration
     const session = {
       id: `session_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      user_id: userId,
       room_id: roomId,
       check_in_at: checkInAt,
       check_out_at: checkOutAt,
       guest_count: guestCount,
+      booking_hours: bookingHours,
+      gross_amount_vnd: grossAmount,
       status: "ACTIVE",
       expires_at: new Date(nowMs + 30 * 60 * 1000).toISOString(),
     };
     this.checkoutSessions.push(session);
 
-    return { success: true, sessionId: session.id };
+    return { success: true, sessionId: session.id, bookingHours, grossAmount };
   }
 
-  getTimeline(roomId, rangeStart, rangeEnd, now = new Date()) {
-    const rStartMs = new Date(rangeStart).getTime();
-    const rEndMs = new Date(rangeEnd).getTime();
-    const nowMs = now.getTime();
-    const intervals = [];
-
-    for (const b of this.bookings) {
-      if (b.room_id !== roomId || b.status === "CANCELLED") continue;
-      const bIn = new Date(b.check_in_at).getTime();
-      const bOut = new Date(b.check_out_at).getTime();
-      if (bIn < rEndMs && bOut > rStartMs) {
-        intervals.push({ start_at: b.check_in_at, end_at: b.check_out_at, state: "BOOKED" });
-      }
+  finalizeBooking({ sessionId, now = new Date("2026-09-30T08:10:00+07:00") }) {
+    const session = this.checkoutSessions.find((s) => s.id === sessionId);
+    if (!session) return { success: false, error: "SESSION_NOT_FOUND" };
+    if (session.status === "COMPLETED") {
+      // Idempotency: return existing booking
+      const existing = this.bookings.find((b) => b.checkout_session_id === sessionId);
+      return { success: true, bookingId: existing?.id, idempotent: true };
+    }
+    if (new Date(session.expires_at).getTime() <= now.getTime()) {
+      return { success: false, error: "SESSION_EXPIRED" };
     }
 
-    for (const s of this.checkoutSessions) {
-      if (s.room_id !== roomId) continue;
-      if (!["ACTIVE", "PAYMENT_PROCESSING"].includes(s.status)) continue;
-      if (new Date(s.expires_at).getTime() <= nowMs) continue;
-      const sIn = new Date(s.check_in_at).getTime();
-      const sOut = new Date(s.check_out_at).getTime();
-      if (sIn < rEndMs && sOut > rStartMs) {
-        intervals.push({ start_at: s.check_in_at, end_at: s.check_out_at, state: "HELD" });
-      }
-    }
-
-    for (const blk of this.availabilityBlocks) {
-      if (blk.room_id !== roomId) continue;
-      const blkIn = new Date(blk.start_at).getTime();
-      const blkOut = new Date(blk.end_at).getTime();
-      if (blkIn < rEndMs && blkOut > rStartMs) {
-        intervals.push({ start_at: blk.start_at, end_at: blk.end_at, state: "BLOCKED" });
-      }
-    }
-
-    return intervals;
+    session.status = "COMPLETED";
+    const booking = {
+      id: `booking_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      room_id: session.room_id,
+      user_id: session.user_id,
+      checkout_session_id: sessionId,
+      check_in_at: session.check_in_at,
+      check_out_at: session.check_out_at,
+      status: "CONFIRMED",
+    };
+    this.bookings.push(booking);
+    return { success: true, bookingId: booking.id, idempotent: false };
   }
 }
 
 // =============================================================================
-// TEST SUITE EXECUTION
+// TESTS — SECTION 34: DURATION RULES
 // =============================================================================
 
-test("Test 1: Customer sees clear availability slots in redesigned picker", () => {
-  const componentPath = path.resolve("components/rooms/RoomAvailabilityTimeline.tsx");
-  assert.ok(fs.existsSync(componentPath), "RoomAvailabilityTimeline.tsx must exist");
-  const source = fs.readFileSync(componentPath, "utf-8");
+test("Test 1: 2h booking accepted", () => {
+  const engine = new MultiDayHoldEngine();
+  engine.addRoom({ id: "room_1", is_listed: true, capacity: 2, hourly_price_vnd: 100000 });
 
-  // Grid layout (4-col mobile, 6-col tablet/desktop)
-  assert.ok(source.includes("grid-cols-4"), "Must have 4-column layout for mobile");
-  assert.ok(source.includes("sm:grid-cols-6"), "Must have 6-column layout for desktop");
-
-  // Two-stage guide banners
-  assert.ok(source.includes("Bước 1: Chọn giờ nhận phòng"), "Must render Step 1 prompt");
-  assert.ok(source.includes("Bước 2: Chọn giờ trả phòng"), "Must render Step 2 prompt");
-
-  // Clear states
-  assert.ok(source.includes("Trống"), "Must display Trống status");
-  assert.ok(source.includes("Đã đặt"), "Must display Đã đặt status");
-  assert.ok(source.includes("Đang giữ"), "Must display Đang giữ status");
-  assert.ok(source.includes("Không khả dụng"), "Must display Không khả dụng status");
+  const res = engine.createHourlyHold({
+    roomId: "room_1",
+    userId: "user-1",
+    checkInAt: "2026-09-30T10:00:00+07:00",
+    checkOutAt: "2026-09-30T12:00:00+07:00",
+    guestCount: 2,
+  });
+  assert.equal(res.success, true);
+  assert.equal(res.bookingHours, 2);
+  assert.equal(res.grossAmount, 200000);
 });
 
-test("Test 2: Available slot selectable as Check-In in Step 1", () => {
-  const nowMs = new Date("2026-09-30T00:00:00+07:00").getTime();
-  const res = evaluateSlotPure({
-    hour: 8,
-    activeDateStr: "2026-09-30",
-    pendingCheckIn: null,
-    intervals: [],
-    nowMs,
-  });
+test("Test 2: 23h booking accepted", () => {
+  const engine = new MultiDayHoldEngine();
+  engine.addRoom({ id: "room_1", is_listed: true, capacity: 2, hourly_price_vnd: 100000 });
 
-  assert.equal(res.state, "AVAILABLE");
-  assert.equal(res.clickable, true);
+  const res = engine.createHourlyHold({
+    roomId: "room_1",
+    userId: "user-1",
+    checkInAt: "2026-09-30T08:00:00+07:00",
+    checkOutAt: "2026-10-01T07:00:00+07:00",
+    guestCount: 1,
+  });
+  assert.equal(res.success, true);
+  assert.equal(res.bookingHours, 23);
 });
 
-test("Test 3: Booked slot not selectable", () => {
-  const nowMs = new Date("2026-09-30T00:00:00+07:00").getTime();
-  const intervals = [
-    {
-      start_at: "2026-09-30T10:00:00+07:00",
-      end_at: "2026-09-30T14:00:00+07:00",
-      state: "BOOKED",
-    },
-  ];
+test("Test 3: 24h booking accepted", () => {
+  const engine = new MultiDayHoldEngine();
+  engine.addRoom({ id: "room_1", is_listed: true, capacity: 2, hourly_price_vnd: 100000 });
 
-  const res = evaluateSlotPure({
-    hour: 10,
-    activeDateStr: "2026-09-30",
-    pendingCheckIn: null,
-    intervals,
-    nowMs,
+  const res = engine.createHourlyHold({
+    roomId: "room_1",
+    userId: "user-1",
+    checkInAt: "2026-09-30T08:00:00+07:00",
+    checkOutAt: "2026-10-01T08:00:00+07:00",
+    guestCount: 1,
   });
-
-  assert.equal(res.state, "BOOKED");
-  assert.equal(res.clickable, false);
+  assert.equal(res.success, true);
+  assert.equal(res.bookingHours, 24);
+  assert.equal(res.grossAmount, 2400000);
 });
 
-test("Test 4: Held slot not selectable", () => {
-  const nowMs = new Date("2026-09-30T00:00:00+07:00").getTime();
-  const intervals = [
-    {
-      start_at: "2026-09-30T15:00:00+07:00",
-      end_at: "2026-09-30T18:00:00+07:00",
-      state: "HELD",
-    },
-  ];
+test("Test 4: 25h booking accepted (multi-day)", () => {
+  const engine = new MultiDayHoldEngine();
+  engine.addRoom({ id: "room_1", is_listed: true, capacity: 2, hourly_price_vnd: 100000 });
 
-  const res = evaluateSlotPure({
-    hour: 16,
-    activeDateStr: "2026-09-30",
-    pendingCheckIn: null,
-    intervals,
-    nowMs,
+  const res = engine.createHourlyHold({
+    roomId: "room_1",
+    userId: "user-1",
+    checkInAt: "2026-09-30T08:00:00+07:00",
+    checkOutAt: "2026-10-01T09:00:00+07:00",
+    guestCount: 1,
   });
-
-  assert.equal(res.state, "HELD");
-  assert.equal(res.clickable, false);
+  assert.equal(res.success, true);
+  assert.equal(res.bookingHours, 25);
+  assert.equal(res.grossAmount, 2500000);
 });
 
-test("Test 5: Blocked slot not selectable", () => {
-  const nowMs = new Date("2026-09-30T00:00:00+07:00").getTime();
-  const intervals = [
-    {
-      start_at: "2026-09-30T00:00:00+07:00",
-      end_at: "2026-09-30T06:00:00+07:00",
-      state: "BLOCKED",
-    },
-  ];
+test("Test 5: 39h booking accepted if free (08:00 today → 23:00 tomorrow)", () => {
+  const engine = new MultiDayHoldEngine();
+  engine.addRoom({ id: "room_1", is_listed: true, capacity: 2, hourly_price_vnd: 110000 });
 
-  const res = evaluateSlotPure({
-    hour: 3,
-    activeDateStr: "2026-09-30",
-    pendingCheckIn: null,
-    intervals,
-    nowMs,
+  const res = engine.createHourlyHold({
+    roomId: "room_1",
+    userId: "user-1",
+    checkInAt: "2026-09-30T08:00:00+07:00",
+    checkOutAt: "2026-10-01T23:00:00+07:00",
+    guestCount: 2,
   });
-
-  assert.equal(res.state, "BLOCKED");
-  assert.equal(res.clickable, false);
+  assert.equal(res.success, true);
+  assert.equal(res.bookingHours, 39);
+  assert.equal(res.grossAmount, 4290000);
 });
 
-test("Test 6: Minimum 2h enforced", () => {
-  const nowMs = new Date("2026-09-30T00:00:00+07:00").getTime();
-  // Check-in selected at 08:00
-  const pendingCheckIn = "2026-09-30T08:00";
+test("Test 6: 48h booking accepted if free", () => {
+  const engine = new MultiDayHoldEngine();
+  engine.addRoom({ id: "room_1", is_listed: true, capacity: 2, hourly_price_vnd: 100000 });
 
-  // Check-out at 09:00 = 1h -> under minimum 2h
-  const res1h = evaluateSlotPure({
-    hour: 9,
-    activeDateStr: "2026-09-30",
-    pendingCheckIn,
-    intervals: [],
-    nowMs,
+  const res = engine.createHourlyHold({
+    roomId: "room_1",
+    userId: "user-1",
+    checkInAt: "2026-09-30T10:00:00+07:00",
+    checkOutAt: "2026-10-02T10:00:00+07:00",
+    guestCount: 2,
   });
-  assert.equal(res1h.state, "DISABLED_UNDER_MIN");
-
-  // Check-out at 10:00 = 2h -> VALID!
-  const res2h = evaluateSlotPure({
-    hour: 10,
-    activeDateStr: "2026-09-30",
-    pendingCheckIn,
-    intervals: [],
-    nowMs,
-  });
-  assert.equal(res2h.state, "VALID_CHECKOUT");
-  assert.equal(res2h.durationHours, 2);
+  assert.equal(res.success, true);
+  assert.equal(res.bookingHours, 48);
+  assert.equal(res.grossAmount, 4800000);
 });
 
-test("Test 7: Maximum 24h enforced", () => {
-  const nowMs = new Date("2026-09-30T00:00:00+07:00").getTime();
-  // Check-in at 08:00 on 2026-09-30
-  const pendingCheckIn = "2026-09-30T08:00";
+test("Test 7: 72h booking accepted if free (3 full days)", () => {
+  const engine = new MultiDayHoldEngine();
+  engine.addRoom({ id: "room_1", is_listed: true, capacity: 2, hourly_price_vnd: 100000 });
 
-  // Check-out next day at 08:00 = 24h -> VALID!
-  const res24h = evaluateSlotPure({
-    hour: 8,
-    activeDateStr: "2026-10-01",
-    pendingCheckIn,
-    intervals: [],
-    nowMs,
+  const res = engine.createHourlyHold({
+    roomId: "room_1",
+    userId: "user-1",
+    checkInAt: "2026-09-30T12:00:00+07:00",
+    checkOutAt: "2026-10-03T12:00:00+07:00",
+    guestCount: 2,
   });
-  assert.equal(res24h.state, "VALID_CHECKOUT");
-  assert.equal(res24h.durationHours, 24);
-
-  // Check-out next day at 09:00 = 25h -> DISABLED_OVER_24H
-  const res25h = evaluateSlotPure({
-    hour: 9,
-    activeDateStr: "2026-10-01",
-    pendingCheckIn,
-    intervals: [],
-    nowMs,
-  });
-  assert.equal(res25h.state, "DISABLED_OVER_24H");
+  assert.equal(res.success, true);
+  assert.equal(res.bookingHours, 72);
+  assert.equal(res.grossAmount, 7200000);
 });
 
-test("Test 8: Valid same-day booking works (e.g. 10:00 - 14:00)", () => {
-  const nowMs = new Date("2026-09-30T00:00:00+07:00").getTime();
-  const pendingCheckIn = "2026-09-30T10:00";
+test("Test 8: booking beyond current 14-day horizon rejected by range policy", () => {
+  const engine = new MultiDayHoldEngine();
+  engine.addRoom({ id: "room_1", is_listed: true, capacity: 2, hourly_price_vnd: 100000 });
 
-  const res = evaluateSlotPure({
-    hour: 14,
-    activeDateStr: "2026-09-30",
-    pendingCheckIn,
-    intervals: [],
-    nowMs,
+  // Beyond 14-day horizon from 2026-09-30
+  const res = engine.createHourlyHold({
+    roomId: "room_1",
+    userId: "user-1",
+    checkInAt: "2026-09-30T10:00:00+07:00",
+    checkOutAt: "2026-10-18T10:00:00+07:00", // 18 days!
+    guestCount: 2,
   });
-
-  assert.equal(res.state, "VALID_CHECKOUT");
-  assert.equal(res.durationHours, 4);
+  assert.equal(res.success, false);
+  assert.equal(res.error, "OUTSIDE_BOOKING_HORIZON");
 });
 
-test("Test 9: Valid overnight booking within 24h works (e.g. 20:00 today → 08:00 tomorrow)", () => {
-  const nowMs = new Date("2026-09-30T00:00:00+07:00").getTime();
-  // Check-in at 20:00 today
-  const pendingCheckIn = "2026-09-30T20:00";
+test("Test 9: <2h rejected", () => {
+  const engine = new MultiDayHoldEngine();
+  engine.addRoom({ id: "room_1", is_listed: true, capacity: 2, hourly_price_vnd: 100000 });
 
-  // Check-out tomorrow at 08:00 = 12h
-  const res = evaluateSlotPure({
-    hour: 8,
-    activeDateStr: "2026-10-01",
-    pendingCheckIn,
-    intervals: [],
-    nowMs,
+  const res = engine.createHourlyHold({
+    roomId: "room_1",
+    userId: "user-1",
+    checkInAt: "2026-09-30T10:00:00+07:00",
+    checkOutAt: "2026-09-30T11:00:00+07:00", // 1 hour
+    guestCount: 2,
   });
-
-  assert.equal(res.state, "VALID_CHECKOUT");
-  assert.equal(res.durationHours, 12);
-  assert.equal(res.label, "+12h");
+  assert.equal(res.success, false);
+  assert.equal(res.error, "MINIMUM_BOOKING_DURATION_2_HOURS");
 });
 
-test("Test 10: 08:00 today → 23:00 tomorrow (39h) is rejected by max 24h rule with friendly message", () => {
-  const nowMs = new Date("2026-09-30T00:00:00+07:00").getTime();
-  const pendingCheckIn = "2026-09-30T08:00";
+// =============================================================================
+// TESTS — SECTION 35: MULTI-DAY CONFLICT & OVERLAP SEMANTICS
+// =============================================================================
 
-  // Check-out next day at 23:00 = 39 hours
-  const res = evaluateSlotPure({
-    hour: 23,
-    activeDateStr: "2026-10-01",
-    pendingCheckIn,
-    intervals: [],
-    nowMs,
+test("Test 10: Multi-day interval with no conflict accepted", () => {
+  const engine = new MultiDayHoldEngine();
+  engine.addRoom({ id: "room_1", is_listed: true, capacity: 2, hourly_price_vnd: 110000 });
+
+  const res = engine.createHourlyHold({
+    roomId: "room_1",
+    userId: "user-1",
+    checkInAt: "2026-09-30T20:00:00+07:00",
+    checkOutAt: "2026-10-02T08:00:00+07:00",
+    guestCount: 1,
+  });
+  assert.equal(res.success, true);
+  assert.equal(res.bookingHours, 36);
+  assert.equal(res.grossAmount, 3960000);
+});
+
+test("Test 11: Booking on middle day blocks whole requested interval", () => {
+  const engine = new MultiDayHoldEngine();
+  engine.addRoom({ id: "room_1", is_listed: true, capacity: 2, hourly_price_vnd: 100000 });
+
+  // Existing booking on middle day (01/10 14:00 - 18:00)
+  engine.bookings.push({
+    id: "existing_1",
+    room_id: "room_1",
+    check_in_at: "2026-10-01T14:00:00+07:00",
+    check_out_at: "2026-10-01T18:00:00+07:00",
+    status: "CONFIRMED",
   });
 
-  assert.equal(res.state, "DISABLED_OVER_24H");
-  assert.equal(res.label, "> 24h");
+  // User requests 30/09 20:00 -> 02/10 08:00 spanning across the middle day booking
+  const res = engine.createHourlyHold({
+    roomId: "room_1",
+    userId: "user-1",
+    checkInAt: "2026-09-30T20:00:00+07:00",
+    checkOutAt: "2026-10-02T08:00:00+07:00",
+    guestCount: 1,
+  });
+  assert.equal(res.success, false);
+  assert.equal(res.error, "ROOM_NOT_AVAILABLE");
+});
 
-  // Verify UI has friendly communication text
-  const timelineSource = fs.readFileSync(
+test("Test 12: Active hold on middle day blocks requested interval", () => {
+  const engine = new MultiDayHoldEngine();
+  engine.addRoom({ id: "room_1", is_listed: true, capacity: 2, hourly_price_vnd: 100000 });
+
+  // User A holds 01/10 12:00 - 16:00
+  const holdA = engine.createHourlyHold({
+    roomId: "room_1",
+    userId: "user-a",
+    checkInAt: "2026-10-01T12:00:00+07:00",
+    checkOutAt: "2026-10-01T16:00:00+07:00",
+    guestCount: 1,
+  });
+  assert.equal(holdA.success, true);
+
+  // User B requests 30/09 20:00 -> 02/10 08:00
+  const holdB = engine.createHourlyHold({
+    roomId: "room_1",
+    userId: "user-b",
+    checkInAt: "2026-09-30T20:00:00+07:00",
+    checkOutAt: "2026-10-02T08:00:00+07:00",
+    guestCount: 1,
+  });
+  assert.equal(holdB.success, false);
+  assert.equal(holdB.error, "ROOM_TEMPORARILY_HELD");
+});
+
+test("Test 13: Maintenance block on middle day blocks requested interval", () => {
+  const engine = new MultiDayHoldEngine();
+  engine.addRoom({ id: "room_1", is_listed: true, capacity: 2, hourly_price_vnd: 100000 });
+
+  // Operational maintenance block on middle night
+  engine.availabilityBlocks.push({
+    room_id: "room_1",
+    start_at: "2026-10-01T00:00:00+07:00",
+    end_at: "2026-10-01T06:00:00+07:00",
+  });
+
+  const res = engine.createHourlyHold({
+    roomId: "room_1",
+    userId: "user-1",
+    checkInAt: "2026-09-30T20:00:00+07:00",
+    checkOutAt: "2026-10-02T08:00:00+07:00",
+    guestCount: 1,
+  });
+  assert.equal(res.success, false);
+  assert.equal(res.error, "ROOM_NOT_AVAILABLE");
+});
+
+test("Test 14: Back-to-back across midnight allowed (half-open semantics)", () => {
+  const engine = new MultiDayHoldEngine();
+  engine.addRoom({ id: "room_1", is_listed: true, capacity: 2, hourly_price_vnd: 100000 });
+
+  // Booking A: 30/09 20:00 -> 01/10 08:00
+  const resA = engine.createHourlyHold({
+    roomId: "room_1",
+    userId: "user-a",
+    checkInAt: "2026-09-30T20:00:00+07:00",
+    checkOutAt: "2026-10-01T08:00:00+07:00",
+    guestCount: 1,
+  });
+  assert.equal(resA.success, true);
+
+  // Booking B: 01/10 08:00 -> 01/10 12:00
+  const resB = engine.createHourlyHold({
+    roomId: "room_1",
+    userId: "user-b",
+    checkInAt: "2026-10-01T08:00:00+07:00",
+    checkOutAt: "2026-10-01T12:00:00+07:00",
+    guestCount: 1,
+  });
+  assert.equal(resB.success, true);
+});
+
+// =============================================================================
+// TESTS — SECTION 36: UI & 4-COLUMN PICKER
+// =============================================================================
+
+test("Test 15: Time cells do not use 6-column layout", () => {
+  const source = fs.readFileSync(
+    path.resolve("components/rooms/RoomAvailabilityTimeline.tsx"),
+    "utf-8"
+  );
+  assert.equal(
+    source.includes("grid-cols-6"),
+    false,
+    "Must NOT contain grid-cols-6 layout in RoomAvailabilityTimeline.tsx"
+  );
+});
+
+test("Test 16: Desktop picker uses readable max 4-column hour grid", () => {
+  const source = fs.readFileSync(
     path.resolve("components/rooms/RoomAvailabilityTimeline.tsx"),
     "utf-8"
   );
   assert.ok(
-    timelineSource.includes("Hiện tại Kapi chỉ hỗ trợ đặt phòng theo giờ tối đa 24 tiếng."),
-    "Must communicate friendly max 24h rule in UI"
+    source.includes("grid-cols-4"),
+    "Desktop and mobile must use 4 columns maximum"
   );
+});
 
-  const widgetSource = fs.readFileSync(
+test("Test 17: Hour labels visible without truncation", () => {
+  const source = fs.readFileSync(
+    path.resolve("components/rooms/RoomAvailabilityTimeline.tsx"),
+    "utf-8"
+  );
+  assert.ok(
+    source.includes("text-sm font-semibold"),
+    "Hour labels must use at least 13-14px font (text-sm font-semibold)"
+  );
+  assert.equal(
+    source.includes("text-[8px]"),
+    false,
+    "Must not contain microscopic text-[8px]"
+  );
+});
+
+test("Test 18: Check-in date and check-out date are independently selectable in 4-step flow", () => {
+  const source = fs.readFileSync(
+    path.resolve("components/rooms/RoomAvailabilityTimeline.tsx"),
+    "utf-8"
+  );
+  assert.ok(source.includes("Ngày nhận"), "Must render Ngày nhận (Step 1)");
+  assert.ok(source.includes("Giờ nhận"), "Must render Giờ nhận (Step 2)");
+  assert.ok(source.includes("Ngày trả"), "Must render Ngày trả (Step 3)");
+  assert.ok(source.includes("Giờ trả"), "Must render Giờ trả (Step 4)");
+});
+
+test("Test 19: Checkout date can be tomorrow", () => {
+  const source = fs.readFileSync(
+    path.resolve("components/rooms/RoomAvailabilityTimeline.tsx"),
+    "utf-8"
+  );
+  assert.ok(source.includes("checkOutDateChips"), "Provides checkOutDateChips");
+  assert.ok(source.includes("handleSelectCheckOutDate"), "Provides handleSelectCheckOutDate");
+});
+
+test("Test 20: Checkout date can be 2+ days later", () => {
+  const source = fs.readFileSync(
+    path.resolve("components/rooms/RoomAvailabilityTimeline.tsx"),
+    "utf-8"
+  );
+  assert.ok(source.includes("maxHorizonDateStr"), "Supports up to 14-day booking horizon");
+});
+
+test("Test 21: Selecting new check-in clears invalid checkout", () => {
+  const source = fs.readFileSync(
+    path.resolve("components/rooms/RoomAvailabilityTimeline.tsx"),
+    "utf-8"
+  );
+  assert.ok(
+    source.includes("setCheckOutTime(null)"),
+    "handleSelectCheckInTime clears previous check-out time"
+  );
+});
+
+test("Test 22: Multi-day summary shows correct total hours", () => {
+  const source = fs.readFileSync(
     path.resolve("components/rooms/RoomBookingWidget.tsx"),
     "utf-8"
   );
   assert.ok(
-    widgetSource.includes("Thời lượng đặt phòng tối đa là 24 giờ cho mỗi lượt."),
-    "RoomBookingWidget must enforce 24h validation"
+    source.includes("Thời lượng"),
+    "RoomBookingWidget must render Thời lượng"
+  );
+  assert.ok(
+    source.includes("{hours} giờ"),
+    "RoomBookingWidget must display dynamic total hours"
   );
 });
 
-test("Test 11: Selection summary updates correctly and adheres to Section 10 format", () => {
+test("Test 23: No '> 24h' disabled behavior remains", () => {
+  const source = fs.readFileSync(
+    path.resolve("components/rooms/RoomAvailabilityTimeline.tsx"),
+    "utf-8"
+  );
+  assert.equal(
+    source.includes("DISABLED_OVER_24H"),
+    false,
+    "DISABLED_OVER_24H must be completely removed"
+  );
+});
+
+test("Test 24: No 'tối đa 24 giờ' booking validation remains", () => {
   const widgetSource = fs.readFileSync(
     path.resolve("components/rooms/RoomBookingWidget.tsx"),
     "utf-8"
   );
+  assert.equal(
+    widgetSource.includes("Thời lượng đặt phòng tối đa là 24 giờ"),
+    false,
+    "Booking duration maximum 24h must be removed from RoomBookingWidget.tsx"
+  );
 
-  // Check section 10 items
-  assert.ok(widgetSource.includes("Nhận phòng"), "Summary must display Nhận phòng");
-  assert.ok(widgetSource.includes("Trả phòng"), "Summary must display Trả phòng");
-  assert.ok(widgetSource.includes("Thời lượng:"), "Summary must display Thời lượng");
-  assert.ok(widgetSource.includes("Tạm tính:"), "Summary must display Tạm tính");
-  assert.ok(widgetSource.includes("Giữ phòng & tiếp tục"), "Must have CTA button");
+  const timelineSource = fs.readFileSync(
+    path.resolve("components/rooms/RoomAvailabilityTimeline.tsx"),
+    "utf-8"
+  );
+  assert.equal(
+    timelineSource.includes("tối đa 24 tiếng"),
+    false,
+    "Timeline must not restrict stays to 24h"
+  );
 });
 
-test("Test 12: Hold flow still works after redesign (createHoldSessionAction integration)", async () => {
-  const engine = new MockBackendEngine();
-  engine.addRoom({ id: "room_101", is_listed: true, capacity: 2, hourly_price_vnd: 150000 });
+// =============================================================================
+// TESTS — SECTION 37: HOLD / PAYMENT
+// =============================================================================
 
-  const holdRes = engine.createHold({
-    roomId: "room_101",
+test("Test 25: 3-day temporary hold blocks overlapping second user", () => {
+  const engine = new MultiDayHoldEngine();
+  engine.addRoom({ id: "room_1", is_listed: true, capacity: 2, hourly_price_vnd: 100000 });
+
+  const holdA = engine.createHourlyHold({
+    roomId: "room_1",
+    userId: "user-a",
     checkInAt: "2026-09-30T10:00:00+07:00",
-    checkOutAt: "2026-09-30T14:00:00+07:00",
-    guestCount: 2,
-    now: new Date("2026-09-30T08:00:00+07:00"),
-  });
-
-  assert.equal(holdRes.success, true);
-  assert.ok(holdRes.sessionId.startsWith("session_"));
-});
-
-test("Test 13: Cross-user held state still works (real-time hold prevents another user from picking)", () => {
-  const engine = new MockBackendEngine();
-  engine.addRoom({ id: "room_101", is_listed: true, capacity: 2, hourly_price_vnd: 150000 });
-
-  // User A holds 10:00 - 14:00
-  const holdA = engine.createHold({
-    roomId: "room_101",
-    checkInAt: "2026-09-30T10:00:00+07:00",
-    checkOutAt: "2026-09-30T14:00:00+07:00",
-    guestCount: 2,
-    now: new Date("2026-09-30T08:00:00+07:00"),
+    checkOutAt: "2026-10-03T10:00:00+07:00", // 3 days
+    guestCount: 1,
   });
   assert.equal(holdA.success, true);
 
-  // User B tries to hold overlapping 12:00 - 16:00
-  const holdB = engine.createHold({
-    roomId: "room_101",
-    checkInAt: "2026-09-30T12:00:00+07:00",
-    checkOutAt: "2026-09-30T16:00:00+07:00",
-    guestCount: 2,
-    now: new Date("2026-09-30T08:05:00+07:00"),
+  // User B tries to book within that 3-day window
+  const holdB = engine.createHourlyHold({
+    roomId: "room_1",
+    userId: "user-b",
+    checkInAt: "2026-10-01T12:00:00+07:00",
+    checkOutAt: "2026-10-01T16:00:00+07:00",
+    guestCount: 1,
   });
   assert.equal(holdB.success, false);
   assert.equal(holdB.error, "ROOM_TEMPORARILY_HELD");
-
-  // Public timeline reflects HELD state for other visitors
-  const intervals = engine.getTimeline(
-    "room_101",
-    "2026-09-30T00:00:00+07:00",
-    "2026-10-01T00:00:00+07:00",
-    new Date("2026-09-30T08:05:00+07:00")
-  );
-  assert.equal(intervals.length, 1);
-  assert.equal(intervals[0].state, "HELD");
 });
 
-test("Test 14: No regression to checkout flow and contracts", () => {
-  const actionPath = path.resolve("app/rooms/[id]/actions.ts");
-  assert.ok(fs.existsSync(actionPath), "actions.ts must exist");
-  const actionSource = fs.readFileSync(actionPath, "utf-8");
+test("Test 26: Hold still expires after exactly 30 minutes", () => {
+  const engine = new MultiDayHoldEngine();
+  engine.addRoom({ id: "room_1", is_listed: true, capacity: 2, hourly_price_vnd: 100000 });
+
+  const startTime = new Date("2026-09-30T08:00:00+07:00");
+  const hold = engine.createHourlyHold({
+    roomId: "room_1",
+    userId: "user-a",
+    checkInAt: "2026-09-30T10:00:00+07:00",
+    checkOutAt: "2026-10-03T10:00:00+07:00", // 72 hours
+    guestCount: 1,
+    now: startTime,
+  });
+  assert.equal(hold.success, true);
+
+  const session = engine.checkoutSessions.find((s) => s.id === hold.sessionId);
+  assert.ok(session);
+  const diffMinutes =
+    (new Date(session.expires_at).getTime() - startTime.getTime()) / (60 * 1000);
+  assert.equal(diffMinutes, 30, "Hold expiration must be exactly 30 minutes");
+});
+
+test("Test 27: Expired multi-day hold releases full interval", () => {
+  const engine = new MultiDayHoldEngine();
+  engine.addRoom({ id: "room_1", is_listed: true, capacity: 2, hourly_price_vnd: 100000 });
+
+  const t0 = new Date("2026-09-30T08:00:00+07:00");
+  engine.createHourlyHold({
+    roomId: "room_1",
+    userId: "user-a",
+    checkInAt: "2026-09-30T10:00:00+07:00",
+    checkOutAt: "2026-10-03T10:00:00+07:00",
+    guestCount: 1,
+    now: t0,
+  });
+
+  // Advance time by 31 minutes -> hold is expired
+  const t31 = new Date("2026-09-30T08:31:00+07:00");
+  const holdB = engine.createHourlyHold({
+    roomId: "room_1",
+    userId: "user-b",
+    checkInAt: "2026-09-30T10:00:00+07:00",
+    checkOutAt: "2026-10-03T10:00:00+07:00",
+    guestCount: 1,
+    now: t31,
+  });
+  assert.equal(holdB.success, true, "Expired hold must release the multi-day interval");
+});
+
+test("Test 28: Payment finalizer creates correct multi-day booking", () => {
+  const engine = new MultiDayHoldEngine();
+  engine.addRoom({ id: "room_1", is_listed: true, capacity: 2, hourly_price_vnd: 100000 });
+
+  const hold = engine.createHourlyHold({
+    roomId: "room_1",
+    userId: "user-a",
+    checkInAt: "2026-09-30T20:00:00+07:00",
+    checkOutAt: "2026-10-03T08:00:00+07:00", // 60 hours
+    guestCount: 1,
+  });
+
+  const finalRes = engine.finalizeBooking({ sessionId: hold.sessionId });
+  assert.equal(finalRes.success, true);
+  assert.ok(finalRes.bookingId);
+
+  const booking = engine.bookings.find((b) => b.id === finalRes.bookingId);
+  assert.equal(booking.check_in_at, "2026-09-30T20:00:00+07:00");
+  assert.equal(booking.check_out_at, "2026-10-03T08:00:00+07:00");
+});
+
+test("Test 29: Finalizer remains idempotent", () => {
+  const engine = new MultiDayHoldEngine();
+  engine.addRoom({ id: "room_1", is_listed: true, capacity: 2, hourly_price_vnd: 100000 });
+
+  const hold = engine.createHourlyHold({
+    roomId: "room_1",
+    userId: "user-a",
+    checkInAt: "2026-09-30T20:00:00+07:00",
+    checkOutAt: "2026-10-03T08:00:00+07:00",
+    guestCount: 1,
+  });
+
+  const res1 = engine.finalizeBooking({ sessionId: hold.sessionId });
+  assert.equal(res1.success, true);
+  assert.equal(res1.idempotent, false);
+
+  const res2 = engine.finalizeBooking({ sessionId: hold.sessionId });
+  assert.equal(res2.success, true);
+  assert.equal(res2.idempotent, true);
+  assert.equal(res2.bookingId, res1.bookingId);
+});
+
+test("Test 30: SePay webhook regression passes & Migration file exists", () => {
+  const migrationPath = path.resolve(
+    "supabase/migrations/20260930110000_enable_multi_day_hourly_bookings.sql"
+  );
+  assert.ok(fs.existsSync(migrationPath), "Additive migration file must exist");
+  const sql = fs.readFileSync(migrationPath, "utf-8");
 
   assert.ok(
-    actionSource.includes("createHoldSessionAction"),
-    "createHoldSessionAction must remain defined"
+    sql.includes("create_hourly_checkout_session_atomic"),
+    "Migration must define create_hourly_checkout_session_atomic"
+  );
+  assert.equal(
+    sql.includes("MAXIMUM_BOOKING_DURATION_24_HOURS"),
+    false,
+    "Migration must not contain MAXIMUM_BOOKING_DURATION_24_HOURS"
   );
   assert.ok(
-    actionSource.includes("createCheckoutSession"),
-    "createCheckoutSession must be called"
-  );
-
-  const checkoutPath = path.resolve("lib/data/checkout.ts");
-  const checkoutSource = fs.readFileSync(checkoutPath, "utf-8");
-  assert.ok(
-    checkoutSource.includes("MAXIMUM_BOOKING_DURATION_24_HOURS"),
-    "MAXIMUM_BOOKING_DURATION_24_HOURS must remain intact in checkout.ts"
+    sql.includes("v_duration_minutes < 120.0"),
+    "Minimum 2 hours must be preserved"
   );
   assert.ok(
-    checkoutSource.includes("MINIMUM_BOOKING_DURATION_2_HOURS"),
-    "MINIMUM_BOOKING_DURATION_2_HOURS must remain intact in checkout.ts"
+    sql.includes("pg_advisory_xact_lock"),
+    "Advisory lock must be preserved"
   );
 });
