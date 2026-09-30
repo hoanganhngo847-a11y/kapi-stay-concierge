@@ -42,6 +42,19 @@ export interface RoomBookingWidgetProps {
 }
 
 /**
+ * Parse Vietnam (UTC+7) datetime string to milliseconds epoch.
+ * Supports "YYYY-MM-DDTHH:mm", "YYYY-MM-DDTHH:mm:ss", and ISO strings.
+ */
+export function parseVietnamTimestamp(dtStr: string): number {
+  if (!dtStr) return NaN;
+  if (dtStr.includes("Z") || dtStr.includes("+")) {
+    return new Date(dtStr).getTime();
+  }
+  const normalized = dtStr.length === 16 ? `${dtStr}:00+07:00` : `${dtStr}+07:00`;
+  return new Date(normalized).getTime();
+}
+
+/**
  * Returns current datetime string in Asia/Ho_Chi_Minh as YYYY-MM-DDTHH:mm.
  */
 function getCurrentDateTimeInVietnam(): string {
@@ -102,12 +115,8 @@ function getMinCheckOutDateTime(checkInStr: string): string {
  */
 function calcBookingHours(inAt: string, outAt: string): number {
   if (!inAt || !outAt) return 0;
-  const tIn = new Date(
-    inAt.includes("Z") || inAt.includes("+") ? inAt : `${inAt}:00+07:00`
-  ).getTime();
-  const tOut = new Date(
-    outAt.includes("Z") || outAt.includes("+") ? outAt : `${outAt}:00+07:00`
-  ).getTime();
+  const tIn = parseVietnamTimestamp(inAt);
+  const tOut = parseVietnamTimestamp(outAt);
 
   if (isNaN(tIn) || isNaN(tOut) || tOut <= tIn) return 0;
   const diffMinutes = (tOut - tIn) / 60000;
@@ -121,7 +130,8 @@ export function RoomBookingWidget({
   initialConflict,
 }: RoomBookingWidgetProps) {
   const router = useRouter();
-  const minNowStr = React.useMemo(() => getCurrentDateTimeInVietnam(), []);
+  const [initialNowMs] = React.useState(() => Date.now());
+  const [, setCurrentTimeMs] = React.useState<number>(initialNowMs);
   const hourlyPrice = Number(room.hourly_price_vnd) || Math.round(Number(room.nightly_price_vnd) / 5) || 120000;
 
   // Format initial inputs (convert YYYY-MM-DD to YYYY-MM-DDTHH:mm if needed)
@@ -135,7 +145,9 @@ export function RoomBookingWidget({
   const formattedInitialOut = formatInitialParam(initialCheckOut, "18:00");
 
   const normalizedInitialCheckIn =
-    formattedInitialIn && formattedInitialIn >= minNowStr ? formattedInitialIn : "";
+    formattedInitialIn && parseVietnamTimestamp(formattedInitialIn) >= initialNowMs
+      ? formattedInitialIn
+      : "";
   const normalizedInitialCheckOut =
     normalizedInitialCheckIn &&
     formattedInitialOut &&
@@ -162,6 +174,27 @@ export function RoomBookingWidget({
   // Request counter ref for stale response / race condition protection
   const requestIdRef = React.useRef(0);
 
+  // Periodically re-evaluate current time (every 15s) and check for clock drift
+  React.useEffect(() => {
+    const timer = setInterval(() => {
+      const nowMs = Date.now();
+      setCurrentTimeMs(nowMs);
+      if (checkIn) {
+        const checkInMs = parseVietnamTimestamp(checkIn);
+        if (checkInMs < nowMs) {
+          setValidationError("Giờ nhận đã qua. Vui lòng chọn giờ nhận mới.");
+          setAvailability({
+            status: "UNAVAILABLE",
+            checkIn,
+            checkOut,
+            reason: "Giờ nhận đã qua. Vui lòng chọn giờ nhận mới.",
+          });
+        }
+      }
+    }, 15000);
+    return () => clearInterval(timer);
+  }, [checkIn, checkOut]);
+
   // Calculate booking hours and pricing
   const hours = React.useMemo(() => {
     return calcBookingHours(checkIn, checkOut);
@@ -171,8 +204,8 @@ export function RoomBookingWidget({
 
   // Minimum selectable check-out datetime
   const minCheckOutStr = React.useMemo(() => {
-    return checkIn ? getMinCheckOutDateTime(checkIn) : getMinCheckOutDateTime(minNowStr);
-  }, [checkIn, minNowStr]);
+    return checkIn ? getMinCheckOutDateTime(checkIn) : getMinCheckOutDateTime(getCurrentDateTimeInVietnam());
+  }, [checkIn]);
 
   // Handle timeline slot selection
   const handleSelectCheckIn = (inStr: string) => {
@@ -186,8 +219,23 @@ export function RoomBookingWidget({
   const handleSelectTimelineInterval = (inStr: string, outStr: string) => {
     setCheckIn(inStr);
     setCheckOut(outStr);
-    setValidationError(null);
     setHoldConflictMessage(null);
+
+    const inMs = parseVietnamTimestamp(inStr);
+    if (inMs < Date.now()) {
+      setValidationError("Giờ nhận đã qua. Vui lòng chọn giờ nhận mới.");
+      setAvailability({
+        status: "UNAVAILABLE",
+        checkIn: inStr,
+        checkOut: outStr,
+        reason: "Giờ nhận đã qua. Vui lòng chọn giờ nhận mới.",
+      });
+      return;
+    }
+
+    setValidationError(null);
+    // Immediately enter CHECKING state to prevent CTA flash/disabled state
+    setAvailability({ status: "CHECKING" });
   };
 
   // Helper formatting for Selected Summary card (Section 10: 30/09/2026 — 08:00)
@@ -210,11 +258,13 @@ export function RoomBookingWidget({
     // Invalidate any in-flight request.
     requestIdRef.current += 1;
 
+    const inMs = parseVietnamTimestamp(newVal);
+    const outMs = parseVietnamTimestamp(checkOut);
     if (
       newVal &&
       checkOut &&
-      newVal >= minNowStr &&
-      checkOut > newVal &&
+      inMs >= Date.now() &&
+      outMs > inMs &&
       calcBookingHours(newVal, checkOut) >= 2
     ) {
       setAvailability({ status: "CHECKING" });
@@ -224,8 +274,8 @@ export function RoomBookingWidget({
 
     // If existing checkOut is less than newVal + 2 hours, reset checkOut
     if (checkOut) {
-      const tIn = new Date(newVal).getTime();
-      const tOut = new Date(checkOut).getTime();
+      const tIn = parseVietnamTimestamp(newVal);
+      const tOut = parseVietnamTimestamp(checkOut);
       if (tOut - tIn < 2 * 3600 * 1000) {
         setCheckOut("");
       }
@@ -242,11 +292,13 @@ export function RoomBookingWidget({
     // Invalidate any in-flight request.
     requestIdRef.current += 1;
 
+    const inMs = parseVietnamTimestamp(checkIn);
+    const outMs = parseVietnamTimestamp(newVal);
     if (
       checkIn &&
       newVal &&
-      checkIn >= minNowStr &&
-      newVal > checkIn &&
+      inMs >= Date.now() &&
+      outMs > inMs &&
       calcBookingHours(checkIn, newVal) >= 2
     ) {
       setAvailability({ status: "CHECKING" });
@@ -259,8 +311,11 @@ export function RoomBookingWidget({
   React.useEffect(() => {
     const hasBothTimes = Boolean(checkIn && checkOut);
     const durationHours = calcBookingHours(checkIn, checkOut);
+    const checkInMs = parseVietnamTimestamp(checkIn);
+    const checkOutMs = parseVietnamTimestamp(checkOut);
+    const nowMs = Date.now();
     const isChronologicallyValid =
-      checkIn >= minNowStr && checkOut > checkIn && durationHours >= 2;
+      checkInMs >= nowMs && checkOutMs > checkInMs && durationHours >= 2;
 
     if (!hasBothTimes || !isChronologicallyValid) {
       requestIdRef.current += 1;
@@ -314,7 +369,7 @@ export function RoomBookingWidget({
     return () => {
       isMounted = false;
     };
-  }, [room.id, checkIn, checkOut, minNowStr]);
+  }, [room.id, checkIn, checkOut]);
 
   // Form submit handler: creates atomic temporary hold
   const handleSubmit = async (e: React.FormEvent) => {
@@ -325,8 +380,16 @@ export function RoomBookingWidget({
       return;
     }
 
-    if (checkIn < minNowStr) {
-      setValidationError("Thời gian nhận phòng không được ở trong quá khứ.");
+    const checkInMs = parseVietnamTimestamp(checkIn);
+    const nowMs = Date.now();
+    if (checkInMs < nowMs) {
+      setValidationError("Giờ nhận đã qua. Vui lòng chọn giờ nhận mới.");
+      setAvailability({
+        status: "UNAVAILABLE",
+        checkIn,
+        checkOut,
+        reason: "Giờ nhận đã qua. Vui lòng chọn giờ nhận mới.",
+      });
       return;
     }
 
@@ -438,9 +501,24 @@ export function RoomBookingWidget({
           <div className="border border-[#E5E5E5] bg-[#F9FAFB] p-4 rounded-xl space-y-3">
             <div className="text-[11px] font-bold text-[#111111] uppercase tracking-wider pb-2 border-b border-[#E5E5E5] flex items-center justify-between">
               <span>Lựa chọn của bạn</span>
-              <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                Khung giờ hợp lệ
-              </span>
+              {availability.status === "CHECKING" ? (
+                <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                  Đang kiểm tra
+                </span>
+              ) : availability.status === "AVAILABLE" ? (
+                <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                  Khung giờ còn trống
+                </span>
+              ) : availability.status === "UNAVAILABLE" ? (
+                <span className="text-[10px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
+                  Không khả dụng
+                </span>
+              ) : (
+                <span className="text-[10px] font-semibold text-neutral-600 bg-neutral-100 border border-neutral-200 px-2 py-0.5 rounded-full">
+                  Đang kiểm tra
+                </span>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-3 text-xs">
