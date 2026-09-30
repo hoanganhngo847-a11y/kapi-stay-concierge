@@ -200,4 +200,21 @@ export async function releaseCheckoutHoldAction(
   return { success: res.success, error: res.error ?? null };
 }
 
+// ---------------------------------------------------------------------------
+// Action: Kiểm tra trạng thái thanh toán — customer-safe, READ-ONLY
+// ---------------------------------------------------------------------------
 
+export async function getCheckoutPaymentStatusAction(
+  sessionId: string
+): Promise<{
+  data: import("@/lib/data/checkout").CheckoutPaymentStatus | null;
+  error: string | null;
+}> {
+  const userId = await getAuthenticatedUserId();
+  if (!userId) {
+    return { data: null, error: "Phiên đăng nhập đã hết hạn." };
+  }
+
+  const { getCheckoutPaymentStatus } = await import("@/lib/data/checkout");
+  return getCheckoutPaymentStatus(sessionId, userId);
+}
