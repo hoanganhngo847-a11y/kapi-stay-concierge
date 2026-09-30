@@ -2,6 +2,9 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { calculateStayLifecycle } from "@/lib/utils/stay";
+import { MyStayError, type MyStayErrorCode } from "@/lib/types/my-stay";
+
+export type { MyStayErrorCode };
 
 export interface MyStayCredentialsRpcResponse {
   success: boolean;
@@ -192,10 +195,6 @@ function parseCredentialsResponse(data: unknown): MyStayCredentialsRpcResponse |
     wifi_password: typeof obj.wifi_password === "string" ? obj.wifi_password : null,
   };
 }
-
-import { MyStayError, type MyStayErrorCode } from "@/lib/types/my-stay";
-
-export type { MyStayErrorCode };
 
 interface BookingRecord {
   id: string;

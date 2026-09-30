@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef, Suspense } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { AlertCircle, ArrowLeft, Loader2 } from "lucide-react";
 import { Button, Reveal } from "@/components/ui";
@@ -17,9 +17,15 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 
 interface MyStayClientProps {
   initialBookings?: MyStayBookingSummary[];
+  initialStayData?: MyStayBookingDetails | null;
+  initialError?: string | null;
 }
 
-function MyStayContent({ initialBookings = [] }: MyStayClientProps) {
+function MyStayContent({
+  initialBookings = [],
+  initialStayData = null,
+  initialError = null,
+}: MyStayClientProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -32,92 +38,125 @@ function MyStayContent({ initialBookings = [] }: MyStayClientProps) {
   const trimmedParam = rawParam.trim();
   const isValidUuid = UUID_REGEX.test(trimmedParam);
 
-  const [bookings] = useState<MyStayBookingSummary[]>(initialBookings);
-  const [stayData, setStayData] = useState<MyStayBookingDetails | null>(null);
-  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const hasMatchingInitialStay = Boolean(
+    initialStayData &&
+      trimmedParam &&
+      initialStayData.bookingId.toLowerCase() === trimmedParam.toLowerCase()
+  );
 
-  // Synchronize state during render when query parameter changes
+  const [bookings] = useState<MyStayBookingSummary[]>(initialBookings);
+  const [stayData, setStayData] = useState<MyStayBookingDetails | null>(
+    hasMatchingInitialStay ? initialStayData : null
+  );
+  const [isLoadingDetail, setIsLoadingDetail] = useState(
+    Boolean(trimmedParam && isValidUuid && !hasMatchingInitialStay && !initialError)
+  );
+  const [errorMessage, setErrorMessage] = useState<string | null>(
+    trimmedParam && initialError ? initialError : null
+  );
+
+  // Synchronize state during render when query parameter or initial props change
   const [prevParam, setPrevParam] = useState(trimmedParam);
-  if (trimmedParam !== prevParam) {
+  const [prevInitialStayData, setPrevInitialStayData] = useState(initialStayData);
+  const [prevInitialError, setPrevInitialError] = useState(initialError);
+
+  if (
+    trimmedParam !== prevParam ||
+    initialStayData !== prevInitialStayData ||
+    initialError !== prevInitialError
+  ) {
     setPrevParam(trimmedParam);
+    setPrevInitialStayData(initialStayData);
+    setPrevInitialError(initialError);
+
     if (!trimmedParam) {
       setStayData(null);
       setErrorMessage(null);
+      setIsLoadingDetail(false);
     } else if (!isValidUuid) {
       setStayData(null);
       setErrorMessage("Không tìm thấy booking hoặc bạn không có quyền truy cập.");
+      setIsLoadingDetail(false);
+    } else if (
+      initialStayData &&
+      initialStayData.bookingId.toLowerCase() === trimmedParam.toLowerCase()
+    ) {
+      setStayData(initialStayData);
+      setErrorMessage(null);
+      setIsLoadingDetail(false);
+    } else if (initialError) {
+      setStayData(null);
+      setErrorMessage(initialError);
+      setIsLoadingDetail(false);
+    } else {
+      setStayData(null);
+      setErrorMessage(null);
+      setIsLoadingDetail(true);
     }
   }
 
-  const lastFetchedIdRef = useRef<string | null>(null);
-
-  // Load details when a valid bookingId exists in query parameters
-  const executeLookup = useCallback(async (id: string) => {
-    const cleanId = id.trim();
-    if (!cleanId) return;
-
-    if (!UUID_REGEX.test(cleanId)) {
-      setErrorMessage("Không tìm thấy booking hoặc bạn không có quyền truy cập.");
-      setStayData(null);
+  useEffect(() => {
+    let ignore = false;
+    if (!trimmedParam || !isValidUuid) {
       return;
     }
 
-    setIsLoadingDetail(true);
-    setErrorMessage(null);
+    const hasData =
+      (stayData && stayData.bookingId.toLowerCase() === trimmedParam.toLowerCase()) ||
+      errorMessage !== null;
 
-    try {
-      const data = await getMyStayBookingDetails(cleanId);
-      if (!data) {
-        setErrorMessage("Không tìm thấy booking hoặc bạn không có quyền truy cập.");
-        setStayData(null);
-      } else {
-        setStayData(data);
-      }
-    } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : "";
-      if (
-        errMsg.startsWith("Unauthorized:") ||
-        errMsg.startsWith("UNAUTHENTICATED:")
-      ) {
-        setErrorMessage("Vui lòng đăng nhập để xem thông tin kỳ nghỉ.");
-      } else if (
-        errMsg.startsWith("Forbidden:") ||
-        errMsg.startsWith("FORBIDDEN:") ||
-        errMsg.startsWith("BOOKING_NOT_FOUND:") ||
-        errMsg.includes("không có quyền truy cập")
-      ) {
-        // Safe message without DB or internal details
-        setErrorMessage("Không tìm thấy booking hoặc bạn không có quyền truy cập.");
-      } else if (
-        errMsg.startsWith("Incomplete:") ||
-        errMsg.startsWith("BOOKING_DATA_INCOMPLETE:")
-      ) {
-        // Internal data error: DO NOT falsely show "không tìm thấy booking hoặc không có quyền"
-        setErrorMessage("Thông tin kỳ nghỉ đang được cập nhật. Vui lòng thử lại sau.");
-      } else {
-        // Safe generic system/DB error message - does not falsely accuse user of forbidden access
-        setErrorMessage("Không thể tải thông tin kỳ nghỉ lúc này. Vui lòng thử lại sau.");
-      }
-      setStayData(null);
-    } finally {
-      setIsLoadingDetail(false);
+    if (!hasData) {
+      void getMyStayBookingDetails(trimmedParam)
+        .then((data) => {
+          if (ignore) return;
+          if (!data) {
+            setErrorMessage("Không tìm thấy booking hoặc bạn không có quyền truy cập.");
+            setStayData(null);
+          } else {
+            setStayData(data);
+            setErrorMessage(null);
+          }
+        })
+        .catch((err: unknown) => {
+          if (ignore) return;
+          const errMsg = err instanceof Error ? err.message : "";
+          if (
+            errMsg.startsWith("Unauthorized:") ||
+            errMsg.startsWith("UNAUTHENTICATED:")
+          ) {
+            setErrorMessage("Vui lòng đăng nhập để xem thông tin kỳ nghỉ.");
+          } else if (
+            errMsg.startsWith("Forbidden:") ||
+            errMsg.startsWith("FORBIDDEN:") ||
+            errMsg.startsWith("BOOKING_NOT_FOUND:") ||
+            errMsg.includes("không có quyền truy cập")
+          ) {
+            setErrorMessage("Không tìm thấy booking hoặc bạn không có quyền truy cập.");
+          } else if (
+            errMsg.startsWith("Incomplete:") ||
+            errMsg.startsWith("BOOKING_DATA_INCOMPLETE:")
+          ) {
+            setErrorMessage("Thông tin kỳ nghỉ đang được cập nhật. Vui lòng thử lại sau.");
+          } else {
+            setErrorMessage("Không thể tải thông tin kỳ nghỉ lúc này. Vui lòng thử lại sau.");
+          }
+          setStayData(null);
+        })
+        .finally(() => {
+          if (!ignore) {
+            setIsLoadingDetail(false);
+          }
+        });
     }
-  }, []);
+
+    return () => {
+      ignore = true;
+    };
+  }, [trimmedParam, isValidUuid, stayData, errorMessage]);
 
   useEffect(() => {
-    if (!trimmedParam || !isValidUuid) {
-      lastFetchedIdRef.current = null;
-      return;
-    }
-
-    if (lastFetchedIdRef.current !== trimmedParam) {
-      lastFetchedIdRef.current = trimmedParam;
-      void executeLookup(trimmedParam);
-    }
-
     // Canonicalize parameter if non-standard alias was provided
-    if (typeof window !== "undefined") {
+    if (typeof window !== "undefined" && trimmedParam) {
       const currentCanonical = searchParams.get(CANONICAL_PARAM);
       const hasAliases =
         searchParams.has("bookingID") ||
@@ -132,12 +171,11 @@ function MyStayContent({ initialBookings = [] }: MyStayClientProps) {
         window.history.replaceState(null, "", url.pathname + url.search);
       }
     }
-  }, [trimmedParam, isValidUuid, executeLookup, searchParams]);
+  }, [trimmedParam, searchParams]);
 
   const handleBackToList = () => {
     setStayData(null);
     setErrorMessage(null);
-    lastFetchedIdRef.current = null;
     router.push("/my-stay");
   };
 
@@ -198,6 +236,8 @@ function MyStayContent({ initialBookings = [] }: MyStayClientProps) {
 
 export default function MyStayClient({
   initialBookings = [],
+  initialStayData = null,
+  initialError = null,
 }: MyStayClientProps) {
   return (
     <Suspense
@@ -207,7 +247,11 @@ export default function MyStayClient({
         </div>
       }
     >
-      <MyStayContent initialBookings={initialBookings} />
+      <MyStayContent
+        initialBookings={initialBookings}
+        initialStayData={initialStayData}
+        initialError={initialError}
+      />
     </Suspense>
   );
 }
