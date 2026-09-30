@@ -484,8 +484,8 @@ export function BookingSummary({
             </div>
           </div>
 
-          {/* Chi tiết lịch trình: Nhận phòng, Trả phòng, Thời lượng, Khách */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+          {/* Chi tiết lịch trình: Nhận phòng, Trả phòng, Thời lượng */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs">
             <div>
               <p className="font-medium text-[#707072] uppercase tracking-wider text-[11px] mb-1">
                 Nhận phòng
@@ -510,15 +510,6 @@ export function BookingSummary({
               </p>
               <p className="text-sm font-medium text-[#111111]">
                 {hours} giờ
-              </p>
-            </div>
-
-            <div>
-              <p className="font-medium text-[#707072] uppercase tracking-wider text-[11px] mb-1">
-                Số khách
-              </p>
-              <p className="text-sm font-medium text-[#111111]">
-                {session.guest_count} khách
               </p>
             </div>
           </div>

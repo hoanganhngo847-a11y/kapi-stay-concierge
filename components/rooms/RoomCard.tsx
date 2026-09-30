@@ -12,7 +12,6 @@ export interface RoomCardProps {
   coverImage?: string;
   name?: string;
   location?: string;
-  maxGuests?: number;
   bedType?: string;
   price?: number;
   room?: PublicRoom;
@@ -26,7 +25,6 @@ export function RoomCard(props: RoomCardProps) {
     id = room?.id || "",
     name = room?.name || "Chưa cập nhật",
     location = room?.property?.name || room?.property?.address || "Chưa cập nhật",
-    maxGuests = room?.capacity ?? 0,
     price = room?.hourly_price_vnd ?? room?.nightly_price_vnd ?? 0,
   } = props;
 
@@ -97,9 +95,6 @@ export function RoomCard(props: RoomCardProps) {
         </h2>
         <p className="text-xs sm:text-sm text-[#707072] mt-0.5 line-clamp-1">
           {location}
-        </p>
-        <p className="text-xs sm:text-sm text-[#707072] mt-0.5">
-          {maxGuests > 0 ? `${maxGuests} khách` : "Chưa cập nhật"}
         </p>
         <p className="text-sm sm:text-base font-medium text-[#111111] mt-2">
           {price > 0 ? `${formatVND(price)} / giờ` : "Chưa cập nhật"}

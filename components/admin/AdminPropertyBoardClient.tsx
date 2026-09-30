@@ -909,10 +909,12 @@ export default function AdminPropertyBoardClient({
                           <span>{bookingDetail.guest_email}</span>
                         </div>
                       )}
-                      <div className="flex items-center gap-2">
-                        <Users className="w-3.5 h-3.5 text-[#9E9EA0]" />
-                        <span>{bookingDetail.guest_count} khách</span>
-                      </div>
+                      {bookingDetail.guest_count != null && bookingDetail.guest_count > 0 && (
+                        <div className="flex items-center gap-2">
+                          <Users className="w-3.5 h-3.5 text-[#9E9EA0]" />
+                          <span>{bookingDetail.guest_count} khách</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
