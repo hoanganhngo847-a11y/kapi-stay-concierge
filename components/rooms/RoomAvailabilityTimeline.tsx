@@ -141,6 +141,20 @@ export function RoomAvailabilityTimeline({
   const todayStr = React.useMemo(() => getTodayVietnamDateStr(), []);
   const maxHorizonDateStr = React.useMemo(() => addDaysToDateStr(todayStr, 14), [todayStr]);
 
+  // Native date input refs for programmatic showPicker() / focus()
+  const checkInDateInputRef = React.useRef<HTMLInputElement>(null);
+  const checkOutDateInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Live clock tracker (updated periodically to prevent stale past hour selection)
+  const [currentTimeMs, setCurrentTimeMs] = React.useState<number>(() => Date.now());
+
+  React.useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTimeMs(Date.now());
+    }, 15000);
+    return () => clearInterval(timer);
+  }, []);
+
   // 4-step state
   const [checkInDate, setCheckInDate] = React.useState<string>(() => {
     if (selectedCheckIn) return selectedCheckIn.slice(0, 10);
@@ -271,10 +285,10 @@ export function RoomAvailabilityTimeline({
   }, [fetchTimeline]);
 
   // Helper: check raw interval collision for a single hour [slotStartMs, slotEndMs)
+  // For check-in: once a whole-hour start timestamp has passed (slotStartMs < currentTimeMs), it is PAST
   const getRawHourState = React.useCallback(
-    (slotStartMs: number, slotEndMs: number): "PAST" | "BOOKED" | "HELD" | "BLOCKED" | "AVAILABLE" => {
-      const nowMs = Date.now();
-      if (slotEndMs <= nowMs) {
+    (slotStartMs: number, slotEndMs: number, isCheckInSlot = false): "PAST" | "BOOKED" | "HELD" | "BLOCKED" | "AVAILABLE" => {
+      if (isCheckInSlot ? slotStartMs < currentTimeMs : slotEndMs <= currentTimeMs) {
         return "PAST";
       }
 
@@ -289,7 +303,7 @@ export function RoomAvailabilityTimeline({
       }
       return "AVAILABLE";
     },
-    [intervals]
+    [intervals, currentTimeMs]
   );
 
   // Check-In Datetime in ms
@@ -297,6 +311,8 @@ export function RoomAvailabilityTimeline({
     if (!checkInDate || !checkInTime) return null;
     return new Date(`${checkInDate}T${checkInTime}:00+07:00`).getTime();
   }, [checkInDate, checkInTime]);
+
+
 
   /**
    * Evaluates check-in hour slot (00:00 to 23:00) on checkInDate.
@@ -308,7 +324,7 @@ export function RoomAvailabilityTimeline({
       const slotEndMs = slotStartMs + 3600 * 1000;
 
       const isSelected = checkInTime === slotTimeStr;
-      const raw = getRawHourState(slotStartMs, slotEndMs);
+      const raw = getRawHourState(slotStartMs, slotEndMs, true);
 
       if (raw !== "AVAILABLE") {
         return {
@@ -475,13 +491,47 @@ export function RoomAvailabilityTimeline({
   };
 
   // Handle Check-Out Time Selection
-  const handleSelectCheckOutTime = (hStr: string) => {
+  const handleSelectCheckOutTime = (hStr: string, overrideDate?: string) => {
     onClearConflictMessage?.();
     setCheckOutTime(hStr);
 
+    const effectiveOutDate = overrideDate || checkOutDate;
     const inIso = `${checkInDate}T${checkInTime}`;
-    const outIso = `${checkOutDate}T${hStr}`;
+    const outIso = `${effectiveOutDate}T${hStr}`;
     onSelectInterval?.(inIso, outIso);
+  };
+
+  // Open native date pickers using showPicker() with fallback
+  const handleOpenCheckInDatePicker = () => {
+    const input = checkInDateInputRef.current;
+    if (!input) return;
+    try {
+      if (typeof input.showPicker === "function") {
+        input.showPicker();
+      } else {
+        input.focus();
+        input.click();
+      }
+    } catch {
+      input.focus();
+      input.click();
+    }
+  };
+
+  const handleOpenCheckOutDatePicker = () => {
+    const input = checkOutDateInputRef.current;
+    if (!input) return;
+    try {
+      if (typeof input.showPicker === "function") {
+        input.showPicker();
+      } else {
+        input.focus();
+        input.click();
+      }
+    } catch {
+      input.focus();
+      input.click();
+    }
   };
 
   // Reset flow
@@ -597,24 +647,31 @@ export function RoomAvailabilityTimeline({
             })}
           </div>
 
-          {/* Calendar Picker label */}
-          <div className="mt-1.5 flex items-center justify-end">
-            <label className="cursor-pointer text-[11px] font-medium text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1">
-              <Calendar className="w-3 h-3" />
+          {/* Calendar Picker Button */}
+          <div className="mt-1.5 flex items-center justify-end relative">
+            <button
+              type="button"
+              onClick={handleOpenCheckInDatePicker}
+              className="text-[11px] font-medium text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1 cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 rounded px-1"
+            >
+              <Calendar className="w-3 h-3" aria-hidden="true" />
               <span>Chọn ngày khác</span>
-              <input
-                type="date"
-                min={todayStr}
-                max={maxHorizonDateStr}
-                value={checkInDate}
-                onChange={(e) => {
-                  if (e.target.value) {
-                    handleSelectCheckInDate(e.target.value);
-                  }
-                }}
-                className="sr-only"
-              />
-            </label>
+            </button>
+            <input
+              ref={checkInDateInputRef}
+              type="date"
+              min={todayStr}
+              max={maxHorizonDateStr}
+              value={checkInDate}
+              onChange={(e) => {
+                if (e.target.value) {
+                  handleSelectCheckInDate(e.target.value);
+                }
+              }}
+              aria-label="Chọn ngày nhận phòng khác"
+              tabIndex={-1}
+              className="absolute opacity-0 pointer-events-none w-0 h-0"
+            />
           </div>
         </div>
 
@@ -730,23 +787,30 @@ export function RoomAvailabilityTimeline({
             </div>
 
             {/* Calendar Picker for Check-out */}
-            <div className="mt-1.5 flex items-center justify-end">
-              <label className="cursor-pointer text-[11px] font-medium text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1">
-                <Calendar className="w-3 h-3" />
+            <div className="mt-1.5 flex items-center justify-end relative">
+              <button
+                type="button"
+                onClick={handleOpenCheckOutDatePicker}
+                className="text-[11px] font-medium text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1 cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 rounded px-1"
+              >
+                <Calendar className="w-3 h-3" aria-hidden="true" />
                 <span>Chọn ngày trả khác</span>
-                <input
-                  type="date"
-                  min={checkInDate}
-                  max={maxHorizonDateStr}
-                  value={checkOutDate}
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      handleSelectCheckOutDate(e.target.value);
-                    }
-                  }}
-                  className="sr-only"
-                />
-              </label>
+              </button>
+              <input
+                ref={checkOutDateInputRef}
+                type="date"
+                min={checkInDate}
+                max={maxHorizonDateStr}
+                value={checkOutDate}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    handleSelectCheckOutDate(e.target.value);
+                  }
+                }}
+                aria-label="Chọn ngày trả phòng khác"
+                tabIndex={-1}
+                className="absolute opacity-0 pointer-events-none w-0 h-0"
+              />
             </div>
           </div>
         )}
@@ -816,7 +880,7 @@ export function RoomAvailabilityTimeline({
                   onClick={() => {
                     const nextDateStr = addDaysToDateStr(checkInDate, 1);
                     setCheckOutDate(nextDateStr);
-                    handleSelectCheckOutTime("00:00");
+                    handleSelectCheckOutTime("00:00", nextDateStr);
                   }}
                   className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[#E5E5E5] bg-white text-[#111111] hover:border-black hover:bg-neutral-50 transition-colors"
                 >

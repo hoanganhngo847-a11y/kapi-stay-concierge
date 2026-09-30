@@ -383,6 +383,7 @@ test("Hold Test 3: Back-to-back intervals: 10:00-12:00 and 12:00-14:00 both allo
 test("Hold Test 4 & 5: Partial overlap and Full containment overlap are denied", async () => {
   const engine = new MockHoldEngine();
   const roomId = "00000000-0000-0000-0000-000000000101";
+  const mockNow = new Date("2026-09-30T12:00:00+07:00");
   engine.addRoom({
     id: roomId,
     name: "Phòng 101",
@@ -398,6 +399,7 @@ test("Hold Test 4 & 5: Partial overlap and Full containment overlap are denied",
     checkInAt: "2026-09-30T14:00:00+07:00",
     checkOutAt: "2026-09-30T18:00:00+07:00",
     guestCount: 2,
+    now: mockNow,
   });
 
   // Partial overlap start (13:00 - 15:00) -> REJECTED
@@ -409,6 +411,7 @@ test("Hold Test 4 & 5: Partial overlap and Full containment overlap are denied",
         checkInAt: "2026-09-30T13:00:00+07:00",
         checkOutAt: "2026-09-30T15:00:00+07:00",
         guestCount: 1,
+        now: mockNow,
       });
     },
     (err) => err.message === "ROOM_TEMPORARILY_HELD"
@@ -423,6 +426,7 @@ test("Hold Test 4 & 5: Partial overlap and Full containment overlap are denied",
         checkInAt: "2026-09-30T17:00:00+07:00",
         checkOutAt: "2026-09-30T20:00:00+07:00",
         guestCount: 1,
+        now: mockNow,
       });
     },
     (err) => err.message === "ROOM_TEMPORARILY_HELD"
@@ -437,6 +441,7 @@ test("Hold Test 4 & 5: Partial overlap and Full containment overlap are denied",
         checkInAt: "2026-09-30T15:00:00+07:00",
         checkOutAt: "2026-09-30T17:00:00+07:00",
         guestCount: 1,
+        now: mockNow,
       });
     },
     (err) => err.message === "ROOM_TEMPORARILY_HELD"
