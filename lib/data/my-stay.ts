@@ -193,6 +193,45 @@ function parseCredentialsResponse(data: unknown): MyStayCredentialsRpcResponse |
   };
 }
 
+import { MyStayError, type MyStayErrorCode } from "@/lib/types/my-stay";
+
+export type { MyStayErrorCode };
+
+interface BookingRecord {
+  id: string;
+  user_id: string;
+  room_id: string;
+  check_in: string | null;
+  check_out: string | null;
+  check_in_at: string | null;
+  check_out_at: string | null;
+  guest_count: number | null;
+  gross_amount_vnd: number | string;
+  discount_amount_vnd: number | string;
+  final_paid_amount_vnd: number | string;
+  payment_status: string;
+  booking_status: string;
+  created_at: string;
+  updated_at?: string;
+}
+
+interface RoomRecord {
+  id: string;
+  name: string;
+  description: string | null;
+  capacity: number;
+  image_paths: string[];
+  amenities: string[];
+}
+
+interface PropertyRecord {
+  id: string;
+  name: string;
+  slug: string;
+  address: string;
+  maps_url: string | null;
+}
+
 /**
  * Retrieves full booking and stay details securely for TV5's My Stay view (/stay/[bookingId] or /my-stay).
  *
@@ -206,6 +245,9 @@ function parseCredentialsResponse(data: unknown): MyStayCredentialsRpcResponse |
  *    which strictly enforces active booking_access_credentials window (valid_from <= NOW <= valid_until).
  *    Date calculations on check_in / check_out are NEVER used to reveal secrets.
  * 5. Returns authentic data only: No fake property addresses, room names, or credentials.
+ * 6. Historical / unlisted booked rooms remain viewable by authenticated booking owner via safe read path.
+ * 7. Error categories are strictly classified on server logs:
+ *    UNAUTHENTICATED, FORBIDDEN, BOOKING_NOT_FOUND, BOOKING_DATA_INCOMPLETE, CREDENTIAL_RPC_ERROR, DB_QUERY_ERROR.
  *
  * @param bookingId - The UUID or ID of the booking to retrieve
  * @returns Promise<MyStayBookingDetails>
@@ -215,7 +257,7 @@ export async function getMyStayBookingDetails(
 ): Promise<MyStayBookingDetails> {
   // 1. Validate parameter
   if (!bookingId || typeof bookingId !== "string" || bookingId.trim().length === 0) {
-    throw new Error("Mã đơn đặt phòng không hợp lệ.");
+    throw new MyStayError("BOOKING_NOT_FOUND", "Mã đơn đặt phòng không hợp lệ.");
   }
 
   const cleanBookingId = bookingId.trim();
@@ -228,116 +270,182 @@ export async function getMyStayBookingDetails(
   } = await supabase.auth.getUser();
 
   if (authError || !user) {
-    throw new Error("Unauthorized: Vui lòng đăng nhập để xem thông tin kỳ nghỉ.");
+    console.error("[getMyStayBookingDetails] [UNAUTHENTICATED] Chưa đăng nhập hoặc phiên làm việc đã hết hạn");
+    throw new MyStayError("UNAUTHENTICATED", "Unauthorized: Vui lòng đăng nhập để xem thông tin kỳ nghỉ.");
   }
 
-  // 3. Query booking with joined room & property details
-  const { data: booking, error: bookingError } = await supabase
-    .from("bookings")
-    .select(`
-      id,
-      user_id,
-      room_id,
-      check_in,
-      check_out,
-      check_in_at,
-      check_out_at,
-      guest_count,
-      gross_amount_vnd,
-      discount_amount_vnd,
-      final_paid_amount_vnd,
-      payment_status,
-      booking_status,
-      created_at,
-      updated_at,
-      rooms (
+  // 3. Query booking, room, and property details
+  let bookingRecord: BookingRecord | null = null;
+  let roomRecord: RoomRecord | null = null;
+  let propertyRecord: PropertyRecord | null = null;
+
+  // Try trusted customer-safe RPC read path first (allows viewing booked room even if later unlisted)
+  try {
+    const { data: rpcRes, error: rpcErr } = await supabase.rpc(
+      "get_my_stay_booking_details",
+      { p_booking_id: cleanBookingId }
+    );
+
+    if (!rpcErr && rpcRes && typeof rpcRes === "object") {
+      const res = rpcRes as Record<string, unknown>;
+      if (!res.success) {
+        const errCode = (res.error_code as MyStayErrorCode) || "FORBIDDEN";
+        console.error(`[getMyStayBookingDetails] [${errCode}] RPC get_my_stay_booking_details: ${res.message || errCode}`);
+        if (errCode === "UNAUTHENTICATED") {
+          throw new MyStayError("UNAUTHENTICATED", "Unauthorized: Vui lòng đăng nhập để xem thông tin kỳ nghỉ.");
+        }
+        if (errCode === "BOOKING_NOT_FOUND" || errCode === "FORBIDDEN") {
+          throw new MyStayError(errCode, "Forbidden: Đơn đặt phòng không tồn tại hoặc bạn không có quyền truy cập.");
+        }
+        if (errCode === "BOOKING_DATA_INCOMPLETE") {
+          throw new MyStayError("BOOKING_DATA_INCOMPLETE", "Incomplete: Dữ liệu thông tin phòng hoặc cơ sở không đầy đủ trong hệ thống.");
+        }
+        throw new MyStayError(errCode, typeof res.message === "string" ? res.message : "Lỗi khi tải thông tin kỳ nghỉ.");
+      }
+
+      bookingRecord = res.booking as unknown as BookingRecord;
+      roomRecord = res.room as unknown as RoomRecord;
+      propertyRecord = res.property as unknown as PropertyRecord;
+    }
+  } catch (err: unknown) {
+    if (err instanceof MyStayError) {
+      throw err;
+    }
+    // Fall back to direct query if RPC is temporarily unavailable
+  }
+
+  // Fallback to direct PostgREST join query
+  if (!bookingRecord) {
+    const { data: booking, error: bookingError } = await supabase
+      .from("bookings")
+      .select(`
         id,
-        name,
-        description,
-        capacity,
-        image_paths,
-        amenities,
-        property_id,
-        properties (
+        user_id,
+        room_id,
+        check_in,
+        check_out,
+        check_in_at,
+        check_out_at,
+        guest_count,
+        gross_amount_vnd,
+        discount_amount_vnd,
+        final_paid_amount_vnd,
+        payment_status,
+        booking_status,
+        created_at,
+        updated_at,
+        rooms (
           id,
           name,
-          slug,
-          address,
-          maps_url
+          description,
+          capacity,
+          image_paths,
+          amenities,
+          property_id,
+          properties (
+            id,
+            name,
+            slug,
+            address,
+            maps_url
+          )
         )
-      )
-    `)
-    .eq("id", cleanBookingId)
-    .maybeSingle();
+      `)
+      .eq("id", cleanBookingId)
+      .maybeSingle();
 
-  if (bookingError) {
-    console.error(`[getMyStayBookingDetails] Lỗi truy vấn booking (${cleanBookingId}):`, bookingError.message);
-    throw new Error("Lỗi khi tải thông tin kỳ nghỉ từ hệ thống.");
-  }
+    if (bookingError) {
+      console.error(`[getMyStayBookingDetails] [DB_QUERY_ERROR] Lỗi truy vấn booking (${cleanBookingId}):`, bookingError.message);
+      throw new MyStayError("DB_QUERY_ERROR", "System: Lỗi khi tải thông tin kỳ nghỉ từ hệ thống.");
+    }
 
-  if (!booking) {
-    throw new Error("Forbidden: Đơn đặt phòng không tồn tại hoặc bạn không có quyền truy cập.");
-  }
+    if (!booking) {
+      console.error(`[getMyStayBookingDetails] [BOOKING_NOT_FOUND] Không tìm thấy booking (${cleanBookingId}) hoặc bị ẩn bởi RLS`);
+      throw new MyStayError("BOOKING_NOT_FOUND", "Forbidden: Đơn đặt phòng không tồn tại hoặc bạn không có quyền truy cập.");
+    }
 
-  // 4. Verify booking ownership
-  if (booking.user_id !== user.id) {
-    throw new Error("Forbidden: Bạn không có quyền truy cập vào đơn đặt phòng này.");
-  }
+    // 4. Verify booking ownership
+    if (booking.user_id !== user.id) {
+      console.error(`[getMyStayBookingDetails] [FORBIDDEN] Booking (${cleanBookingId}) thuộc về ${booking.user_id}, caller là ${user.id}`);
+      throw new MyStayError("FORBIDDEN", "Forbidden: Bạn không có quyền truy cập vào đơn đặt phòng này.");
+    }
 
-  // 5. Extract joined room and property data (Fail safely if required data is missing; no fake data)
-  const rawRoom = booking.rooms as unknown;
-  const room = Array.isArray(rawRoom) ? rawRoom[0] : (rawRoom as {
-    id: string;
-    name: string;
-    description: string | null;
-    capacity: number;
-    image_paths: string[];
-    amenities: string[];
-    properties: {
+    const rawRoom = booking.rooms as unknown;
+    const room = Array.isArray(rawRoom) ? rawRoom[0] : (rawRoom as {
+      id: string;
+      name: string;
+      description: string | null;
+      capacity: number;
+      image_paths: string[];
+      amenities: string[];
+      properties: {
+        id: string;
+        name: string;
+        slug: string;
+        address: string;
+        maps_url: string | null;
+      } | {
+        id: string;
+        name: string;
+        slug: string;
+        address: string;
+        maps_url: string | null;
+      }[] | null;
+    } | null);
+
+    const rawProperty = room?.properties as unknown;
+    const property = Array.isArray(rawProperty) ? rawProperty[0] : (rawProperty as {
       id: string;
       name: string;
       slug: string;
       address: string;
       maps_url: string | null;
-    } | {
-      id: string;
-      name: string;
-      slug: string;
-      address: string;
-      maps_url: string | null;
-    }[] | null;
-  } | null);
+    } | null);
 
-  const rawProperty = room?.properties as unknown;
-  const property = Array.isArray(rawProperty) ? rawProperty[0] : (rawProperty as {
-    id: string;
-    name: string;
-    slug: string;
-    address: string;
-    maps_url: string | null;
-  } | null);
+    if (!room?.name || !property?.name || !property?.address) {
+      console.error(`[getMyStayBookingDetails] [BOOKING_DATA_INCOMPLETE] Thiếu dữ liệu phòng hoặc cơ sở cho booking (${cleanBookingId})`);
+      throw new MyStayError("BOOKING_DATA_INCOMPLETE", "Incomplete: Dữ liệu thông tin phòng hoặc cơ sở không đầy đủ trong hệ thống.");
+    }
 
-  if (!room?.name || !property?.name || !property?.address) {
-    console.error(`[getMyStayBookingDetails] Thiếu dữ liệu phòng hoặc cơ sở cho booking (${cleanBookingId})`);
-    throw new Error("Dữ liệu thông tin phòng hoặc cơ sở không đầy đủ trong hệ thống.");
+    bookingRecord = booking;
+    roomRecord = {
+      id: room.id,
+      name: room.name,
+      description: room.description,
+      capacity: room.capacity,
+      image_paths: Array.isArray(room.image_paths) ? room.image_paths : [],
+      amenities: Array.isArray(room.amenities) ? room.amenities : [],
+    };
+    propertyRecord = {
+      id: property.id,
+      name: property.name,
+      slug: property.slug,
+      address: property.address,
+      maps_url: property.maps_url,
+    };
+  }
+ 
+  if (!bookingRecord || !roomRecord || !propertyRecord) {
+    console.error(`[getMyStayBookingDetails] [BOOKING_DATA_INCOMPLETE] Thiếu dữ liệu phòng hoặc cơ sở cho booking (${cleanBookingId})`);
+    throw new MyStayError("BOOKING_DATA_INCOMPLETE", "Incomplete: Dữ liệu thông tin phòng hoặc cơ sở không đầy đủ trong hệ thống.");
   }
 
-  const roomName = room.name;
-  const propertyName = property.name;
-  const propertyAddress = property.address;
-  const propertyMapsUrl = property.maps_url || null;
-  const roomDescription = room.description || null;
-  const roomImages = Array.isArray(room.image_paths) ? room.image_paths : [];
-  const roomAmenities = Array.isArray(room.amenities) ? room.amenities : [];
+  const roomName = roomRecord.name;
+  const propertyName = propertyRecord.name;
+  const propertyAddress = propertyRecord.address;
+  const propertyMapsUrl = propertyRecord.maps_url || null;
+  const roomDescription = roomRecord.description || null;
+  const roomImages = Array.isArray(roomRecord.image_paths) ? roomRecord.image_paths : [];
+  const roomAmenities = Array.isArray(roomRecord.amenities) ? roomRecord.amenities : [];
 
   // 6. Time-window calculation for lifecycle UX (Asia/Ho_Chi_Minh)
   const lifecycle = calculateStayLifecycle(
-    booking.check_in_at,
-    booking.check_out_at,
-    booking.check_in,
-    booking.check_out,
+    bookingRecord.check_in_at,
+    bookingRecord.check_out_at,
+    bookingRecord.check_in,
+    bookingRecord.check_out,
     Date.now(),
-    booking.booking_status
+    bookingRecord.booking_status
   );
 
   const {
@@ -360,49 +468,51 @@ export async function getMyStayBookingDetails(
   try {
     const { data: rawData, error: rpcError } = await supabase.rpc(
       "get_my_stay_credentials",
-      { p_booking_id: booking.id }
+      { p_booking_id: bookingRecord.id }
     );
 
     if (rpcError) {
-      console.error(`[getMyStayBookingDetails] Lỗi gọi RPC get_my_stay_credentials (${cleanBookingId}):`, rpcError);
-      throw new Error("Lỗi hệ thống khi tải thông tin bảo mật phòng.");
+      console.error(`[getMyStayBookingDetails] [CREDENTIAL_RPC_ERROR] Lỗi gọi RPC get_my_stay_credentials (${cleanBookingId}):`, rpcError);
+      throw new MyStayError("CREDENTIAL_RPC_ERROR", "System: Lỗi hệ thống khi tải thông tin bảo mật phòng.");
     }
 
     credsResponse = parseCredentialsResponse(rawData);
   } catch (err: unknown) {
-    if (err instanceof Error && err.message.startsWith("Lỗi hệ thống")) {
+    if (err instanceof MyStayError) {
       throw err;
     }
-    console.error(`[getMyStayBookingDetails] Ngoại lệ khi gọi RPC get_my_stay_credentials (${cleanBookingId}):`, err);
-    throw new Error("Lỗi hệ thống khi tải thông tin bảo mật phòng.");
+    console.error(`[getMyStayBookingDetails] [CREDENTIAL_RPC_ERROR] Ngoại lệ khi gọi RPC get_my_stay_credentials (${cleanBookingId}):`, err);
+    throw new MyStayError("CREDENTIAL_RPC_ERROR", "System: Lỗi hệ thống khi tải thông tin bảo mật phòng.");
   }
 
   if (!credsResponse) {
-    console.error(`[getMyStayBookingDetails] Phản hồi không hợp lệ từ RPC (${cleanBookingId})`);
-    throw new Error("Lỗi hệ thống khi tải thông tin bảo mật phòng.");
+    console.error(`[getMyStayBookingDetails] [CREDENTIAL_RPC_ERROR] Phản hồi không hợp lệ từ RPC (${cleanBookingId})`);
+    throw new MyStayError("CREDENTIAL_RPC_ERROR", "System: Lỗi hệ thống khi tải thông tin bảo mật phòng.");
   }
 
   if (credsResponse.success) {
-    if (credsResponse.booking_id !== booking.id) {
+    if (credsResponse.booking_id !== bookingRecord.id) {
       console.error(
-        `[getMyStayBookingDetails] Booking ID mismatch (expected ${booking.id}, got ${credsResponse.booking_id})`
+        `[getMyStayBookingDetails] [CREDENTIAL_RPC_ERROR] Booking ID mismatch (expected ${bookingRecord.id}, got ${credsResponse.booking_id})`
       );
-      throw new Error("Lỗi hệ thống khi tải thông tin bảo mật phòng.");
+      throw new MyStayError("CREDENTIAL_RPC_ERROR", "System: Lỗi hệ thống khi tải thông tin bảo mật phòng.");
     }
   }
 
   if (!credsResponse.success) {
     if (credsResponse.error === "UNAUTHORIZED") {
-      throw new Error("Unauthorized: Vui lòng đăng nhập để xem thông tin kỳ nghỉ.");
+      console.error(`[getMyStayBookingDetails] [UNAUTHENTICATED] RPC trả về UNAUTHORIZED`);
+      throw new MyStayError("UNAUTHENTICATED", "Unauthorized: Vui lòng đăng nhập để xem thông tin kỳ nghỉ.");
     }
     if (credsResponse.error === "BOOKING_NOT_FOUND_OR_FORBIDDEN") {
-      throw new Error("Forbidden: Bạn không có quyền truy cập vào đơn đặt phòng này.");
+      console.error(`[getMyStayBookingDetails] [FORBIDDEN] RPC trả về BOOKING_NOT_FOUND_OR_FORBIDDEN`);
+      throw new MyStayError("FORBIDDEN", "Forbidden: Bạn không có quyền truy cập vào đơn đặt phòng này.");
     }
     if (credsResponse.error === "BOOKING_NOT_ACTIVE") {
       hasActiveCredential = false;
     } else {
-      console.error(`[getMyStayBookingDetails] RPC trả về lỗi (${cleanBookingId}):`, credsResponse.error);
-      throw new Error("Lỗi hệ thống khi tải thông tin bảo mật phòng.");
+      console.error(`[getMyStayBookingDetails] [CREDENTIAL_RPC_ERROR] RPC trả về lỗi (${cleanBookingId}):`, credsResponse.error);
+      throw new MyStayError("CREDENTIAL_RPC_ERROR", "System: Lỗi hệ thống khi tải thông tin bảo mật phòng.");
     }
   } else {
     // RPC succeeded: hasActiveCredential is strictly from RPC is_active
@@ -451,7 +561,7 @@ export async function getMyStayBookingDetails(
         unit_price_vnd,
         total_price_vnd
       `)
-      .eq("booking_id", booking.id)
+      .eq("booking_id", bookingRecord.id)
       .order("created_at", { ascending: true });
 
     if (menuItemsError) {
@@ -476,18 +586,18 @@ export async function getMyStayBookingDetails(
   }
 
   return {
-    bookingId: booking.id,
-    userId: booking.user_id,
-    roomId: booking.room_id,
-    checkIn: booking.check_in ?? (booking.check_in_at ? booking.check_in_at.slice(0, 10) : ""),
-    checkOut: booking.check_out ?? (booking.check_out_at ? booking.check_out_at.slice(0, 10) : ""),
-    checkInAt: booking.check_in_at,
-    checkOutAt: booking.check_out_at,
-    guestCount: booking.guest_count,
-    finalPaidAmount: Number(booking.final_paid_amount_vnd) || 0,
-    bookingStatus: booking.booking_status,
-    paymentStatus: booking.payment_status,
-    createdAt: booking.created_at,
+    bookingId: bookingRecord.id,
+    userId: bookingRecord.user_id,
+    roomId: bookingRecord.room_id,
+    checkIn: bookingRecord.check_in ?? (bookingRecord.check_in_at ? bookingRecord.check_in_at.slice(0, 10) : ""),
+    checkOut: bookingRecord.check_out ?? (bookingRecord.check_out_at ? bookingRecord.check_out_at.slice(0, 10) : ""),
+    checkInAt: bookingRecord.check_in_at,
+    checkOutAt: bookingRecord.check_out_at,
+    guestCount: bookingRecord.guest_count,
+    finalPaidAmount: Number(bookingRecord.final_paid_amount_vnd) || 0,
+    bookingStatus: bookingRecord.booking_status,
+    paymentStatus: bookingRecord.payment_status,
+    createdAt: bookingRecord.created_at,
 
     stayStatus,
     isActiveStay,

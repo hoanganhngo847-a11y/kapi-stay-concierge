@@ -76,11 +76,28 @@ function MyStayContent({ initialBookings = [] }: MyStayClientProps) {
       }
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : "";
-      if (errMsg.startsWith("Unauthorized:")) {
+      if (
+        errMsg.startsWith("Unauthorized:") ||
+        errMsg.startsWith("UNAUTHENTICATED:")
+      ) {
         setErrorMessage("Vui lòng đăng nhập để xem thông tin kỳ nghỉ.");
-      } else {
+      } else if (
+        errMsg.startsWith("Forbidden:") ||
+        errMsg.startsWith("FORBIDDEN:") ||
+        errMsg.startsWith("BOOKING_NOT_FOUND:") ||
+        errMsg.includes("không có quyền truy cập")
+      ) {
         // Safe message without DB or internal details
         setErrorMessage("Không tìm thấy booking hoặc bạn không có quyền truy cập.");
+      } else if (
+        errMsg.startsWith("Incomplete:") ||
+        errMsg.startsWith("BOOKING_DATA_INCOMPLETE:")
+      ) {
+        // Internal data error: DO NOT falsely show "không tìm thấy booking hoặc không có quyền"
+        setErrorMessage("Thông tin kỳ nghỉ đang được cập nhật. Vui lòng thử lại sau.");
+      } else {
+        // Safe generic system/DB error message - does not falsely accuse user of forbidden access
+        setErrorMessage("Không thể tải thông tin kỳ nghỉ lúc này. Vui lòng thử lại sau.");
       }
       setStayData(null);
     } finally {
