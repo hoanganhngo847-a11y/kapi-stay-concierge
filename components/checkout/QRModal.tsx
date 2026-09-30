@@ -298,7 +298,14 @@ function PaymentSuccessContent({
       description="Đặt phòng đã được xác nhận"
       footer={
         <div className="flex flex-col gap-3 w-full">
-          <Link href="/my-stay" className="w-full">
+          <Link
+            href={
+              bookingId
+                ? `/my-stay?bookingId=${encodeURIComponent(bookingId)}`
+                : "/my-stay"
+            }
+            className="w-full"
+          >
             <Button
               id="go-to-my-stay-btn"
               variant="primary"

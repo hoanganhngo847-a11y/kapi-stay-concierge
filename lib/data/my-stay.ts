@@ -16,6 +16,35 @@ export interface MyStayCredentialsRpcResponse {
   wifi_password: string | null;
 }
 
+export interface MyStayBookingMenuItem {
+  id: string;
+  menuProductId: string;
+  productName: string;
+  quantity: number;
+  sourceType: "PURCHASE" | "REWARD" | string;
+  rewardSource?: string | null;
+  unitPriceVnd: number;
+  totalPriceVnd: number;
+}
+
+export interface MyStayBookingSummary {
+  bookingId: string;
+  roomId: string;
+  roomName: string;
+  roomImages: string[];
+  propertyName: string;
+  propertyAddress: string;
+  checkIn: string;
+  checkOut: string;
+  checkInAt?: string | null;
+  checkOutAt?: string | null;
+  bookingStatus: string;
+  paymentStatus: string;
+  finalPaidAmount: number;
+  createdAt: string;
+  stayStatus: "ACTIVE" | "UPCOMING" | "COMPLETED" | "CANCELLED";
+}
+
 export interface MyStayBookingDetails {
   bookingId: string;
   userId: string;
@@ -44,6 +73,9 @@ export interface MyStayBookingDetails {
   propertyName: string;
   propertyAddress: string;
   propertyMapsUrl: string | null;
+
+  // F&B items ordered for this booking
+  menuItems: MyStayBookingMenuItem[];
 
   // Sensitive Room Access Credentials (only revealed during active stay window)
   passcode: string | null;
@@ -404,6 +436,45 @@ export async function getMyStayBookingDetails(
     }
   }
 
+  // 8. Query F&B menu items associated with this booking
+  let menuItems: MyStayBookingMenuItem[] = [];
+  try {
+    const { data: menuItemsData, error: menuItemsError } = await supabase
+      .from("booking_menu_items")
+      .select(`
+        id,
+        menu_product_id,
+        product_name_snapshot,
+        quantity,
+        source_type,
+        reward_source,
+        unit_price_vnd,
+        total_price_vnd
+      `)
+      .eq("booking_id", booking.id)
+      .order("created_at", { ascending: true });
+
+    if (menuItemsError) {
+      console.warn(
+        `[getMyStayBookingDetails] Cảnh báo truy vấn booking_menu_items (${cleanBookingId}):`,
+        menuItemsError.message
+      );
+    } else if (menuItemsData) {
+      menuItems = menuItemsData.map((item) => ({
+        id: item.id,
+        menuProductId: item.menu_product_id,
+        productName: item.product_name_snapshot,
+        quantity: item.quantity,
+        sourceType: item.source_type,
+        rewardSource: item.reward_source,
+        unitPriceVnd: Number(item.unit_price_vnd) || 0,
+        totalPriceVnd: Number(item.total_price_vnd) || 0,
+      }));
+    }
+  } catch (err: unknown) {
+    console.warn(`[getMyStayBookingDetails] Ngoại lệ khi tải booking_menu_items (${cleanBookingId}):`, err);
+  }
+
   return {
     bookingId: booking.id,
     userId: booking.user_id,
@@ -431,6 +502,8 @@ export async function getMyStayBookingDetails(
     propertyAddress,
     propertyMapsUrl,
 
+    menuItems,
+
     passcode,
     wifi_ssid: wifiSsid,
     wifi_pass: wifiPass,
@@ -439,3 +512,176 @@ export async function getMyStayBookingDetails(
     instructions,
   };
 }
+
+/**
+ * Retrieves all bookings belonging to the currently authenticated user for the My Stay Dashboard.
+ *
+ * Security & Business Rules:
+ * 1. Authenticates current user server-side using auth.uid() / getUser().
+ * 2. NEVER accepts arbitrary user_id from client; queries strictly where bookings.user_id = auth.uid().
+ * 3. Sanitized fields only: Zero credentials (no PIN, Wi-Fi password, or door instructions).
+ * 4. Deterministic sorting:
+ *    - ACTIVE stays first (nearest checkout)
+ *    - UPCOMING next (nearest check-in first)
+ *    - COMPLETED next (most recent stay first)
+ *    - CANCELLED last
+ */
+export async function getMyStayBookings(): Promise<MyStayBookingSummary[]> {
+  const supabase = await createClient();
+
+  // 1. Authenticate current user server-side
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    throw new Error("Unauthorized: Vui lòng đăng nhập để xem danh sách kỳ nghỉ.");
+  }
+
+  // 2. Query bookings strictly belonging to current user
+  const { data: rawBookings, error: bookingsError } = await supabase
+    .from("bookings")
+    .select(`
+      id,
+      user_id,
+      room_id,
+      check_in,
+      check_out,
+      check_in_at,
+      check_out_at,
+      gross_amount_vnd,
+      discount_amount_vnd,
+      final_paid_amount_vnd,
+      payment_status,
+      booking_status,
+      created_at,
+      rooms (
+        id,
+        name,
+        image_paths,
+        properties (
+          id,
+          name,
+          address
+        )
+      )
+    `)
+    .eq("user_id", user.id);
+
+  if (bookingsError) {
+    console.error("[getMyStayBookings] Lỗi truy vấn danh sách bookings:", bookingsError.message);
+    throw new Error("Lỗi khi tải danh sách kỳ nghỉ từ hệ thống.");
+  }
+
+  if (!rawBookings || rawBookings.length === 0) {
+    return [];
+  }
+
+  const nowMs = Date.now();
+  const list: MyStayBookingSummary[] = [];
+
+  for (const b of rawBookings) {
+    const rawRoom = b.rooms as unknown;
+    const room = Array.isArray(rawRoom)
+      ? rawRoom[0]
+      : (rawRoom as {
+          id: string;
+          name: string;
+          image_paths: string[];
+          properties:
+            | { id: string; name: string; address: string }
+            | { id: string; name: string; address: string }[]
+            | null;
+        } | null);
+
+    const rawProperty = room?.properties as unknown;
+    const property = Array.isArray(rawProperty)
+      ? rawProperty[0]
+      : (rawProperty as {
+          id: string;
+          name: string;
+          address: string;
+        } | null);
+
+    const lifecycle = calculateStayLifecycle(
+      b.check_in_at,
+      b.check_out_at,
+      b.check_in,
+      b.check_out,
+      nowMs,
+      b.booking_status
+    );
+
+    list.push({
+      bookingId: b.id,
+      roomId: b.room_id,
+      roomName: room?.name || "Phòng Kapi",
+      roomImages: Array.isArray(room?.image_paths) ? room.image_paths : [],
+      propertyName: property?.name || "Kapi Stay",
+      propertyAddress: property?.address || "",
+      checkIn: b.check_in ?? (b.check_in_at ? b.check_in_at.slice(0, 10) : ""),
+      checkOut: b.check_out ?? (b.check_out_at ? b.check_out_at.slice(0, 10) : ""),
+      checkInAt: b.check_in_at,
+      checkOutAt: b.check_out_at,
+      bookingStatus: b.booking_status,
+      paymentStatus: b.payment_status,
+      finalPaidAmount: Number(b.final_paid_amount_vnd) || 0,
+      createdAt: b.created_at,
+      stayStatus: lifecycle.stayStatus,
+    });
+  }
+
+  // 3. Deterministic sorting:
+  //    A. ACTIVE first
+  //    B. UPCOMING next (nearest check-in first)
+  //    C. COMPLETED next (most recent stay first)
+  //    D. CANCELLED last
+  const statusRank: Record<string, number> = {
+    ACTIVE: 1,
+    UPCOMING: 2,
+    COMPLETED: 3,
+    CANCELLED: 4,
+  };
+
+  const getTime = (val?: string | null): number => {
+    if (!val) return 0;
+    const time = new Date(val).getTime();
+    return isNaN(time) ? 0 : time;
+  };
+
+  list.sort((a, b) => {
+    const rankA = statusRank[a.stayStatus] ?? 99;
+    const rankB = statusRank[b.stayStatus] ?? 99;
+    if (rankA !== rankB) {
+      return rankA - rankB;
+    }
+
+    if (a.stayStatus === "UPCOMING") {
+      // Nearest check-in first (ascending)
+      const timeA = getTime(a.checkInAt || a.checkIn);
+      const timeB = getTime(b.checkInAt || b.checkIn);
+      return timeA - timeB;
+    }
+
+    if (a.stayStatus === "COMPLETED") {
+      // Most recent stay first (descending by checkout or checkin)
+      const timeA = getTime(a.checkOutAt || a.checkOut || a.checkInAt || a.checkIn);
+      const timeB = getTime(b.checkOutAt || b.checkOut || b.checkInAt || b.checkIn);
+      return timeB - timeA;
+    }
+
+    if (a.stayStatus === "ACTIVE") {
+      // Active: nearest checkout first
+      const timeA = getTime(a.checkOutAt || a.checkOut);
+      const timeB = getTime(b.checkOutAt || b.checkOut);
+      return timeA - timeB;
+    }
+
+    // CANCELLED or fallback: newest created first
+    return getTime(b.createdAt) - getTime(a.createdAt);
+  });
+
+  return list;
+}
+
