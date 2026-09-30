@@ -96,8 +96,6 @@ describe("My Stay Automatic Booking Dashboard & Clickable Details", () => {
   // 4 & 5. Deterministic Sorting Logic
   // -------------------------------------------------------------------------
   it("4. ACTIVE sorted before UPCOMING and COMPLETED", () => {
-    const nowMs = new Date("2026-09-30T16:00:00+07:00").getTime();
-
     // Mock items
     const items = [
       {
