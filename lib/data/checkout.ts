@@ -1054,3 +1054,104 @@ export async function getCheckoutMenuItems(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Payment Status Query — customer-safe, authenticated, READ-ONLY
+// ---------------------------------------------------------------------------
+
+/**
+ * Sanitized payment status result for the customer UI.
+ * Does NOT expose webhook payloads, bank internals, or service-role data.
+ */
+export interface CheckoutPaymentStatus {
+  /** Current checkout session status (e.g., ACTIVE, PAYMENT_PROCESSING, COMPLETED, EXPIRED, FAILED) */
+  sessionStatus: string;
+  /** Associated booking ID if session was finalized */
+  bookingId: string | null;
+  /** Booking status if a booking exists */
+  bookingStatus: string | null;
+  /** Whether the checkout session has been paid and finalized */
+  paid: boolean;
+}
+
+/**
+ * Query the payment status of a checkout session for the authenticated user.
+ *
+ * Security: Only returns data if the session belongs to the authenticated user
+ * (enforced by user_id filter). Returns sanitized data only.
+ *
+ * @param sessionId - UUID of the checkout session
+ * @param userId - UUID of the authenticated user (from server-side session)
+ */
+export async function getCheckoutPaymentStatus(
+  sessionId: string,
+  userId: string
+): Promise<{ data: CheckoutPaymentStatus | null; error: string | null }> {
+  const uuidRegex =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+  if (!uuidRegex.test(sessionId) || !uuidRegex.test(userId)) {
+    return { data: null, error: "ID không hợp lệ." };
+  }
+
+  try {
+    const supabase = await createClient();
+
+    // Query checkout session with ownership check
+    const { data: session, error: sessionError } = await supabase
+      .from("checkout_sessions")
+      .select("id, status, expires_at")
+      .eq("id", sessionId)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (sessionError) {
+      console.error("[checkout] getCheckoutPaymentStatus session error:", sessionError.message);
+      return { data: null, error: "Không thể kiểm tra trạng thái thanh toán." };
+    }
+
+    if (!session) {
+      return { data: null, error: "Không tìm thấy phiên thanh toán." };
+    }
+
+    // Check for expiry even if status hasn't been updated yet
+    let effectiveStatus = session.status;
+    if (
+      effectiveStatus === "ACTIVE" &&
+      session.expires_at &&
+      new Date(session.expires_at) <= new Date()
+    ) {
+      effectiveStatus = "EXPIRED";
+    }
+
+    // If completed, look up the associated booking
+    let bookingId: string | null = null;
+    let bookingStatus: string | null = null;
+
+    if (effectiveStatus === "COMPLETED") {
+      const { data: booking } = await supabase
+        .from("bookings")
+        .select("id, booking_status")
+        .eq("checkout_session_id", sessionId)
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (booking) {
+        bookingId = booking.id;
+        bookingStatus = booking.booking_status;
+      }
+    }
+
+    return {
+      data: {
+        sessionStatus: effectiveStatus,
+        bookingId,
+        bookingStatus,
+        paid: effectiveStatus === "COMPLETED",
+      },
+      error: null,
+    };
+  } catch (err) {
+    console.error("[checkout] getCheckoutPaymentStatus exception:", err);
+    return { data: null, error: "Lỗi kết nối cơ sở dữ liệu." };
+  }
+}

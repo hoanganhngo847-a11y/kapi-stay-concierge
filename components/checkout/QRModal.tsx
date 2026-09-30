@@ -10,27 +10,20 @@
  * Chỉ sử dụng: @/components/ui, @/lib/utils/format
  * KHÔNG sửa bất kỳ file nào ngoài components/checkout/**
  *
- * RE-REVIEW #2 — Điểm 1 (BLOCKER):
- * Đã XOÁ handleConfirmPayment / confirmPaymentAction / onPaymentSuccess.
- * User bấm nút xác nhận KHÔNG được phép kích hoạt finalize_verified_checkout_atomic
- * (service_role-only RPC). Sau khi quét QR và chuyển khoản, UI hiển thị trạng thái
- * chờ xác nhận trung tính — việc finalize booking sẽ do payment webhook xử lý
- * (TV1 + TV8 phụ trách riêng).
- *
- * RE-REVIEW #3 — Điểm 3:
- * Cập nhật wording trạng thái chờ thanh toán: bỏ câu hứa hẹn auto-verify,
- * thay bằng wording trung tính phản ánh đúng thực tế hệ thống.
- *
- * RE-REVIEW #2 — Điểm 3 (HIGH):
- * Đã XOÁ fallback tài khoản giả (MB / 0000000000 / KAPI STAY).
- * Ba biến môi trường là BẮT BUỘC:
- *   NEXT_PUBLIC_VIETQR_BANK_ID
- *   NEXT_PUBLIC_VIETQR_ACCOUNT_NO
- *   NEXT_PUBLIC_VIETQR_ACCOUNT_NAME
- * Nếu bất kỳ biến nào thiếu/rỗng → hiển thị "chưa khả dụng" thay vì render QR.
+ * FIX: sepay-payment-confirmation-and-status
+ * - Added payment-status polling (3s interval) while modal is OPEN.
+ * - Polls getCheckoutPaymentStatusAction(sessionId) from server.
+ * - ACTIVE/PAYMENT_PROCESSING → show waiting state.
+ * - COMPLETED + confirmed booking → stop polling, show success.
+ * - EXPIRED → stop polling, show expired.
+ * - FAILED → stop polling, show failure.
+ * - Tab focus triggers immediate refresh (handles mobile banking flow).
+ * - Cleanup timer on modal close / component unmount / success/failure.
+ * - Customer polling is READ-ONLY — no finalize action.
+ * - Made transfer content warning highly visible with copy button.
  */
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   Copy,
   CheckCheck,
@@ -39,9 +32,15 @@ import {
   Clock,
   Smartphone,
   Hourglass,
+  CheckCircle2,
+  XCircle,
+  TimerOff,
 } from "lucide-react";
+import Link from "next/link";
 import { Modal, Button, Badge } from "@/components/ui";
 import { formatVND } from "@/lib/utils/format";
+import { getCheckoutPaymentStatusAction } from "@/app/checkout/actions";
+import type { CheckoutPaymentStatus } from "@/lib/data/checkout";
 
 // ---------------------------------------------------------------------------
 // Cấu hình ngân hàng VietQR — bắt buộc từ biến môi trường
@@ -73,6 +72,23 @@ const VIETQR_CONFIG_VALID =
   BANK_ID.trim().length > 0 &&
   ACCOUNT_NO.trim().length > 0 &&
   ACCOUNT_NAME.trim().length > 0;
+
+// ---------------------------------------------------------------------------
+// Polling configuration
+// ---------------------------------------------------------------------------
+
+/** Polling interval in milliseconds */
+const POLL_INTERVAL_MS = 3000;
+
+// ---------------------------------------------------------------------------
+// Payment state type for UI rendering
+// ---------------------------------------------------------------------------
+
+type PaymentUIState =
+  | "WAITING"     // ACTIVE or PAYMENT_PROCESSING — waiting for webhook
+  | "SUCCESS"     // COMPLETED — payment confirmed
+  | "EXPIRED"     // Session expired before payment
+  | "FAILED";     // Payment or checkout failed
 
 // ---------------------------------------------------------------------------
 // Kiểu dữ liệu
@@ -262,17 +278,334 @@ function VietQRUnavailable({ onClose }: { onClose: () => void }) {
 }
 
 // ---------------------------------------------------------------------------
+// Sub-component: PaymentSuccessContent
+// ---------------------------------------------------------------------------
+
+function PaymentSuccessContent({
+  bookingId,
+  onClose,
+}: {
+  bookingId: string | null;
+  onClose: () => void;
+}) {
+  return (
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      closeOnOverlayClick={true}
+      size="sm"
+      title="Thanh toán thành công"
+      description="Đặt phòng đã được xác nhận"
+      footer={
+        <div className="flex flex-col gap-3 w-full">
+          <Link href="/my-stay" className="w-full">
+            <Button
+              id="go-to-my-stay-btn"
+              variant="primary"
+              size="md"
+              className="w-full"
+            >
+              Xem My Stay
+            </Button>
+          </Link>
+          <Button
+            id="close-success-modal-btn"
+            variant="outline"
+            size="md"
+            onClick={onClose}
+            className="w-full"
+          >
+            Đóng
+          </Button>
+        </div>
+      }
+    >
+      <div className="flex flex-col items-center text-center gap-4 py-6">
+        <div className="w-16 h-16 rounded-full bg-[#ECFDF3] border border-[#A3E6C6] flex items-center justify-center">
+          <CheckCircle2 className="w-8 h-8 text-[#16A34A]" aria-hidden="true" />
+        </div>
+        <div>
+          <h2 className="text-lg font-semibold text-[#111111] mb-1">
+            Thanh toán thành công
+          </h2>
+          <p className="text-sm text-[#707072] leading-relaxed">
+            ✓ Đặt phòng đã được xác nhận.
+          </p>
+          {bookingId && (
+            <p className="text-xs text-[#9E9EA0] mt-2">
+              Mã đặt phòng: {bookingId.slice(0, 8).toUpperCase()}
+            </p>
+          )}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sub-component: PaymentExpiredContent
+// ---------------------------------------------------------------------------
+
+function PaymentExpiredContent({ onClose }: { onClose: () => void }) {
+  return (
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      closeOnOverlayClick={true}
+      size="sm"
+      title="Phiên thanh toán đã hết hạn"
+      description="Vui lòng bắt đầu lại"
+      footer={
+        <div className="flex flex-col gap-3 w-full">
+          <Link href="/rooms" className="w-full">
+            <Button
+              id="restart-booking-btn"
+              variant="primary"
+              size="md"
+              className="w-full"
+            >
+              Chọn phòng mới
+            </Button>
+          </Link>
+          <Button
+            id="close-expired-modal-btn"
+            variant="outline"
+            size="md"
+            onClick={onClose}
+            className="w-full"
+          >
+            Đóng
+          </Button>
+        </div>
+      }
+    >
+      <div className="flex flex-col items-center text-center gap-4 py-6">
+        <div className="w-16 h-16 rounded-full bg-[#FFF7ED] border border-[#FED7AA] flex items-center justify-center">
+          <TimerOff className="w-8 h-8 text-[#EA580C]" aria-hidden="true" />
+        </div>
+        <div>
+          <h2 className="text-lg font-semibold text-[#111111] mb-1">
+            Phiên thanh toán đã hết hạn
+          </h2>
+          <p className="text-sm text-[#707072] leading-relaxed">
+            Phiên thanh toán 30 phút đã hết hạn. Vui lòng quay lại
+            trang chọn phòng và bắt đầu lại.
+          </p>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sub-component: PaymentFailedContent
+// ---------------------------------------------------------------------------
+
+function PaymentFailedContent({ onClose }: { onClose: () => void }) {
+  return (
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      closeOnOverlayClick={true}
+      size="sm"
+      title="Thanh toán không thành công"
+      description="Vui lòng thử lại hoặc liên hệ hỗ trợ"
+      footer={
+        <div className="flex flex-col gap-3 w-full">
+          {SUPPORT_PHONE ? (
+            <a href={`tel:${SUPPORT_PHONE}`} className="w-full">
+              <Button
+                id="contact-support-btn"
+                variant="primary"
+                size="md"
+                className="w-full"
+              >
+                Liên hệ hỗ trợ
+              </Button>
+            </a>
+          ) : (
+            <Link href="/rooms" className="w-full">
+              <Button
+                id="retry-booking-btn"
+                variant="primary"
+                size="md"
+                className="w-full"
+              >
+                Chọn phòng mới
+              </Button>
+            </Link>
+          )}
+          <Button
+            id="close-failed-modal-btn"
+            variant="outline"
+            size="md"
+            onClick={onClose}
+            className="w-full"
+          >
+            Đóng
+          </Button>
+        </div>
+      }
+    >
+      <div className="flex flex-col items-center text-center gap-4 py-6">
+        <div className="w-16 h-16 rounded-full bg-[#FEF2F2] border border-[#FECACA] flex items-center justify-center">
+          <XCircle className="w-8 h-8 text-[#DC2626]" aria-hidden="true" />
+        </div>
+        <div>
+          <h2 className="text-lg font-semibold text-[#111111] mb-1">
+            Thanh toán không thành công
+          </h2>
+          <p className="text-sm text-[#707072] leading-relaxed">
+            Đã xảy ra lỗi trong quá trình xử lý thanh toán. Vui lòng
+            liên hệ lễ tân hoặc bộ phận hỗ trợ để được giúp đỡ.
+          </p>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main component: QRModal
 // ---------------------------------------------------------------------------
 
 export function QRModal({
   isOpen,
   onClose,
-  sessionId: _sessionId, // eslint-disable-line @typescript-eslint/no-unused-vars
+  sessionId,
   amountVnd,
   paymentReference,
 }: QRModalProps) {
   const [qrError, setQrError] = useState(false);
+  const [paymentState, setPaymentState] = useState<PaymentUIState>("WAITING");
+  const [statusData, setStatusData] = useState<CheckoutPaymentStatus | null>(null);
+
+  // Refs for cleanup
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isMountedRef = useRef(true);
+
+  // ── Poll payment status ─────────────────────────────────────────────────
+  const pollPaymentStatus = useCallback(async () => {
+    if (!isMountedRef.current || !sessionId) return;
+
+    try {
+      const { data, error } = await getCheckoutPaymentStatusAction(sessionId);
+
+      if (!isMountedRef.current) return;
+      if (error || !data) return; // Silently ignore transient errors; keep polling
+
+      setStatusData(data);
+
+      const status = data.sessionStatus;
+
+      if (data.paid || status === "COMPLETED") {
+        setPaymentState("SUCCESS");
+        // Stop polling
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+      } else if (status === "EXPIRED") {
+        setPaymentState("EXPIRED");
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+      } else if (status === "FAILED") {
+        setPaymentState("FAILED");
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+      }
+      // else ACTIVE / PAYMENT_PROCESSING → keep polling ("WAITING")
+    } catch {
+      // Network errors are silently tolerated; polling continues
+    }
+  }, [sessionId]);
+
+  // ── Start/stop polling when modal opens/closes ──────────────────────────
+  useEffect(() => {
+    isMountedRef.current = true;
+
+    if (isOpen && paymentState === "WAITING") {
+      // Poll immediately on open via microtask to satisfy lint rule
+      // (setState must not be called synchronously in effect body)
+      const immediateTimer = setTimeout(pollPaymentStatus, 0);
+
+      // Set up interval
+      pollIntervalRef.current = setInterval(pollPaymentStatus, POLL_INTERVAL_MS);
+
+      return () => {
+        clearTimeout(immediateTimer);
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+      };
+    }
+
+    return () => {
+      // Cleanup on close or unmount
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+  }, [isOpen, paymentState, pollPaymentStatus]);
+
+  // ── Cleanup on unmount ──────────────────────────────────────────────────
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+  }, []);
+
+  // ── Tab focus: refresh immediately ──────────────────────────────────────
+  useEffect(() => {
+    if (!isOpen || paymentState !== "WAITING") return;
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        pollPaymentStatus();
+      }
+    }
+
+    function handleFocus() {
+      pollPaymentStatus();
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [isOpen, paymentState, pollPaymentStatus]);
+
+  // ── Reset state when modal re-opens ─────────────────────────────────────
+  // Track previous isOpen value to detect open transitions
+  const prevIsOpenRef = useRef(false);
+  useEffect(() => {
+    if (isOpen && !prevIsOpenRef.current) {
+      // Modal just opened — schedule a reset via microtask
+      const resetTimer = setTimeout(() => {
+        setPaymentState("WAITING");
+        setStatusData(null);
+        setQrError(false);
+      }, 0);
+      prevIsOpenRef.current = true;
+      return () => clearTimeout(resetTimer);
+    }
+    if (!isOpen) {
+      prevIsOpenRef.current = false;
+    }
+  }, [isOpen]);
 
   // Đặt lại trạng thái khi modal đóng
   function handleClose() {
@@ -284,10 +617,28 @@ export function QRModal({
     return <VietQRUnavailable onClose={onClose} />;
   }
 
+  // ── Render terminal states ──────────────────────────────────────────────
+  if (isOpen && paymentState === "SUCCESS") {
+    return (
+      <PaymentSuccessContent
+        bookingId={statusData?.bookingId ?? null}
+        onClose={handleClose}
+      />
+    );
+  }
+
+  if (isOpen && paymentState === "EXPIRED") {
+    return <PaymentExpiredContent onClose={handleClose} />;
+  }
+
+  if (isOpen && paymentState === "FAILED") {
+    return <PaymentFailedContent onClose={handleClose} />;
+  }
+
   const qrUrl = buildVietQRUrl(BANK_ID, ACCOUNT_NO, ACCOUNT_NAME, amountVnd, paymentReference);
 
   // ---------------------------------------------------------------------------
-  // Màn hình QR chính
+  // Màn hình QR chính — trạng thái WAITING
   // ---------------------------------------------------------------------------
   return (
     <Modal
@@ -306,7 +657,7 @@ export function QRModal({
             className="flex items-start gap-3 bg-[#F5F5F5] border border-[#E5E5E5] p-3.5 w-full text-left"
           >
             <Hourglass
-              className="w-4 h-4 text-[#111111] shrink-0 mt-0.5"
+              className="w-4 h-4 text-[#111111] shrink-0 mt-0.5 animate-pulse"
               aria-hidden="true"
             />
             <p className="text-xs text-[#111111] leading-relaxed">
@@ -381,6 +732,26 @@ export function QRModal({
               Mở ảnh lớn hơn
             </a>
           </div>
+        </div>
+
+        {/* ── NỘI DUNG CHUYỂN KHOẢN — highly visible ─────────────────── */}
+        <div className="bg-[#111111] text-white px-4 py-3.5 text-center">
+          <p className="text-[10px] uppercase tracking-widest font-medium text-[#9E9EA0] mb-1.5">
+            Nội dung chuyển khoản
+          </p>
+          <p className="text-lg font-bold tracking-wide mb-2">
+            {paymentReference}
+          </p>
+          <div className="flex justify-center">
+            <CopyButton
+              id="copy-payment-reference-highlight-btn"
+              label="nội dung CK"
+              value={paymentReference}
+            />
+          </div>
+          <p className="text-[10px] text-[#F59E0B] font-medium mt-2">
+            ⚠️ Không chỉnh sửa nội dung chuyển khoản.
+          </p>
         </div>
 
         {/* ── Thông tin chuyển khoản ────────────────────────────────────── */}
