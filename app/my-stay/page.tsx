@@ -1,10 +1,11 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getMyStayBookings, type MyStayBookingSummary } from "@/lib/data/my-stay";
 import MyStayClient from "./MyStayClient";
 
 export const metadata = {
   title: "Kỳ nghỉ của tôi | Kapi Stay Concierge",
-  description: "Tra cứu thông tin nhận phòng, hướng dẫn mật mã và tiện ích homestay tại Kapi House.",
+  description: "Quản lý kỳ nghỉ, xem mã khóa phòng thông minh và tiện ích lưu trú tại Kapi Stay.",
 };
 
 const CANONICAL_PARAM = "bookingId";
@@ -43,5 +44,12 @@ export default async function MyStayPage({ searchParams }: MyStayPageProps) {
     redirect(`/login?next=${encodeURIComponent(returnUrl)}`);
   }
 
-  return <MyStayClient />;
+  let initialBookings: MyStayBookingSummary[] = [];
+  try {
+    initialBookings = await getMyStayBookings();
+  } catch (err) {
+    console.error("[MyStayPage] Error fetching bookings on server:", err);
+  }
+
+  return <MyStayClient initialBookings={initialBookings} />;
 }
