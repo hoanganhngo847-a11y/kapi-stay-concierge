@@ -23,6 +23,29 @@ function createSepaySignature(body, timestamp, secret) {
   return `sha256=${hmac.digest("hex")}`;
 }
 
+/**
+ * Helper: extracts canonical payment reference matching route.ts parser.
+ */
+function extractPaymentReference(code, content) {
+  const paymentRefRegex = /\bKAPI[-\s]?([0-9A-Fa-f]{12})\b/i;
+
+  if (typeof code === "string") {
+    const match = code.trim().match(paymentRefRegex);
+    if (match) {
+      return `KAPI-${match[1].toUpperCase()}`;
+    }
+  }
+
+  if (typeof content === "string") {
+    const match = content.match(paymentRefRegex);
+    if (match) {
+      return `KAPI-${match[1].toUpperCase()}`;
+    }
+  }
+
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // A. WEBHOOK TESTS
 // ---------------------------------------------------------------------------
@@ -72,11 +95,10 @@ describe("SePay Webhook — Signature Verification", () => {
   });
 
   it("5. Missing KAPI reference is ignored — PAYMENT_REFERENCE_NOT_FOUND", () => {
-    // The extractPaymentReference function requires KAPI-XXXXXXXXXXXX pattern
     const contentWithoutRef = "Chuyen tien thanh toan 500000";
-    const match = contentWithoutRef.match(/KAPI-[0-9A-Fa-f]{12}/);
+    const ref = extractPaymentReference(null, contentWithoutRef);
 
-    assert.equal(match, null);
+    assert.equal(ref, null);
   });
 
   it("6. Wrong amount is rejected — VERIFIED_AMOUNT_MISMATCH", () => {
@@ -89,14 +111,11 @@ describe("SePay Webhook — Signature Verification", () => {
   it("7. Correct real payload fields are parsed — payment reference extraction", () => {
     // Test code field extraction
     const code = "KAPI-A1B2C3D4E5F6";
-    const trimmedCode = code.trim().toUpperCase();
-    assert.match(trimmedCode, /^KAPI-[0-9A-F]{12}$/);
+    assert.equal(extractPaymentReference(code, null), "KAPI-A1B2C3D4E5F6");
 
     // Test content field extraction (fallback)
     const content = "Thanh toan phong KAPI-AABBCCDDEE01 tai Kapi House";
-    const contentMatch = content.match(/KAPI-[0-9A-Fa-f]{12}/);
-    assert.ok(contentMatch);
-    assert.equal(contentMatch[0].toUpperCase(), "KAPI-AABBCCDDEE01");
+    assert.equal(extractPaymentReference(null, content), "KAPI-AABBCCDDEE01");
   });
 
   it("8. Duplicate webhook is idempotent — same provider_event_id returns 200", () => {
@@ -255,3 +274,68 @@ describe("Security — No manual payment confirmation", () => {
     assert.ok(crypto.timingSafeEqual(buf1, buf2));
   });
 });
+
+// ---------------------------------------------------------------------------
+// E. SEPARATOR TOLERANCE & NORMALIZATION TESTS (BUG FIX REGRESSION)
+// ---------------------------------------------------------------------------
+
+describe("SePay Webhook — Payment Reference Separator Tolerance & Normalization", () => {
+  it("Accepts standard hyphenated format: KAPI-F3A31578DD11 → KAPI-F3A31578DD11", () => {
+    assert.equal(extractPaymentReference("KAPI-F3A31578DD11", null), "KAPI-F3A31578DD11");
+    assert.equal(extractPaymentReference(null, "KAPI-F3A31578DD11"), "KAPI-F3A31578DD11");
+  });
+
+  it("Accepts stripped separator format: KAPIF3A31578DD11 → KAPI-F3A31578DD11", () => {
+    assert.equal(extractPaymentReference("KAPIF3A31578DD11", null), "KAPI-F3A31578DD11");
+    assert.equal(extractPaymentReference(null, "KAPIF3A31578DD11"), "KAPI-F3A31578DD11");
+  });
+
+  it("Accepts space separated format: KAPI F3A31578DD11 → KAPI-F3A31578DD11", () => {
+    assert.equal(extractPaymentReference("KAPI F3A31578DD11", null), "KAPI-F3A31578DD11");
+    assert.equal(extractPaymentReference(null, "KAPI F3A31578DD11"), "KAPI-F3A31578DD11");
+  });
+
+  it("Normalizes lowercase variants to uppercase canonical", () => {
+    assert.equal(extractPaymentReference("kapi-f3a31578dd11", null), "KAPI-F3A31578DD11");
+    assert.equal(extractPaymentReference("kapif3a31578dd11", null), "KAPI-F3A31578DD11");
+    assert.equal(extractPaymentReference("kapi f3a31578dd11", null), "KAPI-F3A31578DD11");
+    assert.equal(extractPaymentReference(null, "chuyen tien kapif3a31578dd11"), "KAPI-F3A31578DD11");
+    assert.equal(extractPaymentReference(null, "thanh toan kapi-f3a31578dd11 nha"), "KAPI-F3A31578DD11");
+  });
+
+  it("Rejects invalid references: too short, too long, non-hex, random text", () => {
+    // Too short (3 chars)
+    assert.equal(extractPaymentReference("KAPI123", null), null);
+    assert.equal(extractPaymentReference(null, "KAPI123"), null);
+
+    // 11 hex characters (1 character short)
+    assert.equal(extractPaymentReference("KAPIF3A31578DD1", null), null);
+    assert.equal(extractPaymentReference(null, "KAPIF3A31578DD1"), null);
+
+    // 13 hex characters (1 character too long)
+    assert.equal(extractPaymentReference("KAPIF3A31578DD111", null), null);
+    assert.equal(extractPaymentReference(null, "KAPIF3A31578DD111"), null);
+
+    // Random text
+    assert.equal(extractPaymentReference("random text", null), null);
+    assert.equal(extractPaymentReference(null, "random text"), null);
+
+    // Non-hex characters
+    assert.equal(extractPaymentReference("KAPIF3A31578DD1G", null), null);
+    assert.equal(extractPaymentReference(null, "KAPIF3A31578DD1G"), null);
+    assert.equal(extractPaymentReference("KAPIGGGGGGGGGGGG", null), null);
+    assert.equal(extractPaymentReference(null, "KAPIGGGGGGGGGGGG"), null);
+  });
+
+  it("Exact regression fixture using production content: 'KAPIF3A31578DD11 fJMJUUAZ/480995'", () => {
+    const rawContent = "KAPIF3A31578DD11 fJMJUUAZ/480995";
+    const rawCode = null;
+    const ref = extractPaymentReference(rawCode, rawContent);
+    assert.equal(ref, "KAPI-F3A31578DD11");
+
+    // Also with full description prefix from bank notification
+    const fullDesc = "BankAPINotify KAPIF3A31578DD11 fJMJUUAZ/480995";
+    assert.equal(extractPaymentReference(null, fullDesc), "KAPI-F3A31578DD11");
+  });
+});
+

@@ -94,20 +94,23 @@ function verifySepaySignature(
 
 /**
  * Extracts canonical payment reference:
- * Matches `KAPI-` followed by 12 uppercase hexadecimal characters.
+ * Matches `KAPI-` (with optional '-' or whitespace) followed by exactly 12 hexadecimal characters.
+ * Always normalizes result to canonical: KAPI-${captured.toUpperCase()}
  */
 function extractPaymentReference(code: unknown, content: unknown): string | null {
+  const paymentRefRegex = /\bKAPI[-\s]?([0-9A-Fa-f]{12})\b/i;
+
   if (typeof code === "string") {
-    const trimmedCode = code.trim().toUpperCase();
-    if (/^KAPI-[0-9A-F]{12}$/.test(trimmedCode)) {
-      return trimmedCode;
+    const match = code.trim().match(paymentRefRegex);
+    if (match) {
+      return `KAPI-${match[1].toUpperCase()}`;
     }
   }
 
   if (typeof content === "string") {
-    const match = content.match(/KAPI-[0-9A-Fa-f]{12}/);
+    const match = content.match(paymentRefRegex);
     if (match) {
-      return match[0].toUpperCase();
+      return `KAPI-${match[1].toUpperCase()}`;
     }
   }
 
