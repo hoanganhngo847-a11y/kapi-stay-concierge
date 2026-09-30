@@ -19,6 +19,8 @@ import path from "node:path";
 // -----------------------------------------------------------------------------
 // In-Memory Simulation Engine matching PostgreSQL RPCs & Business Rules
 // -----------------------------------------------------------------------------
+const SIMULATED_NOW = new Date("2026-09-30T08:00:00+07:00");
+
 class MockHoldEngine {
   constructor() {
     this.rooms = new Map();
@@ -39,7 +41,7 @@ class MockHoldEngine {
     checkInAt,
     checkOutAt,
     guestCount,
-    now = new Date(),
+    now = SIMULATED_NOW,
   }) {
     const lockKey = `room_lock_${roomId}`;
 
@@ -136,7 +138,7 @@ class MockHoldEngine {
   }
 
   // Simulates check_room_availability_hourly
-  checkRoomAvailabilityHourly(roomId, checkInAt, checkOutAt, now = new Date()) {
+  checkRoomAvailabilityHourly(roomId, checkInAt, checkOutAt, now = SIMULATED_NOW) {
     const tIn = new Date(checkInAt).getTime();
     const tOut = new Date(checkOutAt).getTime();
     const nowMs = now.getTime();
@@ -191,7 +193,7 @@ class MockHoldEngine {
   }
 
   // Simulates finalize_verified_checkout_atomic with self-hold exclusion
-  finalizeVerifiedCheckoutAtomic(sessionId, now = new Date()) {
+  finalizeVerifiedCheckoutAtomic(sessionId, now = SIMULATED_NOW) {
     const session = this.checkoutSessions.find((s) => s.id === sessionId);
     if (!session) throw new Error("SESSION_NOT_FOUND");
     if (!["ACTIVE", "PAYMENT_PROCESSING"].includes(session.status)) {
@@ -240,7 +242,7 @@ class MockHoldEngine {
   }
 
   // Simulates get_public_room_availability_timeline (strictly sanitized)
-  getPublicRoomAvailabilityTimeline(roomId, rangeStart, rangeEnd, now = new Date()) {
+  getPublicRoomAvailabilityTimeline(roomId, rangeStart, rangeEnd, now = SIMULATED_NOW) {
     const rStartMs = new Date(rangeStart).getTime();
     const rEndMs = new Date(rangeEnd).getTime();
     const nowMs = now.getTime();
