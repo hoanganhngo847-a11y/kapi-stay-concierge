@@ -5,7 +5,6 @@ import { notFound } from "next/navigation";
 import {
   ArrowLeft,
   MapPin,
-  Users,
   ExternalLink,
   ShieldCheck,
   Clock,
@@ -90,11 +89,6 @@ export default async function RoomDetailPage({
       resolvedSearchParams["check-out"] ??
       resolvedSearchParams.checkout
   );
-  const capacityRaw = getFirstParam(
-    resolvedSearchParams.capacity ??
-      resolvedSearchParams.max_guests ??
-      resolvedSearchParams.guests
-  );
   const conflict = getFirstParam(resolvedSearchParams.conflict);
   const initialConflict =
     conflict === "held"
@@ -110,14 +104,6 @@ export default async function RoomDetailPage({
       checkIn >= todayVN &&
       checkOut > checkIn;
 
-  const capacityNum = /^\d+$/.test(capacityRaw) ? Number(capacityRaw) : 0;
-  const initialGuests =
-    Number.isInteger(capacityNum) &&
-    capacityNum > 0 &&
-    capacityNum <= room.capacity
-      ? capacityNum
-      : undefined;
-
   const catalogParams = new URLSearchParams();
   if (propertyId === room.property_id) {
     catalogParams.set("property_id", propertyId);
@@ -125,9 +111,6 @@ export default async function RoomDetailPage({
   if (hasValidDatePair) {
     catalogParams.set("check_in", checkIn);
     catalogParams.set("check_out", checkOut);
-  }
-  if (initialGuests) {
-    catalogParams.set("capacity", String(initialGuests));
   }
 
   const catalogQuery = catalogParams.toString();
@@ -155,9 +138,6 @@ export default async function RoomDetailPage({
                   {room.property.name}
                 </Badge>
               )}
-              <Badge variant="neutral" size="sm" icon={<Users className="w-3 h-3" />}>
-                Tối đa {room.capacity} khách
-              </Badge>
             </div>
 
             <h1 className="text-2xl sm:text-4xl font-normal text-[#111111] tracking-tight mb-2">
@@ -282,7 +262,6 @@ export default async function RoomDetailPage({
             room={room}
             initialCheckIn={hasValidDatePair ? checkIn : undefined}
             initialCheckOut={hasValidDatePair ? checkOut : undefined}
-            initialGuests={initialGuests}
             initialConflict={initialConflict}
           />
         </div>

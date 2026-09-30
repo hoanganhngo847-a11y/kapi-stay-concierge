@@ -110,7 +110,6 @@ export default async function CheckoutPage({
     checkOut: rawCheckOut,
     checkInAt: rawCheckInAt,
     checkOutAt: rawCheckOutAt,
-    guests: guestsStr,
     sessionId: existingSessionId,
   } = params;
 
@@ -128,7 +127,6 @@ export default async function CheckoutPage({
     rawQuery.set("checkOut", checkOut);
     rawQuery.set("checkOutAt", checkOut);
   }
-  if (guestsStr) rawQuery.set("guests", guestsStr);
   if (existingSessionId) rawQuery.set("sessionId", existingSessionId);
   const returnUrl =
     rawQuery.size > 0 ? `/checkout?${rawQuery.toString()}` : "/checkout";
@@ -318,10 +316,7 @@ export default async function CheckoutPage({
     );
   }
 
-  // Parse số khách
-  const guestCount = Math.max(1, parseInt(guestsStr ?? "1", 10) || 1);
-
-  // Tải thông tin phòng để hiển thị tên và kiểm tra capacity phía client.
+  // Tải thông tin phòng để hiển thị tên nếu có lỗi
   // gross_amount_vnd được tính server-side bởi RPC create_hourly_checkout_session_atomic
   // (hourly_price_vnd × số giờ) — không cần tính ở đây nữa.
   const { data: room, error: roomError } = await getPublicRoomById(roomId);
@@ -337,27 +332,12 @@ export default async function CheckoutPage({
     );
   }
 
-  // Kiểm tra số khách không vượt capacity (pre-flight trước khi gọi RPC)
-  if (guestCount > room.capacity) {
-    return (
-      <CheckoutPageLayout>
-        <CheckoutError
-          title="Vượt quá sức chứa phòng"
-          message={`Phòng ${room.name} chỉ chứa tối đa ${room.capacity} khách. Vui lòng chọn lại số lượng khách.`}
-          backHref={`/rooms/${roomId}`}
-          backLabel="Quay lại trang phòng"
-        />
-      </CheckoutPageLayout>
-    );
-  }
-
   // Tạo checkout session mới qua RPC (gross_amount_vnd được tính server-side từ hourly_price_vnd × số giờ)
   const { sessionId: newSessionId, error: createError } =
     await createCheckoutSession({
       roomId: room.id,
       checkInAt: new Date(tIn).toISOString(),
       checkOutAt: new Date(tOut).toISOString(),
-      guestCount,
     });
 
   if (createError || !newSessionId) {

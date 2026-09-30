@@ -175,7 +175,7 @@ export type Database = {
           discount_amount_vnd: number
           final_paid_amount_vnd: number
           gross_amount_vnd: number
-          guest_count: number
+          guest_count: number | null
           id: string
           menu_amount_vnd: number
           payment_status: string
@@ -194,7 +194,7 @@ export type Database = {
           discount_amount_vnd?: number
           final_paid_amount_vnd: number
           gross_amount_vnd: number
-          guest_count: number
+          guest_count?: number | null
           id?: string
           menu_amount_vnd?: number
           payment_status: string
@@ -213,7 +213,7 @@ export type Database = {
           discount_amount_vnd?: number
           final_paid_amount_vnd?: number
           gross_amount_vnd?: number
-          guest_count?: number
+          guest_count?: number | null
           id?: string
           menu_amount_vnd?: number
           payment_status?: string
@@ -320,7 +320,7 @@ export type Database = {
           expires_at: string
           final_payable_amount_vnd: number
           gross_amount_vnd: number
-          guest_count: number
+          guest_count: number | null
           id: string
           menu_amount_vnd: number
           payment_reference: string | null
@@ -339,7 +339,7 @@ export type Database = {
           expires_at: string
           final_payable_amount_vnd: number
           gross_amount_vnd: number
-          guest_count: number
+          guest_count?: number | null
           id?: string
           menu_amount_vnd?: number
           payment_reference?: string | null
@@ -358,7 +358,7 @@ export type Database = {
           expires_at?: string
           final_payable_amount_vnd?: number
           gross_amount_vnd?: number
-          guest_count?: number
+          guest_count?: number | null
           id?: string
           menu_amount_vnd?: number
           payment_reference?: string | null
@@ -1198,7 +1198,7 @@ export type Database = {
         Args: {
           p_check_in_at: string
           p_check_out_at: string
-          p_guest_count: number
+          p_guest_count?: number | null
           p_room_id: string
         }
         Returns: Json

@@ -18,7 +18,7 @@ export async function createHoldSessionAction(params: {
   roomId: string;
   checkIn: string;
   checkOut: string;
-  guests: number;
+  guests?: number;
 }): Promise<CreateHoldResult> {
   const supabase = await createClient();
   const { data: claimsData } = await supabase.auth.getClaims();
@@ -29,7 +29,6 @@ export async function createHoldSessionAction(params: {
     checkOut: params.checkOut,
     checkInAt: params.checkIn,
     checkOutAt: params.checkOut,
-    guests: String(params.guests),
   }).toString();
 
   // Enforce authentication before creating hold
@@ -44,7 +43,7 @@ export async function createHoldSessionAction(params: {
     roomId: params.roomId,
     checkInAt: params.checkIn,
     checkOutAt: params.checkOut,
-    guestCount: params.guests,
+    guestCount: params.guests ?? null,
   });
 
   if (error || !sessionId) {

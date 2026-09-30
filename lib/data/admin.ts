@@ -349,7 +349,7 @@ export interface StaffDashboardData {
     check_out: string;
     check_in_at?: string | null;
     check_out_at?: string | null;
-    guest_count: number;
+    guest_count: number | null;
     booking_status: string;
     payment_status: string;
     menu_amount_vnd?: number;
@@ -913,7 +913,10 @@ export function validateStaffDashboardBoundary(data: unknown): StaffDashboardDat
     const checkOut = validateRequiredDate(b.check_out, "check_out", context);
     const checkInAt = validateOptionalTimestamp(b.check_in_at, "check_in_at", context);
     const checkOutAt = validateOptionalTimestamp(b.check_out_at, "check_out_at", context);
-    const guestCount = validatePositiveInteger(b.guest_count, "guest_count", context);
+    const guestCount =
+      b.guest_count != null
+        ? validatePositiveInteger(b.guest_count, "guest_count", context)
+        : null;
     const bookingStatus = validateRequiredString(b.booking_status, "booking_status", context);
     const paymentStatus = validateRequiredString(b.payment_status, "payment_status", context);
     if (typeof b.is_checkin_today !== "boolean") {
@@ -1995,7 +1998,7 @@ export interface AdminTimelineBooking {
   booking_status: string;
   payment_status: string;
   guest_name: string;
-  guest_count: number;
+  guest_count: number | null;
   menu_item_count: number;
 }
 
@@ -2066,7 +2069,7 @@ export interface AdminBookingDetail {
   guest_name: string;
   guest_phone: string | null;
   guest_email: string | null;
-  guest_count: number;
+  guest_count: number | null;
   check_in_at: string;
   check_out_at: string;
   booking_status: string;

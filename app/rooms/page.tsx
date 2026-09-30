@@ -176,7 +176,6 @@ export default async function RoomsPage({ searchParams }: RoomsPageProps) {
                       coverImage={coverImage}
                       name={room.name || "Chưa cập nhật"}
                       location={locationName}
-                      maxGuests={room.capacity}
                       bedType={bedType}
                       price={room.hourly_price_vnd}
                       room={room}

@@ -24,7 +24,7 @@ export interface MyStayBookingDetails {
   checkOut: string;
   checkInAt?: string | null;
   checkOutAt?: string | null;
-  guestCount: number;
+  guestCount?: number | null;
   finalPaidAmount: number;
   bookingStatus: string;
   paymentStatus: string;

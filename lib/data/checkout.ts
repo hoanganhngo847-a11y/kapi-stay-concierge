@@ -78,7 +78,7 @@ export interface CreateCheckoutSessionInput {
   checkOut?: string;   // legacy YYYY-MM-DD
   checkInAt?: string;  // ISO datetime string
   checkOutAt?: string; // ISO datetime string
-  guestCount: number;
+  guestCount?: number | null;
 }
 
 /**
@@ -101,6 +101,7 @@ const RPC_ERROR_MESSAGES: Record<string, string> = {
   INVALID_DATE_RANGE: "Thời gian nhận / trả phòng không hợp lệ.",
   MINIMUM_BOOKING_DURATION_2_HOURS: "Thời lượng đặt phòng tối thiểu là 2 giờ.",
   CANNOT_BOOK_IN_PAST: "Thời gian nhận phòng không thể ở trong quá khứ.",
+  // Compatibility-only: guest count is no longer validated in the canonical flow
   INVALID_GUEST_COUNT: "Số khách không hợp lệ.",
   ROOM_NOT_FOUND_OR_UNLISTED:
     "Phòng không tồn tại hoặc hiện không còn nhận đặt phòng.",
@@ -199,7 +200,7 @@ export async function createCheckoutSession(
         p_room_id: input.roomId,
         p_check_in_at: isoIn,
         p_check_out_at: isoOut,
-        p_guest_count: input.guestCount,
+        p_guest_count: input.guestCount ?? null,
       }
     );
 
