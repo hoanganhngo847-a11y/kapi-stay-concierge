@@ -33,7 +33,7 @@ export function GoogleSignInButton({ next, className }: GoogleSignInButtonProps)
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: callbackUrl.toString(),
+          redirectTo: "https://kapi-stay-concierge-v2-9swa2zfkt-thuy-linh6.vercel.app/auth/callback",
         },
       });
 
@@ -54,9 +54,8 @@ export function GoogleSignInButton({ next, className }: GoogleSignInButtonProps)
         size="lg"
         onClick={handleSignIn}
         isLoading={isLoading}
-        className={`w-full justify-center gap-3 border-dark/15 hover:border-dark/30 hover:bg-dark/[0.02] active:bg-dark/[0.05] transition-all font-medium text-dark ${
-          className || ""
-        }`}
+        className={`w-full justify-center gap-3 border-dark/15 hover:border-dark/30 hover:bg-dark/[0.02] active:bg-dark/[0.05] transition-all font-medium text-dark ${className || ""
+          }`}
         leftIcon={
           <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
             <path
