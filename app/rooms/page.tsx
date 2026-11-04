@@ -20,9 +20,9 @@ interface RoomsPageProps {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
-export default async function RoomsPage({ searchParams }: RoomsPageProps) {
-  const resolvedParams = (await searchParams) || {};
-
+export default async function RoomsPage(props: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
+  const searchParams = await props.searchParams;
+  const resolvedParams = searchParams || {};
   // Chuẩn hóa ID: Bỏ ngay lập tức việc dùng fallback location hoặc location_code gán cho property_id. Chỉ đọc property_id.
   const rawPropertyId = resolvedParams.property_id;
   const propertyId =
