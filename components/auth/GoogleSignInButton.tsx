@@ -34,7 +34,7 @@ export function GoogleSignInButton({ next, className }: GoogleSignInButtonProps)
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: callbackUrl.toString(),
+          redirectTo: "https://kapi-stay-concierge-v2-9swa2zfkt-thuy-linh6.vercel.app/auth/callback",
         },
       });
 
